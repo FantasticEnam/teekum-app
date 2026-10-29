@@ -2,7 +2,9 @@
 
 **Author:** Agent 0 (Technical Lead)  
 **Date:** 27 October 2026  
-**Status:** Approved for Implementation  
+**Status:** Historical prototype plan; not the current team architecture baseline.
+
+> **2026-10-29:** The layer-based folder tree and five-agent assignment below are retained as historical context. For the proposed MVVM Feature-Driven structure and four-human-developer ownership, use [TechnicalRequirements Section 3](TechnicalRequirements.md#3-architecture--mvvm-feature-driven). Old protocol/contracts remain subject to [documentation review](DOCUMENTATION_REVIEW.md).
 **Target Milestone:** Phase 1 — Direct Offline MVP (Pure MVVM, 100% Native Apple Frameworks)
 
 ---

@@ -5,6 +5,68 @@
 
 ---
 
+### [2026-10-29 15:44] — Documentation: File-level foldering, enum placement and iOS 27 minimum
+- **Contributor / Agent:** Codex
+- **Status:** Completed (documentation only)
+- **Target Phase / Milestone:** Four-developer implementation preparation
+
+#### 1. Objective & Scope
+- Expand the target architecture into individual file names with `//` responsibility comments, raise the team deployment minimum to iOS 27, and place payload-free status/category enums in `Models/Enums/` as requested.
+
+#### 2. Changes Made & Files Touched
+- `docs/TechnicalRequirements.md`: detailed app/feature/core/widget/test/docs tree, model/enum placement rules, migration mapping and app/extension/test deployment baseline.
+- `docs/agent.md`: align platform minimum and enum convention with the canonical architecture.
+- `docs/NETWORKING.md`: update current target platform to iOS 27+.
+- `docs/PHYSICAL_DEVICE_TEST_CHECKLIST.md`, `docs/PHYSICAL_DEVICE_SOS_VALIDATION.md`: update physical device prerequisites to iOS 27+.
+- `docs/DOCUMENTATION_REVIEW.md`: record updated platform decision and foldering convention.
+- `docs/DEVELOPMENT_LOG.md`: record this follow-up; preserve older prototype reports and historical test claims.
+
+#### 3. Key Decisions & Rationale
+- Shared category enums live in Core/Models/Enums; feature/subsystem-only enums stay within their owner's Models/Enums.
+- Raw-value enums are permitted in Enums; associated-value enums remain in Models. Structured event details stay in data records.
+- The detailed tree is a placement guide, not a requirement to create empty placeholders. TCP framing and Live Activity files remain conditional on scope/transport decisions.
+
+#### 4. Verification & Testing Performed
+- Checked Markdown fences, architecture document links, file-tree responsibility comments, target-platform references, enum paths and diff whitespace. A broader link check found an existing `docs/AGENT_PROMPT.md` reference in imported `agent.md` that has no target in this workspace; this unrelated legacy link remains unresolved.
+- No Xcode build, tests or device runs: only documentation was supplied; deployment settings must be applied when implementation starts.
+
+#### 5. Open Items & Next Steps
+- Team review of individual file responsibilities and existing protocol/runtime open decisions.
+- Apply iOS 27 deployment targets in the actual app/widget project and verify on supported devices when source is available.
+
+---
+
+### [2026-10-29 15:35] — Documentation: MVVM Feature-Driven team baseline
+- **Contributor / Agent:** Codex
+- **Status:** Completed (documentation only; proposed architecture pending team review)
+- **Target Phase / Milestone:** Four-developer implementation preparation
+
+#### 1. Objective & Scope
+- Review imported prototype documentation and supplied screenshots; prepare feature-based MVVM architecture and foldering without source code.
+
+#### 2. Changes Made & Files Touched
+- `docs/TechnicalRequirements.md`: replace architecture section with feature boundaries, target folders, session state/task ownership, dependency/concurrency rules, developer split and migration mapping. Qualify test/completion claims and distinguish build from test execution.
+- `docs/agent.md`: replace duplicate architecture tree with canonical reference and aligned rules.
+- `docs/POC_IMPLEMENTATION_PLAN.md`: label old folder/agent plan as historical and link the new target.
+- `docs/DOCUMENTATION_REVIEW.md`: initial anomaly register, evidence limits, discussion order and Apple platform references.
+- `docs/DEVELOPMENT_LOG.md`: record this pass; preserve historical entries.
+
+#### 3. Key Decisions & Rationale
+- MVVM within features; shared platform/session infrastructure in Core; reusable UI in Shared. No package split or mandatory Repository/UseCase layer.
+- One accepted session state owner and one session task lifecycle owner; no direct feature-to-feature dependency.
+- Historical protocol/report contradictions remain explicit open decisions, not silently converted into verified behavior.
+
+#### 4. Verification & Testing Performed
+- Reviewed documentation diff, local Markdown links, section structure and remaining architecture references.
+- Checked Apple documentation for peer-to-peer Wi-Fi and Live Activity/background location responsibilities.
+- No source build, executable tests or physical-device tests run: app source and test targets were not supplied.
+
+#### 5. Open Items & Next Steps
+- Team review of proposed feature/ownership boundaries; inspect actual source when available.
+- Resolve protocol/identity/security conflicts and define reproducible runtime acceptance evidence.
+
+---
+
 ### [2026-10-29 12:22] — Documentation: Phase 1 Development Report & Specification Synchronization
 - **Contributor / Agent:** Agent 0 — Technical Lead Agent
 - **Status:** Completed

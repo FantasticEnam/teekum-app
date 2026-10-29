@@ -10,8 +10,8 @@
 ## 1. Prerequisites and Device Setup
 
 ### 1.1 Equipment Requirements
-- **Device A:** Physical iPhone running iOS 17.0+ (Sender / Tester).
-- **Device B:** Physical iPhone running iOS 17.0+ (Receiver / Peer Observer).
+- **Device A:** Physical iPhone running iOS 27.0+ (Sender / Tester).
+- **Device B:** Physical iPhone running iOS 27.0+ (Receiver / Peer Observer).
 - Both devices must have **Bluetooth** and **Wi-Fi** radios powered **ON** in iOS Control Center.
 - **AirDrop / AWDL:** Must be enabled (`Settings > General > AirDrop > Everyone for 10 Minutes` or `Contacts Only`).
 

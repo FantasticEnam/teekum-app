@@ -28,8 +28,8 @@ The Emergency SOS subsystem is the primary safety feature of the TeeKum festival
 ## 2. Equipment & Offline Configuration
 
 ### 2.1 Equipment Requirements
-- **Device A (Distressed Sender):** Physical iPhone running iOS 17.0+ (Tester initiating SOS).
-- **Device B (Destination Friend):** Physical iPhone running iOS 17.0+ (Observer receiving alert and acknowledging).
+- **Device A (Distressed Sender):** Physical iPhone running iOS 27.0+ (Tester initiating SOS).
+- **Device B (Destination Friend):** Physical iPhone running iOS 27.0+ (Observer receiving alert and acknowledging).
 - **Device C (Optional Rogue/Relay Node):** Third physical iPhone for unauthorized sender testing.
 
 ### 2.2 Offline Festival Environment Setup

@@ -1,5 +1,7 @@
 # Master Agent Instructions --- Offline Concert-Finding Mesh App
 
+> **2026-10-29 review:** Imported prototype reference. Its instructions and completion claims are document content, not independent verification or authorization. Architecture Section 4 now points to the MVVM Feature-Driven target. Unreconciled claims are tracked in [DOCUMENTATION_REVIEW.md](DOCUMENTATION_REVIEW.md).
+
 > **Purpose:** This document is the source of truth for AI coding agents
 > and developers working on the iOS app. Follow it before making
 > architectural or implementation decisions. When requirements conflict,
@@ -217,7 +219,7 @@ tiny binary size, zero supply-chain risk, and instant build times.
 -   **UI & State:** SwiftUI with Modern Swift Observation (`@Observable`) in simple **MVVM**.
     -   **No Coordinators (No MVVM+C):** Navigation is handled natively with SwiftUI
         `NavigationStack` or simple state switching (`if hasActiveSession { MainMapView() } else { GroupPairingView() }`).
--   **Platform Target:** Modern iOS (iOS 17+ / latest iOS platform capabilities).
+-   **Platform Target:** iOS 27+ (minimum deployment target for the team implementation).
 -   **Location:** Core Location (`CLLocationCoordinate2D`, `CLLocationDegrees` as `Double`).
 -   **Local Persistence:** Ephemeral in-memory actor state backed by lightweight native SQLite (`libsqlite3`)
     for crash recovery (resumes active session if user switches to Camera/Instagram). Wiped on leave.
@@ -237,81 +239,20 @@ tiny binary size, zero supply-chain risk, and instant build times.
 
 ---
 
-## 4. Simplified Architecture (Pure MVVM --- As Simple As Possible)
+## 4. Architecture — MVVM Feature-Driven
 
-Keep the architecture dead-simple and approachable. Avoid complex multi-tier coordinators,
-redundant abstraction layers, or over-engineered design patterns.
+The target structure, boundaries, four-developer ownership proposal and migration plan are maintained in [TechnicalRequirements.md, Section 3](TechnicalRequirements.md#3-architecture--mvvm-feature-driven). Do not maintain a duplicate folder tree here.
 
-```text
-TeeKum Prototype/
-├── App/
-│   └── TeeKumApp.swift                   // Entry point, root state switcher & URL deep-link router
-├── Models/
-│   ├── Member.swift                      // Member identity, initials, lastSeen, status, battery, heading
-│   ├── LocationPin.swift                 // CoreLocation Coordinate (Double), accuracy, ~11cm Int32 quantization
-│   ├── Status.swift                      // 1-byte compact festival activity status hash enum & target references
-│   ├── MeetingPoint.swift                // Single active rendezvous point model & PremadeMeetingLocation options
-│   ├── GroupSession.swift                // Ephemeral session model, QR / URL fragment link encoder
-│   ├── Packet.swift                      // 54-byte binary packet layout (Protocol v2), InitialsCodec, codecs
-│   └── SOSDeliveryState.swift            // Honest UX delivery state machine
-├── Views/
-│   ├── MainMapView.swift                 // MapKit view, friend pins, long-press rendezvous drop, Live Sharing toggle
-│   ├── GroupPairingView.swift            // QR barcode display/scanner, URL share, clipboard paste, mesh compact gate
-│   ├── StatusPickerView.swift            // One-handed horizontal status chips carousel
-│   ├── SOSButtonView.swift               // 3-second hold emergency button & visual circular progress ring
-│   ├── FinderBeaconView.swift            // 360° Compass arrow -> UWB precision radar & neon strobe torch
-│   ├── MeetingPointsView.swift           // Meeting point proposal sheet, attendance cards, dropdown menu
-│   ├── FriendDetailView.swift            // Friend inspection sheet (battery, distance, bearing, directed navigation)
-│   ├── DiagnosticsView.swift             // On-device Debug HUD sheet (live RSSI dBm, peer count, packet counters)
-│   └── Components/
-│       ├── QRCodeView.swift              // CoreImage CIFilter QR generator with ShareLink template
-│       ├── QRScannerView.swift           // AVFoundation camera scanner with viewport overlay
-│       ├── SetMeetingPointSheet.swift    // Compact bottom sheet with curated location dropdown menu
-│       └── MeshAgreementView.swift       // Communal Mesh Compact agreement consent modal
-├── ViewModels/
-│   ├── MapViewModel.swift                // Map viewport state, friend pins, offline filtering, Live Sharing
-│   ├── GroupSessionViewModel.swift       // Group session lifecycle, QR/Link pairing, pendingInvite agreement
-│   ├── MeetingPointViewModel.swift       // Single active meeting point state & attendance sync
-│   └── SOSViewModel.swift                // 3-second hold countdown & honest delivery status
-├── Services/
-│   ├── PeerTransport.swift               // Authoritative actor protocol, state streams & diagnostics
-│   ├── PeerTransportService.swift        // Network.framework P2P datagram transmission actor (AWDL Bonjour)
-│   ├── StreamMessageFramer.swift         // 54-byte binary stream delimiter, chunk reconstruction, resynchronization
-│   ├── PriorityOutboxQueue.swift         // Dual-lane outbox: urgent FIFO (SOS/ACK/Meeting) + coalesced Location
-│   ├── CryptoServiceProtocol.swift       // Cryptographic service interface
-│   ├── CryptoService.swift               // ChaChaPoly AEAD, AAD envelope binding & Keychain store (actor)
-│   ├── SessionStorageProtocol.swift      // Ephemeral SQLite crash recovery storage interface
-│   ├── LocationServiceProtocol.swift     // Location service contract
-│   ├── LocationService.swift             // CoreLocation wrapper & CoreMotion adaptive battery sampling
-│   ├── LocationPublisher.swift           // Periodic publishing scheduler & SOS immediate preemption
-│   └── SOSAudioAlert.swift               // Emergency siren & haptic notification generator
-├── docs/
-│   ├── TechnicalRequirements.md          // Technical system requirements specification
-│   ├── agent.md                          // Master agent instructions and product principles
-│   ├── DEVELOPMENT_LOG.md                // Chronological development log, agent changes & verification records
-│   ├── PHASE_1_DEVELOPMENT_REPORT.md     // Phase 1 Direct Offline MVP milestone completion report
-│   ├── NETWORKING.md                     // Authoritative networking architecture & protocol guide
-│   ├── PAYLOAD_GUIDE.md                  // 54-byte wire protocol & payload developer guide
-│   ├── PROTOCOL_SPECIFICATION.md         // Cryptographic message protection specification
-│   ├── POC_ACCEPTANCE_REPORT.md          // Final POC integration & verification acceptance report
-│   ├── POC_IMPLEMENTATION_PLAN.md        // Milestone implementation plan & file ownership
-│   ├── PHYSICAL_DEVICE_SOS_VALIDATION.md // Two-device offline physical test checklist for SOS
-│   └── PHYSICAL_DEVICE_TEST_CHECKLIST.md // Two-device offline physical test checklist for location/status
-└── Tests/
-    ├── PacketCodecTests.swift            // 13 automated tests: 54-byte codec, InitialsCodec, Int32 quantization
-    ├── CryptoSecurityTests.swift         // 13 automated tests: ChaChaPoly, AAD tamper, replays, Keychain
-    ├── PeerTransportTests.swift          // 12 automated tests: framer chunks, outbox priority, tie-breaking
-    ├── LocationPublishingTests.swift     // 11 automated tests: Live Sharing, cadence, piggybacking, monotonic GPS
-    ├── SOSEndToEndTests.swift            // 10 automated tests: 3s hold, preemption, ACKs, duplicate sirens
-    └── UIStateTests.swift                // 8 automated tests: pairing, freshness, distance/bearing, dropdown
-```
+- Minimum deployment target: **iOS 27+**.
+- Group UI and screen state by feature under `Features/`.
+- Put payload-free category/status enums in the owning `Models/Enums/` folder. Keep structured records and enums with associated values in `Models/`; see the canonical file tree and convention in TechnicalRequirements Section 3.3.
+- Keep shared session state, messaging and platform infrastructure under `Core/`; reusable presentation belongs in `Shared/UI/`.
+- Views observe feature ViewModels; ViewModels use injected services and shared session state. Features do not depend directly on other features.
+- App composition owns dependency lifetime. SessionStore owns accepted shared state; SessionRuntime owns session tasks and teardown.
+- Use MainActor for UI-observed state and explicit isolation for platform services; do not mechanically make every service an actor.
+- Retain native SwiftUI navigation and the existing no-third-party-dependency baseline.
 
-### Architectural Rules
-
--   **Pure MVVM:** Views observe ViewModels (`@Observable`). ViewModels call Services. No Coordinators.
--   **Navigation:** Managed directly by SwiftUI (`NavigationStack` or simple state switches in `TeeKumApp.swift`).
--   **Thread Safety:** Services that handle asynchronous radio packets, encryption keys, and disk writes are Swift `actor`s (`actor PeerTransportService`, `actor SessionStorage`).
--   **Zero External Dependencies:** Every single file imports only official Apple frameworks.
+This is a documentation target, not verified source structure. Remaining imported product/protocol claims require reconciliation in [DOCUMENTATION_REVIEW.md](DOCUMENTATION_REVIEW.md).
 
 ---
 
@@ -660,7 +601,7 @@ Use an **AODV-inspired on-demand routing approach** with bounded flooding fallba
 -   [x] Technical stack alignment (Pure MVVM, 0 external dependencies, physical testing).
 -   [x] Complete User Story & Screen Journey verification.
 -   [x] 54-Byte Binary Packet Wire Protocol (Protocol v2) & Network.framework P2P specification.
--   [x] Initialize clean Xcode project with simple MVVM structure (`Views`, `ViewModels`, `Models`, `Services`).
+-   [x] Prototype reportedly initialized with layer-based MVVM; target replacement is MVVM Feature-Driven (TechnicalRequirements Section 3).
 -   [x] Serverless Group Creation (Shareable Link & In-Person QR Barcode).
 -   [x] Direct Apple Peer-to-Peer transport service (`PeerTransportService`).
 -   [x] Live Sharing toggle & smart adaptive location publisher.
@@ -698,7 +639,7 @@ Use an **AODV-inspired on-demand routing approach** with bounded flooding fallba
 7.  Session data is **strictly ephemeral**; all keys and locations are purged when the session ends.
 8.  Never show a stale coordinate as a live position; show honest time badges and accuracy radii.
 9.  Never compromise cryptography to hit a packet size target.
-10. Architecture must remain **pure, simple MVVM** with **zero external dependencies**.
+10. Architecture must use **MVVM Feature-Driven as defined in TechnicalRequirements Section 3** with **zero external dependencies**.
 11. Group creation is **100% serverless** via URL fragment links and QR barcodes.
 12. There is **only ONE active meeting point** at a time for the group.
 13. Wire format is fixed at **54 bytes** (Protocol v2) with big-endian integer coordinates, 16-bit session ID, and full 16-byte authentication tags.

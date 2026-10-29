@@ -1,8 +1,10 @@
 # TeeKum
 
 **Technical Requirements · Fantasix Team**
-**Last updated:** 28 October 2026  
-**Status:** Planning document; distinguishing the current prototype from planned MVP integration.
+**Last updated:** 29 October 2026
+**Status:** Planning document. Section 3 defines the proposed MVVM Feature-Driven baseline for the four-developer team. Prototype behavior and test results elsewhere are historical AI-reported claims, not independently verified in this docs-only workspace.
+
+> **Reading priority:** Section 3 supersedes earlier layer-based foldering. Framework examples and old `Services/` / `Views/` paths in Section 2 describe the prototype; use Section 3.6 for target destinations. Protocol, platform, and product contradictions remain open in [DOCUMENTATION_REVIEW.md](DOCUMENTATION_REVIEW.md). Labels such as “approved”, “confirmed”, or checked roadmap items in imported documents do not establish team acceptance or runtime proof.
 
 ---
 
@@ -11,8 +13,8 @@
 **App name:** TeeKum  
 **Team name:** Fantasix  
 **Team members:** Adiat (Developer), Daffa (Developer), Hasan (Developer), Nicho (Developer), Ayu (Designer), Ivanna (Designer)
-**Platform and minimum version:** iOS 17+  
-**UI framework:** SwiftUI (Modern Swift Observation `@Observable`, Pure MVVM)  
+**Platform and minimum version:** iOS 27+
+**UI framework:** SwiftUI (Modern Swift Observation `@Observable`, MVVM Feature-Driven)
 
 **Description:**  
 TeeKum is an offline-first iOS app designed to help friends locate one another in crowded concerts, music festivals, and large venues where cellular data or internet access is weak or unavailable. Users form private groups, share their real-time coordinates and current activity status, view friends on an offline map, establish meeting points, and navigate directly toward a selected person.
@@ -30,7 +32,7 @@ The system is designed to be completely serverless (*100% serverless*). Devices 
 - **Visual Strobe Beacon:** A 1-tap button turns the screen into a high-visibility, high-contrast flashing neon torch to hold above dark, dense crowds.
 - **Communal Mesh Compact (Phase 2):** Group membership is an all-in community agreement: joining a group requires agreeing to be a mesh relay node (*"Join the Mesh: Relay for others while others relay for you. Battery-protected; shuts off at 20%"*). Participating devices forward multi-hop encrypted packets for group members and blindly relay encrypted packets for outside festival attendees. Relaying is strictly zero-knowledge (only 4-byte cleartext header inspected; payloads remain AES-GCM encrypted), rate-capped at $\le 2$ pkts/sec with 256 LRU deduplication, and automatically suspends at 20% battery.
 - **Festival Survival Mode:** When device battery drops below 20% or enters Low Power Mode, the app automatically suspends stranger mesh relaying, terminates background execution, and throttles GPS sampling to reserve battery strictly for emergency SOS and viewing the offline meeting map.
-- **Radical Simplicity:** Engineered with a pure MVVM architecture without Coordinators (no MVVM+C) and built with 100% native Apple frameworks (zero third-party dependencies).
+- **Radical Simplicity:** Targeted to use MVVM Feature-Driven architecture without Coordinators (no MVVM+C) and built with 100% native Apple frameworks (zero third-party dependencies).
 
 ### 1.2 Approved Review Decisions
 
@@ -291,7 +293,7 @@ final class LocationSamplingPolicy {
 | Method / Function / Class | What it does | How we use it in our app | File |
 | :--- | :--- | :--- | :--- |
 | `ActivityAttributes` | Protocol defining static and dynamic properties of a Live Activity. | Encapsulates festival session data, group name, and relay approval states. | `RelayActivityAttributes.swift` |
-| `LiveActivityIntent` | Protocol enabling interactive buttons directly on the Lock Screen (iOS 17+). | Powers **[Approve Relay]** and **[Decline]** actions without unlocking the device. | `RelayAppIntents.swift` |
+| `LiveActivityIntent` | Protocol enabling interactive buttons directly on the Lock Screen. | Powers **[Approve Relay]** and **[Decline]** actions without unlocking the device. | `RelayAppIntents.swift` |
 | `Activity.request(...)` | Starts a Live Activity instance on Dynamic Island and Lock Screen. | Called upon creating or joining an active festival session. | `DiagnosticsView.swift` |
 
 ---
@@ -333,137 +335,303 @@ The `Security` framework provides hardware-backed credential and key storage wit
 
 ---
 
-## 3. Architecture
+## 3. Architecture — MVVM Feature-Driven
 
-### 3.1 Architecture Name
+### 3.1 Architecture Name & Status
 
-**Architecture:** Pure MVVM (Model–View–ViewModel) built with modern Swift Observation (`@Observable`), designed with *Radical Simplicity* without Coordinators (no MVVM+C).
+**Target architecture:** MVVM Feature-Driven with SwiftUI and Swift Observation (`@Observable`), minimum iOS 27+. This is a documentation design baseline for the four-developer team, pending implementation and team review. It is not a claim that the prototype already uses this structure.
 
-### 3.2 Why We Chose It
+**Deployment baseline:** Set the app and any included Widget Extension deployment targets to iOS 27.0. Configure test targets and destinations against that baseline, using an SDK/toolchain that supports it. Field-test devices must run iOS 27 or later. This docs-only change does not modify Xcode build settings.
 
-1. **Elimination of Boilerplate:** Avoids complicated Coordinator routing patterns. Navigation is handled natively by SwiftUI using `NavigationStack` and simple root-level state switching (`if hasActiveSession { MainMapView() } else { GroupPairingView() }`).
-2. **Performance & Battery Efficiency:** Swift Observation (`@Observable`) updates views only when specific observed properties change. This prevents expensive view re-rendering and eliminates Combine `@Published` boilerplate.
-3. **Clear Boundary Separation:**
-   - **Views:** Declarative SwiftUI components with zero radio or cryptographic logic.
-   - **ViewModels:** Manage screen state, formatting, and user actions.
-   - **Services (Actors):** Manage asynchronous, thread-sensitive tasks (P2P radio, outbox queues, CryptoKit encryption, SQLite writes) safely using Swift `actor`s to eliminate data races.
-4. **Single-Target Focus:** Dedicated 100% to a single iOS iPhone target to ensure radio stability in physical venues.
+MVVM defines responsibilities inside a feature. Feature-Driven defines where related files live. Each feature owns its Views, ViewModels, feature-specific Models, and feature-specific Services. Cross-feature session state and platform infrastructure have explicit shared owners.
 
-### 3.3 Architecture Diagram
+No Coordinator framework, dependency injection package, mandatory Repository/UseCase layer, or separate Swift package per feature is required. Start with folders in one app target. A Live Activity, if included, needs its own widget extension target; it is not an additional app platform.
+
+### 3.2 Dependency & Ownership Rules
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                       SwiftUI Views                         │
-│  (MainMapView, GroupPairingView, FinderBeaconView, etc.)    │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ Observes (@Observable)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    SwiftUI ViewModels                       │
-│  (MapViewModel, GroupSessionViewModel, SOSViewModel, etc.)   │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ Calls async
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Native Services (Actors)                   │
-│   ┌─────────────────────┐       ┌───────────────────────┐   │
-│   │ PeerTransportService│       │    CryptoService      │   │
-│   │ (Network.framework) │       │      (CryptoKit)      │   │
-│   └──────────┬──────────┘       └───────────┬───────────┘   │
-│              │                              │               │
-│   ┌──────────┴──────────┐       ┌───────────┴───────────┐   │
-│   │   LocationService   │       │    SessionStorage     │   │
-│   │    (CoreLocation)   │       │      (SQLite3)        │   │
-│   └─────────────────────┘       └───────────────────────┘   │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ Serializes / Encrypts
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│      54-Byte Wire Packet (Protocol v2) (AWDL / Wi-Fi)       │
-│  [8B Cleartext Envelope] + [30B Ciphertext] + [16B Tag]     │
-└─────────────────────────────────────────────────────────────┘
+App (creates dependencies, owns their lifetime, composes screens)
+  ├── Features/Pairing, Map, MeetingPoint, SOS, Finder, Diagnostics
+  │      View -> ViewModel -> injected service / SessionStore
+  │                               |
+  └── Core (shared models, session state, messaging, platform services)
+                 |
+          Apple frameworks
+
+Shared/UI -> SwiftUI only (reusable presentation)
+Core must not depend on Features. Features must not import each other.
 ```
 
-#### 2-Byte Base-26 Initials Codec (Zero Handshake)
-To eliminate out-of-band P2P connection handshakes, each transmitting member's 3-letter initials ($A\dots Z$) are mapped to a 2-byte big-endian integer:
-- **Radix Formula:** $\text{number} = (a \times 676) + (b \times 26) + c$, where $a, b, c = \text{ASCII} - 65 \in [0 \dots 25]$.
-- **Bit Sizing:** $26^3 = 17{,}576 < 65{,}536$ ($2^{16}$), fitting into exactly 2 bytes (`UInt16`).
-- **Zero Handshake:** Receiving peers immediately render 3-letter badges on the map and radar from decrypted packets without an initial P2P greeting exchange.
+1. **View:** Render state and forward actions. Keep transient presentation state (sheet selection, focus, navigation path) local where appropriate. No sockets, packet parsing, keys, or database access.
+2. **ViewModel:** `@MainActor @Observable` screen state and user actions. Call injected dependencies and map results to UI state. Never own the entire networking pipeline or create global services. A simple reusable view does not need a ViewModel.
+3. **Model:** Swift value types for app data. Payload-free categorical enums belong to the owning `Models/Enums/` folder (Section 3.3). A member's initials are a display label, not a unique identity. Packet DTOs and byte codecs belong to Messaging, not to a map ViewModel.
+4. **Service:** Own a concrete operation or platform lifecycle. Feature-only behavior stays in that feature; shared transport, cryptography, location, and persistence live in Core.
+5. **SessionStore:** One `@MainActor @Observable` owner of accepted session state (membership, latest member samples, active meeting point, emergency state). Feature ViewModels derive screen state from it; do not keep independently writable copies of the same roster or meeting point. Sample receipt time and location measurement time are separate fields.
+6. **SessionRuntime:** Own session-scoped tasks: transport event ingestion, validation, publishing, and teardown. It updates SessionStore through a MainActor boundary. It has no navigation or view references. Feature commands that affect shared state go through this session boundary, rather than each feature constructing encrypted packets.
+7. **Composition:** `AppDependencies` explicitly creates shared dependencies and injects only the capabilities each ViewModel needs. No global singleton/service locator. Create shared services once per intended lifecycle, never during `body` evaluation.
+8. **Concurrency:** Use actors for shared mutable networking/storage state where needed. Do not make every service an actor mechanically: UI-facing state and CoreLocation delegate integration need an explicit isolation plan. Pass immutable `Sendable` snapshots across isolation boundaries. Keep byte processing and blocking persistence work off the MainActor.
+9. **Event delivery:** SessionRuntime is the single consumer of inbound transport packets. It publishes validated state to SessionStore. Do not give multiple ViewModels a competing iterator over the same inbound stream. Cancel subscriptions and timers when their owner ends.
+10. **Shared promotion:** Move code to Core or Shared only when multiple features actually need it. Core contains behavior/data; Shared/UI contains presentation. Avoid catch-all `Utils`, `Helpers`, or `Managers` folders.
 
-### 3.4 Components
+`SessionRuntime` is a session service, not a navigation Coordinator. Its concrete execution context and protocol signatures must be settled against the actual code before implementation.
 
-| Component | What it does | What it must NOT do | Files / folders |
-| :--- | :--- | :--- | :--- |
-| **Models** | Pure Swift data models (`Member`, `LocationPin`, `Status`, `MeetingPoint`, `Packet`). | Must not import SwiftUI, execute radio calls, or run database queries. | `Models/` |
-| **Views** | Declarative UI rendering (maps, compass needle, strobe beacon, 3-second SOS button). | Must not perform cryptographic operations, raw byte serialization, or direct SQLite queries. | `Views/` |
-| **ViewModels** | Manage observable screen state (`@Observable`), format relative time, and trigger service actions. | Must not retain view references or open network sockets directly. | `ViewModels/` |
-| **Services** | Manage platform subsystems (P2P radio, GPS sampling, CryptoKit encryption, Keychain & SQLite storage). | Must not manage screen navigation or present UI alerts directly. | `Services/` |
+### 3.3 Target Folder Structure
 
-### 3.5 Folder Structure
+Paths below are proposed implementation files, not an inventory of source available in this repository. Comments use `//` to explain each file's responsibility. This is a placement guide: do not create empty files or placeholder folders just to complete the tree. Conditional files are marked explicitly.
 
 ```text
-TeeKum Prototype/
+TeeKum/
 ├── App/
-│   └── TeeKumApp.swift                   // Entry point, root state switcher & URL deep-link router
-├── Models/
-│   ├── Member.swift                      // Member identity, initials, lastSeen, status, battery, heading
-│   ├── LocationPin.swift                 // CoreLocation Coordinate (Double), accuracy, ~11cm Int32 quantization
-│   ├── Status.swift                      // 1-byte compact festival activity status hash enum & target references
-│   ├── MeetingPoint.swift                // Single active rendezvous point model & PremadeMeetingLocation options
-│   ├── GroupSession.swift                // Ephemeral session model, QR / URL fragment link encoder
-│   ├── Packet.swift                      // 54-byte binary packet layout (Protocol v2), InitialsCodec, codecs
-│   └── SOSDeliveryState.swift            // Honest UX delivery state machine
-├── Views/
-│   ├── MainMapView.swift                 // MapKit view, friend pins, long-press rendezvous drop, Live Sharing toggle
-│   ├── GroupPairingView.swift            // QR barcode display/scanner, URL share, clipboard paste, mesh compact gate
-│   ├── StatusPickerView.swift            // One-handed horizontal status chips carousel
-│   ├── SOSButtonView.swift               // 3-second hold emergency button & visual circular progress ring
-│   ├── FinderBeaconView.swift            // 360° Compass arrow -> UWB precision radar & neon strobe torch
-│   ├── MeetingPointsView.swift           // Meeting point proposal sheet, attendance cards, dropdown menu
-│   ├── FriendDetailView.swift            // Friend inspection sheet (battery, distance, bearing, directed navigation)
-│   ├── DiagnosticsView.swift             // On-device Debug HUD sheet (live RSSI dBm, peer count, packet counters)
-│   └── Components/
-│       ├── QRCodeView.swift              // CoreImage CIFilter QR generator with ShareLink template
-│       ├── QRScannerView.swift           // AVFoundation camera scanner with viewport overlay
-│       ├── SetMeetingPointSheet.swift    // Compact bottom sheet with curated location dropdown menu
-│       └── MeshAgreementView.swift       // Communal Mesh Compact agreement consent modal
-├── ViewModels/
-│   ├── MapViewModel.swift                // Map viewport state, friend pins, offline filtering, Live Sharing
-│   ├── GroupSessionViewModel.swift       // Group session lifecycle, QR/Link pairing, pendingInvite agreement
-│   ├── MeetingPointViewModel.swift       // Single active meeting point state & attendance sync
-│   └── SOSViewModel.swift                // 3-second hold countdown & honest delivery status
-├── Services/
-│   ├── PeerTransport.swift               // Authoritative actor protocol, state streams & diagnostics
-│   ├── PeerTransportService.swift        // Network.framework P2P datagram transmission actor (AWDL Bonjour)
-│   ├── StreamMessageFramer.swift         // 54-byte binary stream delimiter, chunk reconstruction, resynchronization
-│   ├── PriorityOutboxQueue.swift         // Dual-lane outbox: urgent FIFO (SOS/ACK/Meeting) + coalesced Location
-│   ├── CryptoServiceProtocol.swift       // Cryptographic service interface
-│   ├── CryptoService.swift               // ChaChaPoly AEAD, AAD envelope binding & Keychain store (actor)
-│   ├── SessionStorageProtocol.swift      // Ephemeral SQLite crash recovery storage interface
-│   ├── LocationServiceProtocol.swift     // Location service contract
-│   ├── LocationService.swift             // CoreLocation wrapper & CoreMotion adaptive battery sampling
-│   ├── LocationPublisher.swift           // Periodic publishing scheduler & SOS immediate preemption
-│   └── SOSAudioAlert.swift               // Emergency siren & haptic notification generator
-├── docs/
-│   ├── TechnicalRequirements.md          // Technical system requirements specification
-│   ├── agent.md                          // Master agent instructions and product principles
-│   ├── DEVELOPMENT_LOG.md                // Chronological development log, agent changes & verification records
-│   ├── PHASE_1_DEVELOPMENT_REPORT.md     // Phase 1 Direct Offline MVP milestone completion report
-│   ├── NETWORKING.md                     // Authoritative networking architecture & protocol guide
-│   ├── PAYLOAD_GUIDE.md                  // 54-byte wire protocol & payload developer guide
-│   ├── PROTOCOL_SPECIFICATION.md         // Cryptographic message protection specification
-│   ├── POC_ACCEPTANCE_REPORT.md          // Final POC integration & verification acceptance report
-│   ├── POC_IMPLEMENTATION_PLAN.md        // Milestone implementation plan & file ownership
-│   ├── PHYSICAL_DEVICE_SOS_VALIDATION.md // Two-device offline physical test checklist for SOS
-│   └── PHYSICAL_DEVICE_TEST_CHECKLIST.md // Two-device offline physical test checklist for location/status
-└── Tests/
-    ├── PacketCodecTests.swift            // 13 automated tests: 54-byte codec, InitialsCodec, Int32 quantization
-    ├── CryptoSecurityTests.swift         // 13 automated tests: ChaChaPoly, AAD tamper, replays, Keychain
-    ├── PeerTransportTests.swift          // 12 automated tests: framer chunks, outbox priority, tie-breaking
-    ├── LocationPublishingTests.swift     // 11 automated tests: Live Sharing, cadence, piggybacking, monotonic GPS
-    ├── SOSEndToEndTests.swift            // 10 automated tests: 3s hold, preemption, ACKs, duplicate sirens
-    └── UIStateTests.swift                // 8 automated tests: pairing, freshness, distance/bearing, dropdown
+│   ├── TeeKumApp.swift                       // App entry point; create and retain app dependencies
+│   ├── AppRootView.swift                     // Switch pairing/session roots; own navigation and sheet presentation
+│   └── AppDependencies.swift                 // Construct and inject services, SessionStore, SessionRuntime and ViewModels
+├── Features/
+│   ├── Pairing/
+│   │   ├── Views/
+│   │   │   ├── GroupPairingView.swift        // Create-group form, initials input, scan-to-join and invite entry
+│   │   │   ├── GroupQRCodeView.swift         // Show current group's QR invite and native sharing action
+│   │   │   ├── QRScannerView.swift           // Camera preview bridge; forward scanned strings for validation
+│   │   │   └── MeshAgreementView.swift       // Present agreed relay/privacy policy before session activation
+│   │   ├── ViewModels/
+│   │   │   └── PairingViewModel.swift        // Form validation, pending invite, consent actions and pairing feedback
+│   │   ├── Models/
+│   │   │   ├── GroupInvite.swift             // Parsed invite data; contains sensitive key material, never log it
+│   │   │   └── Enums/
+│   │   │       └── PairingMode.swift         // Payload-free UI choices: create group or scan to join
+│   │   └── Services/
+│   │       ├── GroupInviteCodec.swift        // Encode/decode QR and deep-link invite formats; validate input
+│   │       ├── QRCodeGenerator.swift         // Generate QR image from invite content using CoreImage
+│   │       └── QRScannerService.swift        // Own AVFoundation capture session, permission and scan callbacks
+│   ├── Map/
+│   │   ├── Views/
+│   │   │   ├── MainMapView.swift             // MapKit viewport, member pins, accuracy rings and feature action callbacks
+│   │   │   ├── FriendDetailView.swift        // Show selected member's last sample, status, distance and finder action
+│   │   │   ├── StatusPickerView.swift        // Horizontal status choices; send selection to MapViewModel
+│   │   │   └── LiveSharingControlView.swift  // Sharing intent toggle plus actual publishing availability feedback
+│   │   └── ViewModels/
+│   │       └── MapViewModel.swift            // Map screen state, selected member, status/sharing commands and freshness display
+│   ├── MeetingPoint/
+│   │   ├── Views/
+│   │   │   ├── MeetingPointsView.swift       // Active group meeting point, proposal controls and attendance actions
+│   │   │   └── SetMeetingPointSheet.swift    // Confirm selected map coordinate and landmark label before proposing
+│   │   ├── ViewModels/
+│   │   │   └── MeetingPointViewModel.swift   // Proposal/attendance actions and screen state from shared session data
+│   │   └── Models/
+│   │       └── Enums/
+│   │           └── PremadeMeetingLocation.swift // Payload-free landmark label choices; not venue coordinates
+│   ├── SOS/
+│   │   ├── Views/
+│   │   │   ├── SOSButtonView.swift           // Three-second continuous hold, progress ring and early-release cancellation
+│   │   │   └── SOSDeliveryStatusView.swift   // Present pending, recipient-confirmed or failed delivery honestly
+│   │   ├── ViewModels/
+│   │   │   └── SOSViewModel.swift            // Hold interaction, trigger command and observed delivery feedback
+│   │   └── Services/
+│   │       └── SOSAudioAlert.swift           // Audible/haptic presentation for accepted alerts; no packet verification
+│   ├── Finder/
+│   │   ├── Views/
+│   │   │   ├── FinderBeaconView.swift        // Compose compass, supported precision mode and visual beacon controls
+│   │   │   ├── CompassView.swift             // Render estimated bearing, distance and location uncertainty
+│   │   │   ├── PrecisionRadarView.swift      // Render available NearbyInteraction distance/direction observations
+│   │   │   └── StrobeBeaconView.swift        // Visual beacon presentation with explicit start/stop control
+│   │   ├── ViewModels/
+│   │   │   └── FinderViewModel.swift         // Selected target, capability state, compass/radar selection and beacon state
+│   │   ├── Models/
+│   │   │   ├── ProximityObservation.swift    // Relative distance/direction, observation timestamp and availability
+│   │   │   └── Enums/
+│   │   │       └── FinderMode.swift          // Payload-free display modes: compass, precision radar or unavailable
+│   │   └── Services/
+│   │       └── NearbyInteractionService.swift // Own NISession, discovery-token exchange integration and interruption handling
+│   └── Diagnostics/
+│       ├── Views/
+│       │   └── DiagnosticsView.swift        // Debug HUD for measured session, location and transport snapshots
+│       └── ViewModels/
+│           └── DiagnosticsViewModel.swift   // Read-only diagnostic formatting; distinguish unavailable from measured values
+├── Core/
+│   ├── Models/
+│   │   ├── GroupSession.swift               // Active group metadata, membership and expiry; no invite parsing
+│   │   ├── Member.swift                     // Member identity, initials, latest location, status and reported battery
+│   │   ├── MemberID.swift                   // Stable session member identifier; independent of display initials
+│   │   ├── LocationSample.swift             // Coordinate, hardware measurement time and horizontal accuracy
+│   │   ├── MeetingPoint.swift               // Active proposal identity, coordinate, author and attendance data
+│   │   ├── SOSEvent.swift                   // Emergency event identity, originator, sample and delivery records
+│   │   └── Enums/
+│   │       ├── Status.swift                 // Payload-free festival activity cases; wire code mapping must be agreed
+│   │       ├── SOSDeliveryState.swift       // Payload-free delivery phases; event/recipient details stay in SOSEvent
+│   │       ├── MeetingAttendance.swift      // Payload-free attendance choices: pending, accepted or declined
+│   │       └── LocationFreshness.swift      // Payload-free sample classifications; age/accuracy remain in LocationSample
+│   ├── Session/
+│   │   ├── SessionStore.swift               // MainActor observable owner of accepted shared state; no sockets or keys
+│   │   ├── SessionRuntime.swift             // Session commands, inbound consumer, shared-state updates and task teardown
+│   │   └── SessionCommands.swift            // Narrow command contract injected into feature ViewModels
+│   ├── Messaging/
+│   │   ├── Models/
+│   │   │   ├── Packet.swift                 // Envelope and encrypted wire packet data; final schema pending reconciliation
+│   │   │   ├── LocationPingPayload.swift    // Normal location/status message data, separate from UI models
+│   │   │   ├── SOSPayload.swift             // Emergency message data; preserve source sample timestamp
+│   │   │   ├── MeetingUpdatePayload.swift   // Meeting proposal/attendance wire data with agreed conflict references
+│   │   │   ├── ACKPayload.swift             // Acknowledged event and recipient data; not a local-send success flag
+│   │   │   └── Enums/
+│   │   │       └── PacketType.swift          // Payload-free message-kind codes for the selected protocol version
+│   │   ├── PacketCodec.swift                // Encode/decode agreed binary layout, endianness, bounds and coordinate quantization
+│   │   ├── InitialsCodec.swift              // Encode/decode display initials using the reconciled radix and test vectors
+│   │   ├── PacketValidator.swift            // Inbound structural/authentication/freshness checks; reject invalid state updates
+│   │   ├── ReplayFilter.swift               // Bounded deduplication and replay state using agreed sender/sequence rules
+│   │   ├── PriorityOutboxQueue.swift         // Urgent bounded FIFO plus coalesced unsent normal location updates
+│   │   └── SOSDispatcher.swift              // Urgent send, bounded retries and recipient ACK tracking outside UI lifecycle
+│   ├── Transport/
+│   │   ├── PeerTransport.swift              // Injectable transport contract, inbound events and connection lifecycle
+│   │   ├── PeerTransportService.swift       // Network.framework discovery, connections, reconnects and transport isolation
+│   │   ├── StreamMessageFramer.swift         // Conditional: TCP stream buffering/framing; omit if datagrams are selected
+│   │   └── Models/
+│   │       ├── PeerInfo.swift               // Transport peer identifier, endpoint and connection observations
+│   │       ├── TransportDiagnostics.swift   // Measured connection/packet/error counters; no fabricated radio metrics
+│   │       └── Enums/
+│   │           └── TransportState.swift     // Payload-free lifecycle phases; peer/error details travel in event data
+│   ├── Security/
+│   │   ├── CryptoServiceProtocol.swift      // Testable seal/open and key-lifecycle contract
+│   │   ├── CryptoService.swift              // CryptoKit AEAD using agreed nonce/AAD construction; never invent primitives
+│   │   └── KeychainStore.swift              // Session-key storage, retrieval and deletion; never expose keys to diagnostics
+│   ├── Location/
+│   │   ├── LocationServiceProtocol.swift    // Testable location/heading updates, permission and availability contract
+│   │   ├── LocationService.swift            // CoreLocation lifecycle/delegates with explicit isolation and original timestamps
+│   │   ├── MotionActivityService.swift      // CoreMotion movement observations, permission and unsupported-state handling
+│   │   ├── LocationSamplingPolicy.swift     // Select sampling policy from sharing intent, movement and power state
+│   │   └── LocationPublisher.swift          // Cancellable publish cadence; preserve stale/invalid sample semantics
+│   ├── Persistence/
+│   │   ├── SessionStorageProtocol.swift     // Testable recovery read/write/purge contract
+│   │   ├── SessionStorage.swift             // Isolated ephemeral SQLite snapshot operations and expiry cleanup
+│   │   └── Models/
+│   │       └── SessionSnapshot.swift        // Recovery data only; no raw session key or historical location track
+│   ├── Power/
+│   │   ├── PowerMonitor.swift               // Observe battery and Low Power Mode, including unknown battery state
+│   │   ├── SurvivalModePolicy.swift         // Apply agreed cutoff/recovery rules to publishing and relay availability
+│   │   └── Models/
+│   │       └── Enums/
+│   │           └── PowerMode.swift          // Payload-free normal/survival modes; readings remain in monitor state
+│   └── LiveActivity/
+│       ├── SessionActivityAttributes.swift  // Conditional: minimal ActivityKit attributes shared with widget target
+│       └── SessionActivityService.swift     // Conditional: start/update/end Live Activity; no background-runtime guarantee
+├── Shared/
+│   └── UI/
+│       ├── StatusBadgeView.swift            // Reusable status presentation; accepts display data, no SessionStore access
+│       └── Theme.swift                      // Shared semantic colors/type styles used across feature views
+└── Resources/
+    ├── Assets.xcassets                      // App icon, semantic color assets and shipped images
+    └── Localizable.xcstrings                // User-facing strings and localization catalog
+
+TeeKumLiveActivity/                           // Conditional Widget Extension target if Live Activity is in scope
+├── TeeKumLiveActivityBundle.swift            // Widget extension entry point
+└── SessionLiveActivity.swift                 // Lock Screen/Dynamic Island UI; no session engine or encryption keys
+
+TeeKumTests/
+├── Features/
+│   ├── Pairing/PairingViewModelTests.swift   // Form validation, invite rejection, consent and pending-action behavior
+│   ├── Map/MapViewModelTests.swift           // Sharing intent, stale sample display and status commands
+│   ├── MeetingPoint/MeetingPointViewModelTests.swift // Proposal/attendance actions against shared state
+│   ├── SOS/SOSViewModelTests.swift           // Hold timing, early cancellation and honest delivery presentation
+│   ├── Finder/FinderViewModelTests.swift     // Unsupported/interrupted precision mode and compass fallback
+│   └── Diagnostics/DiagnosticsViewModelTests.swift // Unknown metrics and separate connection/sample states
+├── Core/
+│   ├── Session/SessionRuntimeTests.swift    // Single inbound consumer, task cancellation and late-event rejection
+│   ├── Messaging/PacketCodecTests.swift     // Golden wire vectors, byte boundaries, coordinates and initials codec
+│   ├── Messaging/ReplayFilterTests.swift    // Duplicates, per-sender replay checks and bounded-cache behavior
+│   ├── Transport/PeerTransportTests.swift   // Connection lifecycle, framing if applicable and reconnect behavior
+│   ├── Security/CryptoSecurityTests.swift   // AEAD tampering, nonce invariants, wrong-key rejection and key lifecycle
+│   ├── Location/LocationPublishingTests.swift // Cadence, sharing OFF, sample timestamp and cancellation rules
+│   ├── Persistence/SessionStorageTests.swift // Recovery expiry and session teardown purge
+│   └── Power/SurvivalModePolicyTests.swift  // Exact cutoff, unknown battery, Low Power Mode and recovery boundaries
+├── Integration/
+│   ├── SessionLifecycleTests.swift          // Pair/join, inbound state, leave/rejoin and cleanup across services
+│   ├── MeetingPointSyncTests.swift          // Concurrent proposals/reconnect reconciliation after protocol decision
+│   └── SOSEndToEndTests.swift               // Urgent dispatch, retries, recipient ACKs and duplicate-alert suppression
+└── TestDoubles/
+    ├── FakePeerTransport.swift              // Deterministic inbound/outbound events without physical radio
+    ├── FakeLocationService.swift            // Controlled samples, permissions and stale/invalid location scenarios
+    └── TestClock.swift                      // Deterministic cadence, hold, retry and expiry time advancement
+TeeKumUITests/
+└── CriticalJourneyTests.swift                // Pairing, map, meeting point and SOS user interactions
+
+docs/
+├── TechnicalRequirements.md                 // Canonical target architecture, foldering and team requirements
+├── DOCUMENTATION_REVIEW.md                  // Evidence limits, unresolved anomalies and discussion order
+├── agent.md                                 // Supporting product reference; points to canonical architecture
+├── DEVELOPMENT_LOG.md                       // Chronological change/decision/verification record
+├── NETWORKING.md                            // Networking reference; transport/protocol contradictions tracked in review
+├── PAYLOAD_GUIDE.md                         // Payload reference awaiting canonical wire-contract reconciliation
+├── PROTOCOL_SPECIFICATION.md                // Crypto/wire reference awaiting canonical version agreement
+├── POC_IMPLEMENTATION_PLAN.md               // Historical prototype plan and old file assignments
+├── POC_ACCEPTANCE_REPORT.md                 // Historical AI-reported acceptance and hardware sign-off gaps
+├── PHASE_1_DEVELOPMENT_REPORT.md             // Historical AI-reported feature/test completion
+├── P2P_TRANSPORT_REPORT.md                   // Historical transport implementation/verification claims
+├── PHYSICAL_DEVICE_TEST_CHECKLIST.md        // Current physical location/status test prerequisites and steps
+└── PHYSICAL_DEVICE_SOS_VALIDATION.md         // Current physical SOS test prerequisites and steps
 ```
+
+#### Model & Enum Placement Convention
+
+- Put a payload-free enum representing a category or simple choice in `Models/Enums/` under its owner. Examples: `Core/Models/Enums/Status.swift`, `Features/Pairing/Models/Enums/PairingMode.swift`, and `Core/Transport/Models/Enums/TransportState.swift`.
+- “Payload-free” means its cases have no associated values. A raw value such as `Status: UInt8` is still allowed; it is a code/category, not a separate data record. Computed labels do not change this placement.
+- Keep structured data in `Models/`: coordinates, identifiers, timestamps, recipient details and error context belong to a struct/model. For example, `SOSDeliveryState` contains delivery phases; `SOSEvent` holds event/recipient data.
+- An enum with associated values represents richer data/state, so keep it directly in the owning `Models/` folder. Do not flatten a useful state machine just to fit `Models/Enums/`, and do not create an enum without cases to represent a status.
+- Ownership takes precedence over global grouping: feature-only enums remain in that feature; shared domain enums live in `Core/Models/Enums/`; transport/wire-specific enums remain under their subsystem's `Models/Enums/`. Avoid duplicate `Status` definitions per feature.
+- One principal type per file; file name matches its type. Do not put views, ViewModels, services or codecs in `Models/Enums/`.
+
+The widget must not create a second SessionRuntime or hold group encryption keys. `Core/LiveActivity/SessionActivityAttributes.swift` is one shared source file with app/widget target membership, not two copied definitions. Share only the minimum display data required, with App Group configuration decided during implementation.
+
+### 3.4 Feature Boundaries & Data Flow
+
+| Capability | UI owner | Shared behavior / source of truth |
+| :--- | :--- | :--- |
+| Create/join/leave group, QR/link | Pairing | SessionRuntime owns lifecycle, Security owns keys; SessionStore owns active membership. |
+| Map, member detail, status, sharing toggle | Map | Core/Location owns samples and publisher; session commands change sharing/status. |
+| Propose/accept meeting point | MeetingPoint | SessionRuntime applies updates; SessionStore owns one active point. Concurrent proposal resolution remains an open protocol decision. |
+| Hold SOS and show delivery | SOS | Core/Messaging owns urgent dispatch, retry and recipient ACK processing; SessionStore owns accepted emergency/delivery state. |
+| Compass/UWB and beacon | Finder | Core supplies target location; feature service owns NearbyInteraction lifecycle and capability fallback. |
+| Debug HUD | Diagnostics | Reads transport/location/session snapshots; cannot infer a hardware state from a static label. |
+
+**Outbound example:** Map action -> MapViewModel -> session command -> publishing/codec/security/outbox -> transport. Toggle intent and actual publishing availability are separate states.
+
+**Inbound example:** transport -> SessionRuntime -> validation/decryption/replay checks -> accepted state update -> SessionStore -> observing feature ViewModels/Views. A fresh network receipt must not reset the age of an old location sample. Exact validation order and packet fields await protocol reconciliation.
+
+**Deep link:** AppRootView hands validated invite input to Pairing; the session starts only after the required consent flow completes. Invites and raw keys must not enter diagnostics or logs.
+
+**Leave/expiry:** stop publishers, close transport, cancel tasks, end Live Activity if present, clear UI/session state and delete session secrets/recovery data. Verify that late callbacks from the previous session cannot repopulate a new one.
+
+### 3.5 Four-Developer Collaboration Baseline
+
+This is a proposed responsibility split; assign names with the team. Each developer owns feature UI, behavior, and relevant tests, with one reviewer for shared interfaces.
+
+| Role | Primary scope | Shared ownership requiring review |
+| :--- | :--- | :--- |
+| Developer A | Pairing, invite validation, session lifecycle, recovery | Core/Session, Core/Security, Core/Persistence, App composition |
+| Developer B | Transport, packet codec/validation, delivery pipeline; Diagnostics UI | Core/Transport, Core/Messaging; A reviews security/session changes |
+| Developer C | Map/status/sharing, location, battery; Live Activity if selected | Core/Location, Core/Power, app-side Live Activity; A reviews lifecycle |
+| Developer D | MeetingPoint, SOS UI/hold interaction, Finder | B reviews SOS/meeting wire contracts; C reviews location/finder integration |
+
+Agree on session commands/state snapshots, transport events, location samples, diagnostics fields, and SOS delivery semantics before parallel feature work. Define test seams at platform boundaries; do not create a protocol for every class. Use fakes while implementation proceeds. Each PR includes its relevant tests and a reviewer; shared schema or App composition changes need the responsible owner. Review workload at each milestone, especially transport/security and UWB.
+
+### 3.6 Mapping & Migration Sequence
+
+| Prototype path/name in reports | Target destination |
+| :--- | :--- |
+| `Views/`, `ViewModels/` | Corresponding `Features/<Feature>/Views` and `ViewModels` |
+| `GroupSessionViewModel` | Pairing UI -> PairingViewModel; accepted state -> SessionStore; session tasks -> SessionRuntime |
+| `Models/Packet.swift`, initials/wire codecs | `Core/Messaging/` |
+| Shared `Member`, location, group, meeting and SOS event records | `Core/Models/` |
+| Payload-free `Status`, `SOSDeliveryState` and other shared category enums | `Core/Models/Enums/` |
+| Feature/subsystem-only payload-free enums | Owning `Features/<Feature>/Models/Enums/` or `Core/<Subsystem>/Models/Enums/` |
+| `PeerTransport*`, `StreamMessageFramer` | `Core/Transport/` |
+| `PriorityOutboxQueue` | `Core/Messaging/` |
+| `CryptoService*`, Keychain | `Core/Security/` |
+| `LocationService*`, `LocationPublisher` | `Core/Location/` |
+| `SessionStorage*` | `Core/Persistence/` |
+| QR generator/scanner, meeting sheet, agreement view | Owning feature, rather than generic `Views/Components/` |
+
+1. Inventory the actual source and establish a repeatable build/test baseline when code becomes available. Existing reports alone do not establish this baseline.
+2. Confirm contracts and resolve protocol/security blockers in [DOCUMENTATION_REVIEW.md](DOCUMENTATION_REVIEW.md) before implementing transport or cryptography from these docs.
+3. Move feature files in small PRs, fixing Xcode target membership and references. Separate mechanical moves from behavior changes.
+4. Extract shared session ownership and dependency composition incrementally. Preserve teardown, permission/error behavior, publishing policy and honest SOS delivery states.
+5. Verify automated state/codec/security checks and physical-device flows. Include locked screen, sharing OFF, stale GPS, loss/reconnect, Low Power Mode, and leave/rejoin. A folder refactor alone cannot establish runtime correctness.
 
 ---
 
@@ -471,9 +639,9 @@ TeeKum Prototype/
 
 TeeKum employs a comprehensive, multi-layer testing strategy designed for offline-first, peer-to-peer radio resilience. Because physical radio attenuation cannot be fully emulated in unit tests, testing is partitioned into **Automated Unit & Integration Test Suites** (100% executable on simulator/CI) and **Physical Two-Device Field Protocols** (on real iPhones).
 
-### 4.1 Automated Test Suites (67 Passing Tests)
+### 4.1 Automated Test Suites (67 Tests Reported by Prototype Documents)
 
-The automated test harness comprises 6 suites in `TeeKum Prototype/Tests/`, providing 100% pass rate verification across all core subsystems:
+Prototype reports describe 6 suites and 67 passing tests. Neither source nor executable tests were supplied here, so these results have not been reproduced. The table is a proposed coverage reference; target test folders are defined in Section 3.3.
 
 | Suite | File | Test Cases | Scope & Verification Coverage |
 | :--- | :--- | :---: | :--- |
@@ -486,7 +654,7 @@ The automated test harness comprises 6 suites in `TeeKum Prototype/Tests/`, prov
 
 ### 4.2 Test Execution Command & Verification
 
-Automated tests are verified via `xcodebuild`:
+The following historical command builds the app; it does not execute tests. Once source is available, configure a test scheme and record an actual `xcodebuild test` invocation, destination, revision and result:
 
 ```bash
 # Full project compilation & build verification
@@ -560,12 +728,13 @@ develop → feat/feature-name → PR to develop → PR to main → PR to prod
 
 - [x] Project description, team, platform, and system architecture are aligned with TeeKum.
 - [x] Legacy technologies replaced by the 9 Native Apple Frameworks (Network.framework, CoreLocation, CoreMotion, CryptoKit, NearbyInteraction, MapKit, ActivityKit, Security, libsqlite3).
-- [x] Pure MVVM architecture without Coordinators and without dual-target watchOS complexity is defined.
+- [x] MVVM Feature-Driven target structure and four-developer ownership proposal are documented in Section 3.
+- [ ] Team review and source-level implementation of that structure are complete.
 - [x] Review decisions D1–D9 from /grill-me sessions and roadmap reviews are recorded in the Approved Decisions table.
 - [x] 54-byte binary packet wire format (Protocol v2), 2-byte Base-27 initials codec (zero handshake), 16-bit session ID derivation, envelope separation, and CoreLocation `Double` quantization are documented.
 - [x] Phase 2 2-byte expanded hop control architecture (Decision D9: `hopLimit: UInt8` + `hopCount: UInt8`, range 0..255) is scheduled for multi-hop mesh development.
-- [x] Unit Testing Strategy is fully defined and executed across 6 test suites (67 passing tests, 100% pass rate).
-- [x] Phase 1 Direct Offline MVP completed and documented in [docs/PHASE_1_DEVELOPMENT_REPORT.md](PHASE_1_DEVELOPMENT_REPORT.md).
+- [ ] Reported 67-test results are reproduced against the team implementation.
+- [ ] Phase 1 runtime acceptance is confirmed with source, repeatable tests and physical-device evidence. Historical implementation claims: [PHASE_1_DEVELOPMENT_REPORT.md](PHASE_1_DEVELOPMENT_REPORT.md).
 - [x] 4-branch Git workflow (`main`, `develop`, `prod`, `feat/*`) and commit conventions are established.
 
 ### Open Decisions for Future Phases

@@ -2,7 +2,7 @@
 
 > **Document Version:** 2.0  
 > **Status:** Authoritative Networking Architecture  
-> **Target Platform:** iOS 17+ (Native Apple Frameworks Only, Zero External Packages)  
+> **Target Platform:** iOS 27+ (Native Apple Frameworks Only, Zero External Packages)
 > **Related Documents:**
 > - [Master Agent Instructions (docs/agent.md)](agent.md)
 > - [Technical Requirements (docs/TechnicalRequirements.md)](TechnicalRequirements.md)
