@@ -17,25 +17,25 @@ settings:
     ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
 
 targets:
-  Nursitor:
+  Teekum:
     type: application
     platform: iOS
     sources:
-      - path: Nursitor/Nursitor
+      - path: Teekum/Teekum
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.nursitor
+        PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.teekum
         TARGETED_DEVICE_FAMILY: "1"
-        INFOPLIST_KEY_CFBundleDisplayName: Nursitor
+        INFOPLIST_KEY_CFBundleDisplayName: Teekum
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
 
 schemes:
-  Nursitor:
+  Teekum:
     build:
       targets:
-        Nursitor: all
+        Teekum: all
     run:
       config: Debug

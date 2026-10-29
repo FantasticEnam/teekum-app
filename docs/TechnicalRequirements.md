@@ -2,7 +2,7 @@
 
 **Technical Requirements · Fantasix Team**
 **Last updated:** 29 October 2026
-**Status:** Planning document. Section 3 defines the proposed MVVM Feature-Driven baseline for the four-developer team. Prototype behavior and test results elsewhere are historical AI-reported claims, not independently verified in this docs-only workspace.
+**Status:** Planning document. Section 3 defines the proposed MVVM Feature-Driven baseline for the four-developer team. Prototype behavior and test results elsewhere are historical AI-reported claims, not independently verified against the current Hello-world starter. The prototype source is not included; see [README.md](../README.md) for the actual repository setup.
 
 > **Reading priority:** Section 3 supersedes earlier layer-based foldering. Framework examples and old `Services/` / `Views/` paths in Section 2 describe the prototype; use Section 3.6 for target destinations. Protocol, platform, and product contradictions remain open in [DOCUMENTATION_REVIEW.md](DOCUMENTATION_REVIEW.md). Labels such as “approved”, “confirmed”, or checked roadmap items in imported documents do not establish team acceptance or runtime proof.
 

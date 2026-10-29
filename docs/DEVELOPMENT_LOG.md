@@ -5,6 +5,61 @@
 
 ---
 
+### [2026-10-29 15:53] — README: English translation and simplified setup
+- **Contributor / Agent:** Codex
+- **Status:** Completed (documentation only)
+- **Target Phase / Milestone:** Team onboarding
+
+#### 1. Objective & Scope
+- Translate the README into English and remove the Xcode preparation section as requested.
+
+#### 2. Changes Made & Files Touched
+- `README.md`: translate prose, headings, tables and tree comments; remove the Xcode preparation section and renumber setup steps 1–4.
+- `docs/DEVELOPMENT_LOG.md`: record this documentation update.
+
+#### 3. Key Decisions & Rationale
+- Preserve prerequisites, setup commands, project status, documentation links and technical meaning.
+
+#### 4. Verification & Testing Performed
+- Checked Markdown fences, sequential step numbering, removal of the requested section, local file links and coverage of all 13 documents.
+- No build/tests run; documentation-only wording change.
+
+#### 5. Open Items & Next Steps
+- Existing implementation and protocol follow-ups remain unchanged.
+
+---
+
+### [2026-10-29 15:50] — README: Project overview, setup and documentation reading guide
+- **Contributor / Agent:** Codex
+- **Status:** Completed
+- **Target Phase / Milestone:** Team onboarding / starter setup
+
+#### 1. Objective & Scope
+- Create a root README covering actual repository status, setup, documentation reading order, brief summaries and contribution workflow.
+
+#### 2. Changes Made & Files Touched
+- `README.md`: overview, iOS 27/XcodeGen prerequisites, SSH/HTTPS clone, generate/run/regenerate steps, current source tree, all 13 document summaries, troubleshooting and verification limits.
+- `project.yml`: correct leftover Nursitor target/scheme, source path, bundle identifier and display name to Teekum so documented setup generates a valid project for existing sources.
+- `docs/TechnicalRequirements.md`: clarify current repository has Hello-world starter source; imported prototype source is not included. Link README for actual setup.
+- `docs/DEVELOPMENT_LOG.md`: record onboarding changes and verification.
+
+#### 3. Key Decisions & Rationale
+- Describe current starter separately from intended features, target foldering and historical AI-reported prototype results.
+- Preserve single iPhone target, iOS 27.0 deployment minimum, Swift 6 language mode and existing XcodeGen settings.
+- Fix only copied project identity/path configuration needed to make README setup usable.
+
+#### 4. Verification & Testing Performed
+- Confirmed installed Xcode 27.1 and XcodeGen 2.46.0 via version commands.
+- `xcodegen generate --spec project.yml --project /tmp/teekum-readme-validation`: successful generation of Teekum.xcodeproj after creating the temporary output directory. Initial attempt failed because the output parent directory did not exist.
+- Checked README Markdown fences, local file links, inclusion of all 13 docs and corrected source configuration; diff whitespace check passed.
+- No app build, simulator run, unit tests or physical-device tests performed; current YAML contains no test target.
+
+#### 5. Open Items & Next Steps
+- Developers can generate Teekum.xcodeproj at repository root and run the starter using the README.
+- Apply the planned feature architecture and resolve documented protocol/runtime decisions as implementation proceeds.
+
+---
+
 ### [2026-10-29 15:44] — Documentation: File-level foldering, enum placement and iOS 27 minimum
 - **Contributor / Agent:** Codex
 - **Status:** Completed (documentation only)
