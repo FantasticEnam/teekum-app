@@ -4,7 +4,7 @@ An iPhone app that helps friends find each other at concerts and festivals when 
 
 Planned features include private groups through QR codes or invite links, peer-to-peer location and status sharing, maps and meeting points, friend finding, and SOS alerts. Multi-hop mesh relaying is planned for a later phase.
 
-**Repository status:** a single iPhone app starter displaying “Hello, world!”. The planned features, feature-driven folder structure, Widget Extension, and test targets are not implemented in this starter. Prototype documents come from earlier development; that prototype's source code is not included. Completion reports and test results in older documents do not establish that those features exist in this repository.
+**Repository status:** a single iPhone app starter displaying “Hello, world!”. The planned features, feature-driven folder structure, Widget Extension, and test targets are not implemented in this starter. The five core documents define the team starting point. Legacy prototype logs, completion reports and checklists have been removed; feature documentation and verification evidence will be written by the developers as implementation proceeds.
 
 ## Prerequisites
 
@@ -80,7 +80,7 @@ teekum-app/
 │   ├── TeekumApp.swift         // Starter app entry point
 │   ├── ContentView.swift       // Initial “Hello, world!” screen
 │   └── Assets.xcassets/        // App icon and color assets
-├── docs/                       // Requirements, proposed architecture, review and prototype reports
+├── docs/                       // Five core planning and technical references
 ├── README.md                   // Overview, setup and documentation reading guide
 └── LICENSE                     // MIT License
 ```
@@ -89,30 +89,27 @@ The current source layout does not yet follow the target structure. File names, 
 
 ## Where to Start Reading the Docs
 
-1. **[TechnicalRequirements.md](docs/TechnicalRequirements.md)** — read Section 1 for the product goals, Section 3 for architecture, foldering and ownership, then Section 5 for the Git workflow. Section 2 contains prototype framework references; read its examples and older paths alongside the target structure.
-2. **[DOCUMENTATION_REVIEW.md](docs/DOCUMENTATION_REVIEW.md)** — read before making implementation decisions. It tracks inconsistencies, assumptions to validate, and open decisions such as packet size, transport, member identity, and background execution.
-3. **Choose references for your task:** networking/payload/security documents for infrastructure, `agent.md` for detailed product flows, and device checklists for verification planning. Check them against the review before adopting older contracts.
-4. **Read prototype reports as historical context**, then check the latest entries in `DEVELOPMENT_LOG.md` for recent changes and decisions.
+1. **[TechnicalRequirements.md](docs/TechnicalRequirements.md)** — read Section 1 for product intent, Section 3 for architecture/file placement and the four-developer split, Section 7 for open decisions, and Section 5 for the Git workflow.
+2. **[agent.md](docs/agent.md)** — read the working rules, owner/reviewer workflow and feature documentation convention before starting implementation.
+3. **Read the technical reference for your scope:** NETWORKING for discovery/transport, PAYLOAD_GUIDE for fields/encoding, and PROTOCOL_SPECIFICATION for cryptography and validation. Resolve conflicting details through the owner/reviewer decisions in Technical Requirements Section 7 before implementing them.
 
-### Documentation Summary
+### Core Documentation
 
-| Document | Contents / when to read |
+| Document | Purpose |
 | :--- | :--- |
-| [TechnicalRequirements.md](docs/TechnicalRequirements.md) | Product overview, stack, target Feature-Driven MVVM architecture, files/folders, ownership, testing strategy and Git workflow. Primary reference for the target structure. |
-| [DOCUMENTATION_REVIEW.md](docs/DOCUMENTATION_REVIEW.md) | Anomaly register, evidence limits and decisions the team needs to resolve. |
-| [agent.md](docs/agent.md) | User stories, product rules, feature behavior and prototype development guidance. Architecture points to Technical Requirements. |
-| [NETWORKING.md](docs/NETWORKING.md) | Peer discovery, connections, framing, packet queues, ingestion and network diagnostics. |
-| [PAYLOAD_GUIDE.md](docs/PAYLOAD_GUIDE.md) | Payload field/byte breakdowns, encoding and message-type examples. |
-| [PROTOCOL_SPECIFICATION.md](docs/PROTOCOL_SPECIFICATION.md) | Wire format, AEAD, nonce, AAD and security validation reference. Still needs reconciliation with the other protocol documents. |
-| [POC_IMPLEMENTATION_PLAN.md](docs/POC_IMPLEMENTATION_PLAN.md) | Historical prototype milestones, service contracts and agent assignments. Does not define the current team's ownership split. |
-| [PHASE_1_DEVELOPMENT_REPORT.md](docs/PHASE_1_DEVELOPMENT_REPORT.md) | Historical report of claimed Phase 1 features and development results. |
-| [POC_ACCEPTANCE_REPORT.md](docs/POC_ACCEPTANCE_REPORT.md) | Historical acceptance report, build/test claims and physical-device sign-off limitations. |
-| [P2P_TRANSPORT_REPORT.md](docs/P2P_TRANSPORT_REPORT.md) | Historical transport implementation, framing, outbox and peer-verification guidance. |
-| [PHYSICAL_DEVICE_TEST_CHECKLIST.md](docs/PHYSICAL_DEVICE_TEST_CHECKLIST.md) | Two-iPhone location, status, connectivity and battery checks to perform once features are available. |
-| [PHYSICAL_DEVICE_SOS_VALIDATION.md](docs/PHYSICAL_DEVICE_SOS_VALIDATION.md) | SOS, receipt, ACK, audio and unauthorized-message rejection scenarios to test once features are available. |
-| [DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md) | Changes, decision rationale, verification and follow-up work; newest entries appear first. |
+| [TechnicalRequirements.md](docs/TechnicalRequirements.md) | Product intent, stack, Feature-Driven MVVM file tree, four-developer ownership, verification plan, Git workflow and open team decisions. |
+| [agent.md](docs/agent.md) | Developer/agent working rules, feature boundaries, collaboration and documentation handoff. |
+| [NETWORKING.md](docs/NETWORKING.md) | Draft peer discovery, connection lifecycle, framing, queues and diagnostics reference. |
+| [PAYLOAD_GUIDE.md](docs/PAYLOAD_GUIDE.md) | Draft payload field/byte breakdowns, encoding and worked message examples. |
+| [PROTOCOL_SPECIFICATION.md](docs/PROTOCOL_SPECIFICATION.md) | Draft wire/security reference covering AEAD, nonce, AAD, key lifecycle and rejection rules. |
 
-**Resolving conflicts:** use Technical Requirements Section 3 for the target structure and DOCUMENTATION_REVIEW for unresolved decisions. Do not select a packet format or runtime behavior solely because a document labels it “approved” or “PASS”. Resolve the decision with the responsible owners, then align the specifications and tests.
+The technical references retain design material for review; they are not proof of implemented or verified features. Packet size/version, transport and identity/security rules still need reconciliation. Use [Open Team Decisions](docs/TechnicalRequirements.md#7-open-team-decisions) to resolve them with the responsible owners and update the affected references together.
+
+### Starting Work as a Team
+
+Assign names to Developer A–D and confirm reviewers using [Architecture & Ownership](docs/TechnicalRequirements.md#35-four-developer-collaboration-baseline). Agree shared contracts and acceptance criteria before dependent features are developed in parallel.
+
+Developers document their delivered scope as work proceeds. Add a concise `docs/features/<feature-name>.md` when useful, following [Documentation and Handoff](docs/agent.md#4-documentation-and-handoff), or update the relevant core reference for infrastructure work. Record actual verification results in the feature PR/note. No shared development log or upfront completion report is required.
 
 ## Troubleshooting
 
@@ -132,7 +129,7 @@ The current source layout does not yet follow the target structure. File names, 
 
 Follow the [Git Workflow](docs/TechnicalRequirements.md#5-git-workflow): `develop → feat/feature-name → PR to develop → main → prod`. The four-developer scope and reviewer split are in the Architecture section. Use commit prefixes such as `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, or `test:`.
 
-Read the requirements and review before adding frameworks, permissions, or protocol changes. Include the changes, rationale and actual verification results in your PR and the [Development Log](docs/DEVELOPMENT_LOG.md). Do not record group keys or private location data.
+Read the requirements and open decisions before adding frameworks, permissions, or protocol changes. Include the scope, rationale and actual verification results in your PR; update the relevant specification or feature note as needed. Do not record group keys or private location data.
 
 `project.yml` currently defines only the app and build scheme; there is no test target. Successful generation or compilation does not mean tests have run. Future radio, location and background testing will require physical iPhones; use the simulator for UI and logic that can be tested without physical radios.
 

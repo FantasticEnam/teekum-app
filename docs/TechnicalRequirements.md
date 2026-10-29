@@ -2,9 +2,9 @@
 
 **Technical Requirements · Fantasix Team**
 **Last updated:** 29 October 2026
-**Status:** Planning document. Section 3 defines the proposed MVVM Feature-Driven baseline for the four-developer team. Prototype behavior and test results elsewhere are historical AI-reported claims, not independently verified against the current Hello-world starter. The prototype source is not included; see [README.md](../README.md) for the actual repository setup.
+**Status:** Team planning baseline for the current SwiftUI starter. Feature implementation and verification start from the source in this repository; no prototype completion or test results carry over. See [README.md](../README.md) for setup.
 
-> **Reading priority:** Section 3 supersedes earlier layer-based foldering. Framework examples and old `Services/` / `Views/` paths in Section 2 describe the prototype; use Section 3.6 for target destinations. Protocol, platform, and product contradictions remain open in [DOCUMENTATION_REVIEW.md](DOCUMENTATION_REVIEW.md). Labels such as “approved”, “confirmed”, or checked roadmap items in imported documents do not establish team acceptance or runtime proof.
+> **Reading priority:** Sections 1 and 3 define product intent and the MVVM Feature-Driven structure. Section 3.5 proposes four-developer ownership. Section 7 tracks open team decisions and takes precedence over conflicting details in the retained technical references. Framework examples and legacy paths in Section 2 are design references, not existing starter features.
 
 ---
 
@@ -34,9 +34,11 @@ The system is designed to be completely serverless (*100% serverless*). Devices 
 - **Festival Survival Mode:** When device battery drops below 20% or enters Low Power Mode, the app automatically suspends stranger mesh relaying, terminates background execution, and throttles GPS sampling to reserve battery strictly for emergency SOS and viewing the offline meeting map.
 - **Radical Simplicity:** Targeted to use MVVM Feature-Driven architecture without Coordinators (no MVVM+C) and built with 100% native Apple frameworks (zero third-party dependencies).
 
-### 1.2 Approved Review Decisions
+### 1.2 Product & Technical Proposals
 
-| Decision | Agreed Behavior |
+D1–D9 capture intended behavior from the initial design. Protocol, consent and runtime details remain subject to the owner/reviewer decisions in Section 7; this table is not an implementation acceptance record.
+
+| Proposal | Intended Behavior |
 | :--- | :--- |
 | **D1 — 100% Serverless Group Pairing** | Groups are formed without cloud servers. A shareable link (`teekum://join#key=Base64Key&sid=%04X&name=GroupName`) carries the 256-bit symmetric encryption key and 16-bit session ID in the URL fragment for online sharing (iMessage/WhatsApp), while an on-screen QR barcode renders the exact same URL string for offline camera scanning at the venue. |
 | **D2 — User-Controlled Live Sharing Toggle** | Location broadcasting only occurs when the user enables the *Live Sharing* toggle. When relaxing or watching a show, users turn sharing off to preserve privacy and battery. Emergency SOS alerts broadcast immediately regardless of toggle state. |
@@ -552,19 +554,11 @@ TeeKumUITests/
 └── CriticalJourneyTests.swift                // Pairing, map, meeting point and SOS user interactions
 
 docs/
-├── TechnicalRequirements.md                 // Canonical target architecture, foldering and team requirements
-├── DOCUMENTATION_REVIEW.md                  // Evidence limits, unresolved anomalies and discussion order
-├── agent.md                                 // Supporting product reference; points to canonical architecture
-├── DEVELOPMENT_LOG.md                       // Chronological change/decision/verification record
-├── NETWORKING.md                            // Networking reference; transport/protocol contradictions tracked in review
-├── PAYLOAD_GUIDE.md                         // Payload reference awaiting canonical wire-contract reconciliation
-├── PROTOCOL_SPECIFICATION.md                // Crypto/wire reference awaiting canonical version agreement
-├── POC_IMPLEMENTATION_PLAN.md               // Historical prototype plan and old file assignments
-├── POC_ACCEPTANCE_REPORT.md                 // Historical AI-reported acceptance and hardware sign-off gaps
-├── PHASE_1_DEVELOPMENT_REPORT.md             // Historical AI-reported feature/test completion
-├── P2P_TRANSPORT_REPORT.md                   // Historical transport implementation/verification claims
-├── PHYSICAL_DEVICE_TEST_CHECKLIST.md        // Current physical location/status test prerequisites and steps
-└── PHYSICAL_DEVICE_SOS_VALIDATION.md         // Current physical SOS test prerequisites and steps
+├── TechnicalRequirements.md                 // Product intent, architecture, ownership, verification plan and open decisions
+├── agent.md                                 // Developer/agent working rules and documentation handoff convention
+├── NETWORKING.md                            // Draft discovery, transport, queues and diagnostics reference
+├── PAYLOAD_GUIDE.md                         // Draft payload fields and worked encoding examples
+└── PROTOCOL_SPECIFICATION.md                // Draft cryptography, nonce, AAD and validation reference
 ```
 
 #### Model & Enum Placement Convention
@@ -612,7 +606,7 @@ Agree on session commands/state snapshots, transport events, location samples, d
 
 ### 3.6 Mapping & Migration Sequence
 
-| Prototype path/name in reports | Target destination |
+| Legacy design path/name | Target destination |
 | :--- | :--- |
 | `Views/`, `ViewModels/` | Corresponding `Features/<Feature>/Views` and `ViewModels` |
 | `GroupSessionViewModel` | Pairing UI -> PairingViewModel; accepted state -> SessionStore; session tasks -> SessionRuntime |
@@ -627,48 +621,39 @@ Agree on session commands/state snapshots, transport events, location samples, d
 | `SessionStorage*` | `Core/Persistence/` |
 | QR generator/scanner, meeting sheet, agreement view | Owning feature, rather than generic `Views/Components/` |
 
-1. Inventory the actual source and establish a repeatable build/test baseline when code becomes available. Existing reports alone do not establish this baseline.
-2. Confirm contracts and resolve protocol/security blockers in [DOCUMENTATION_REVIEW.md](DOCUMENTATION_REVIEW.md) before implementing transport or cryptography from these docs.
+1. Start from the current Hello-world source and establish a repeatable build baseline. Add test targets and fixtures alongside implemented behavior; old prototype results are not acceptance evidence.
+2. Confirm contracts and resolve protocol/security blockers in [Section 7 — Open Team Decisions](#7-open-team-decisions) before implementing transport or cryptography from these docs.
 3. Move feature files in small PRs, fixing Xcode target membership and references. Separate mechanical moves from behavior changes.
 4. Extract shared session ownership and dependency composition incrementally. Preserve teardown, permission/error behavior, publishing policy and honest SOS delivery states.
 5. Verify automated state/codec/security checks and physical-device flows. Include locked screen, sharing OFF, stale GPS, loss/reconnect, Low Power Mode, and leave/rejoin. A folder refactor alone cannot establish runtime correctness.
 
 ---
 
-## 4. Unit Testing Strategy
+## 4. Verification Plan
 
-TeeKum employs a comprehensive, multi-layer testing strategy designed for offline-first, peer-to-peer radio resilience. Because physical radio attenuation cannot be fully emulated in unit tests, testing is partitioned into **Automated Unit & Integration Test Suites** (100% executable on simulator/CI) and **Physical Two-Device Field Protocols** (on real iPhones).
+This is planned coverage, not a record of tests already implemented or passed. The current starter has no test target. Each owner adds the tests and device evidence required for their delivered behavior; exact commands and destinations must match the actual project at that time.
 
-### 4.1 Automated Test Suites (67 Tests Reported by Prototype Documents)
+### 4.1 Owner-Based Verification
 
-Prototype reports describe 6 suites and 67 passing tests. Neither source nor executable tests were supplied here, so these results have not been reproduced. The table is a proposed coverage reference; target test folders are defined in Section 3.3.
+| Scope | Owner | Minimum coverage to add with implementation |
+| :--- | :--- | :--- |
+| Pairing, session, keys and recovery | Developer A | Invalid invites, consent, join/leave/rejoin, key lifecycle, recovery expiry and rejection of late callbacks. |
+| Messaging, security validation and transport | Developer B; A reviews security/session behavior | Agreed wire fixtures, bounds, AEAD tampering, nonce uniqueness/restarts, replay rejection, framing for selected transport, queue bounds and reconnect. |
+| Map, location, sharing and power | Developer C | Sharing OFF, permission denial, stale/invalid samples, original measurement timestamps, cadence/cancellation and agreed power thresholds. |
+| Meeting point, SOS and Finder | Developer D; B/C review integration | Meeting conflict resolution, hold cancellation, urgent dispatch and recipient ACKs, duplicate alerts, unsupported/interrupted precision finding and fallback. |
 
-| Suite | File | Test Cases | Scope & Verification Coverage |
-| :--- | :--- | :---: | :--- |
-| **Packet Codec Tests** | `PacketCodecTests.swift` | 13 | 54-byte wire layout enforcement, 8-byte cleartext envelope big-endian serialization/deserialization, 2-byte Base-27 Initials Codec ($A \dots Z$, $18,278 \le 65,535$), Int32 coordinate quantization error (<11 cm), boundary coordinates ($-90^\circ, +90^\circ, -180^\circ, +180^\circ$), payload codecs (`LocationPing`, `SOS`, `MeetingUpdate`, `ACK`, Phase 2 `RouteReq`/`RouteResp`), and serverless URL fragment invite generation/parsing. |
-| **Cryptographic Security Tests** | `CryptoSecurityTests.swift` | 13 | ChaCha20-Poly1305 AEAD sealing and opening, tampered ciphertext rejection (zero plaintext leakage), tampered authentication tag rejection, cleartext envelope AAD tampering rejection (version, type, hopLimit, sessionId, sequenceNumber), mutable hopCount invariance (intermediary relays increment hopCount without tag invalidation), wrong key rejection, nonce uniqueness across members via sequence number partitioning, 5-minute sliding LRU duplicate packet rejection, anti-replay monotonic sequence enforcement, stale location state replacement prevention, future timestamp clock skew guard (>300s), and iOS Keychain storage lifecycle & permanent teardown purge. |
-| **Peer Transport Tests** | `PeerTransportTests.swift` | 12 | `StreamMessageFramer` 54-byte frame delimiter, chunk fragmentation and partial read assembly, back-to-back datagram batching, corruption resynchronization over corrupted bytes, 64 KB buffer capacity protection, `PriorityOutboxQueue` urgent FIFO preemption (SOS cuts ahead of pings), single-slot location ping coalescing, bounded retry budgets with exponential backoff, hex peer ID tie-breaking, and `TransportDiagnostics` telemetry integrity. |
-| **Location & Publishing Tests** | `LocationPublishingTests.swift` | 11 | Live Sharing master switch (ON permits pings, OFF completely halts broadcasting), status changes piggybacked strictly inside next normal update without standalone packets, monotonic coordinate integrity (delayed GPS fixes cannot overwrite newer fixes), UI exposure of location age and accuracy, SOS immediate location acquisition without waiting for interval, denied and authorized location permission handling, adaptive cadence selection (3–5s moving, 15–30s stationary, 60s Survival Mode), cancellable scheduler tasks, zero dummy coordinate manufacturing, and end-to-end `LocationPublisher` packet dispatch. |
-| **SOS End-to-End Tests** | `SOSEndToEndTests.swift` | 10 | 3-second continuous hold gesture state machine and early release cancellation, immediate dispatch independent of Live Sharing toggle and normal ping intervals, true hardware timestamp preservation (no false freshness), urgent queue preemption, honest delivery state machine progression (`LOCAL_SENDING` $\rightarrow$ `RELAY_ACK` $\rightarrow$ `DELIVERED_TO_FRIEND`), bounded retries (3 attempts), unauthorized stranger and rogue packet rejection, duplicate suppression (no repeated audible sirens or duplicate alert banners), simulated two-device roundtrip, and empty peer list handling (`SEARCHING_PEERS`). |
-| **UI & State Tests** | `UIStateTests.swift` | 8 | Group pairing lifecycle (creation, invite parsing, Communal Mesh Compact agreement gating, teardown), location freshness badges (*"Last seen Xm ago"*), status picker selection, Live Sharing toggle transitions, SOS countdown progress and cancellation, honest delivery state presentation, friend straight-line distance and magnetic forward bearing calculations, and single active meeting point proposal with `PremadeMeetingLocation` dropdown menu selection. |
+### 4.2 Verification Evidence
 
-### 4.2 Test Execution Command & Verification
+- Add executable unit/integration targets when the first testable behavior is introduced; use controllable transport, location and clock inputs where appropriate.
+- A successful `xcodegen generate` or app build is not a test run.
+- Record the actual build/test command, revision, destination, result and limitations in the feature PR. Do not copy historical pass counts into new work.
+- Shared protocol changes require agreed fixtures and review before dependent features adopt them.
 
-The following historical command builds the app; it does not execute tests. Once source is available, configure a test scheme and record an actual `xcodebuild test` invocation, destination, revision and result:
+### 4.3 Physical-Device Verification
 
-```bash
-# Full project compilation & build verification
-xcodebuild -scheme "TeeKum Prototype" \
-  -destination "generic/platform=iOS Simulator" \
-  -derivedDataPath .derivedData build \
-  CODE_SIGNING_ALLOWED=NO
-```
+When radio/location features are implemented, the responsible owner documents reproducible steps and results for two iPhones running iOS 27+ without cellular data or an infrastructure Wi-Fi connection. Cover discovery, state exchange, disconnect/reconnect, stale GPS, permissions, sharing OFF, locked-screen behavior, Low Power Mode, session teardown and SOS recipient confirmation.
 
-### 4.3 Physical Two-Device Testing Protocol
-
-Physical testing procedures are executed on two iPhones disconnected from Wi-Fi routers and cellular data, detailed in:
-- [`docs/PHYSICAL_DEVICE_TEST_CHECKLIST.md`](PHYSICAL_DEVICE_TEST_CHECKLIST.md) — 7-step location, status, and battery field verification.
-- [`docs/PHYSICAL_DEVICE_SOS_VALIDATION.md`](PHYSICAL_DEVICE_SOS_VALIDATION.md) — 7-step Emergency SOS, siren audio, and rogue datagram rejection field verification.
+Simulator results cannot establish radio range, background reliability, location accuracy or battery life. Record device models, OS versions, conditions and observed limits in the owner's feature documentation when that work is performed.
 
 ---
 
@@ -724,19 +709,30 @@ develop → feat/feature-name → PR to develop → PR to main → PR to prod
 
 ---
 
-## 6. Final Check
+## 6. Team Starting Point
 
-- [x] Project description, team, platform, and system architecture are aligned with TeeKum.
-- [x] Legacy technologies replaced by the 9 Native Apple Frameworks (Network.framework, CoreLocation, CoreMotion, CryptoKit, NearbyInteraction, MapKit, ActivityKit, Security, libsqlite3).
-- [x] MVVM Feature-Driven target structure and four-developer ownership proposal are documented in Section 3.
-- [ ] Team review and source-level implementation of that structure are complete.
-- [x] Review decisions D1–D9 from /grill-me sessions and roadmap reviews are recorded in the Approved Decisions table.
-- [x] 54-byte binary packet wire format (Protocol v2), 2-byte Base-27 initials codec (zero handshake), 16-bit session ID derivation, envelope separation, and CoreLocation `Double` quantization are documented.
-- [x] Phase 2 2-byte expanded hop control architecture (Decision D9: `hopLimit: UInt8` + `hopCount: UInt8`, range 0..255) is scheduled for multi-hop mesh development.
-- [ ] Reported 67-test results are reproduced against the team implementation.
-- [ ] Phase 1 runtime acceptance is confirmed with source, repeatable tests and physical-device evidence. Historical implementation claims: [PHASE_1_DEVELOPMENT_REPORT.md](PHASE_1_DEVELOPMENT_REPORT.md).
-- [x] 4-branch Git workflow (`main`, `develop`, `prod`, `feat/*`) and commit conventions are established.
+- The repository contains a single SwiftUI Hello-world app and an XcodeGen configuration targeting iOS 27.0.
+- MVVM Feature-Driven foldering, file responsibilities and `Models/Enums/` placement are defined in Section 3; the feature source has not been created yet.
+- Developer A–D in Section 3.5 are responsibility slots, not assigned names. Agree names and reviewers before parallel implementation.
+- Start with owner/reviewer agreement, shared contracts and the decisions below, then deliver small reviewed feature changes with verification evidence.
+- Developers document their own implemented scope using the convention in [agent.md](agent.md#4-documentation-and-handoff). There is no shared chronological development-log requirement and no requirement to create completion reports before implementation.
 
-### Open Decisions for Future Phases
+## 7. Open Team Decisions
 
-Implementation of custom vector venue floorplans (Phase 3), Apple Watch haptic companion extension (Phase 3), and large stadium-scale multi-hop mesh routing with expanded 2-byte hop control (Phase 2, Decision D9). These topics are scheduled for development in subsequent phases once the Phase 1 direct offline MVP is fully verified on physical iPhones.
+The retained networking/payload/security documents are draft design inputs. Resolve these items in the relevant document through owner/reviewer PRs before dependent implementation; do not infer approval from older wording inside examples.
+
+| Topic | Decision needed before implementation | Owner / reviewer |
+| :--- | :--- | :--- |
+| Wire version and size | Reconcile the 54-byte / 16-bit-session proposal with the 56-byte / 32-bit-session layout in PROTOCOL_SPECIFICATION. Agree version, byte offsets, compatibility and golden fixtures. | B / A |
+| Transport | Select TCP or UDP, matching Bonjour service type, receive semantics and framing. References currently differ. | B / A |
+| Member identity and initials | Agree unique member identity, sender/slot allocation, initials radix, collisions and rejoin behavior. Initials are display labels, not unique identity. | A + B |
+| Crypto and replay | Agree cipher, nonce/AAD construction, counter/restart/key lifecycle and deduplication identity. Review before freezing the wire layout. | A + B |
+| Relay consent and scope | Decide whether stranger relaying is optional or required, and keep Phase 2 behavior separate from Phase 1 UI promises. | A / team |
+| Background and Live Activity | Define supported runtime states and fallback. A visible indicator or Live Activity is not acceptance evidence for continuous relay or suspended-app SOS receipt. | C / A |
+| Battery policy | Agree cutoff boundary, unknown battery state, Low Power Mode precedence and recovery behavior; remove guarantees until measured. | C / B |
+| Meeting synchronization | Agree how simultaneous proposals and attendance reconcile after disconnection. | D / B |
+| Finder and offline map | Verify map availability without internet, device capabilities, proximity-token exchange and fallback; do not freeze UWB transition distances without evidence. | D + C |
+| Diagnostics and honest state | Separate discovered/connected/authenticated peers, measurement age, accuracy and publishing availability. Do not manufacture radio metrics or refresh stale coordinates on packet receipt. | B + C / D |
+| Phase 2 security | Review mutable hop metadata, relay abuse budgets, deduplication limits and loop/storm handling before multi-hop work. | B / A |
+
+Custom venue overlays and an Apple Watch companion remain later-phase proposals. They are not prerequisites for onboarding or the direct offline MVP.

@@ -1,9 +1,9 @@
 # TeeKum Protocol Specification & Cryptographic Message Protection
 
-**Author:** Agent 2 (Protocol & Cryptography Specialist)  
-**Approved by:** Agent 0 (Technical Lead)  
-**Date:** 27 October 2026  
-**Status:** Approved Specification  
+> **Team baseline:** This is a retained design reference, not a report of implemented or verified behavior. Resolve conflicts in [TechnicalRequirements Section 7](TechnicalRequirements.md#7-open-team-decisions) before adopting packet layouts, identities or runtime assumptions. Existing examples, performance figures and implementation wording require validation by the responsible developer. File placement follows [Section 3](TechnicalRequirements.md#3-architecture--mvvm-feature-driven).
+
+
+**Status:** Draft cryptography/wire reference; owner and reviewer must reconcile it before implementation.
 **Scope:** Fixed 56-Byte Binary Wire Format, AEAD Protection, Nonce Uniqueness, and Ingestion Validation
 
 ---
@@ -259,5 +259,5 @@ Bytes 5..8: sequenceNumber (UInt32 big-endian)
 ```
 
 ### 6.3 Implementation Phasing
-- **Phase 1 (Current Active Build):** Strictly maintains Protocol v2 (8-byte cleartext envelope, 1-byte 4-bit/4-bit `hopMetadata`, 30-byte payload, 16-byte auth tag = 54 bytes). All 73 tests pass against this format.
+- **Phase 1 proposal:** Other sections/documents describe Protocol v2 as 54 bytes (8-byte envelope + 30-byte payload + 16-byte tag), while Section 1 here describes 56 bytes. Reconcile this difference before implementation; no test results are established by this reference.
 - **Phase 2 (Roadmap Milestone):** Migrates to Protocol v3 (9-byte envelope, 29-byte payload, 16-byte auth tag = 54 bytes) when multi-hop stranger mesh routing and AODV route discovery are implemented.

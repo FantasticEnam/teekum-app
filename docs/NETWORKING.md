@@ -1,13 +1,15 @@
 # TeeKum — Networking Architecture & Wire Protocol Documentation
 
+> **Team baseline:** This is a retained design reference, not a report of implemented or verified behavior. Resolve conflicts in [TechnicalRequirements Section 7](TechnicalRequirements.md#7-open-team-decisions) before adopting packet layouts, identities or runtime assumptions. Existing examples, performance figures and implementation wording require validation by the responsible developer. File placement follows [Section 3](TechnicalRequirements.md#3-architecture--mvvm-feature-driven).
+
+
 > **Document Version:** 2.0  
-> **Status:** Authoritative Networking Architecture  
+> **Status:** Draft technical reference; team decisions pending.
 > **Target Platform:** iOS 27+ (Native Apple Frameworks Only, Zero External Packages)
 > **Related Documents:**
 > - [Master Agent Instructions (docs/agent.md)](agent.md)
 > - [Technical Requirements (docs/TechnicalRequirements.md)](TechnicalRequirements.md)
 > - [54-Byte Wire Protocol & Payload Developer Guide (docs/PAYLOAD_GUIDE.md)](PAYLOAD_GUIDE.md)
-> - [Direct P2P Transport Report (docs/P2P_TRANSPORT_REPORT.md)](P2P_TRANSPORT_REPORT.md)
 
 ---
 
@@ -390,7 +392,7 @@ public struct TransportDiagnostics: Sendable {
 }
 ```
 
-Attendees and engineers can inspect this in the on-device Debug HUD sheet ([`DiagnosticsView.swift`](file:///Users/nicho/Developer/TeeKum%20Prototype/TeeKum%20Prototype/Views/DiagnosticsView.swift)):
+Attendees and engineers can inspect this in the on-device Debug HUD sheet (`Features/Diagnostics/Views/DiagnosticsView.swift` (planned)):
 - **Connected Peer Roster:** Direct link status, display name, and last seen timestamps.
 - **Traffic Counters:** Sent vs. received packet count, dropped packets, and coalesced obsolete pings.
 - **Event Log:** Live timestamped audit log of Bonjour discovery events, socket state changes, and reconnection attempts.

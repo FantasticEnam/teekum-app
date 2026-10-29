@@ -1,9 +1,11 @@
 # TeeKum — 54-Byte Wire Protocol & Payload Developer Guide
 
+> **Team baseline:** This is a retained design reference, not a report of implemented or verified behavior. Resolve conflicts in [TechnicalRequirements Section 7](TechnicalRequirements.md#7-open-team-decisions) before adopting packet layouts, identities or runtime assumptions. Existing examples, performance figures and implementation wording require validation by the responsible developer. File placement follows [Section 3](TechnicalRequirements.md#3-architecture--mvvm-feature-driven).
+
+
 > **Audience:** iOS Developers, Protocol Engineers, and System Designers working on TeeKum.  
 > **Scope:** Byte-level wire format, field quantization algorithms, AEAD cryptographic boundaries, and worked concrete festival scenarios.  
-> **Current Version:** Protocol v2 (Active Phase 1 Implementation) with Protocol v3 Evolution Roadmap (Phase 2).  
-> **Source Code Reference:** [`Packet.swift`](../TeeKum%20Prototype/Models/Packet.swift), [`CryptoService.swift`](../TeeKum%20Prototype/Services/CryptoService.swift), [`LocationPublisher.swift`](../TeeKum%20Prototype/Services/LocationPublisher.swift), [`SOSViewModel.swift`](../TeeKum%20Prototype/ViewModels/SOSViewModel.swift).
+> **Current Version:** Protocol v2 design proposal with a Protocol v3 evolution proposal (Phase 2).
 
 ---
 
@@ -410,7 +412,7 @@ A single decrementing TTL byte (`ttl: UInt8`) was evaluated and **rejected**:
 - Because the TTL byte mutates on every hop, it cannot be authenticated in ChaCha20-Poly1305 without masking it to `0x00`.
 - If masked to `0x00`, any rogue node can rewrite the TTL to `255` without failing authentication, causing catastrophic broadcast storms and draining everyone's battery.
 
-### The Phase 2 Approved Architecture: Two Dedicated Bytes
+### Phase 2 Architecture Proposal: Two Dedicated Bytes
 In Phase 2, the envelope expands to two dedicated 8-bit bytes:
 1. `hopLimit: UInt8` (Byte 1, range $0 \dots 255$): Immutable forwarding budget sealed inside the AAD. Rogue nodes cannot inflate it.
 2. `hopCount: UInt8` (Byte 2, range $0 \dots 255$): Mutable traversal counter incremented per relay and masked to `0x00` in AAD.
