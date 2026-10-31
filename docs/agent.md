@@ -27,7 +27,7 @@ Technical Requirements owns the target architecture and team decisions. Keep det
 
 ## 3. Four-Developer Workflow
 
-The proposed split is defined in [Technical Requirements Section 3.5](TechnicalRequirements.md#35-four-developer-collaboration-baseline). Assign names and reviewers together; role letters are placeholders.
+The proposed split is defined in [Technical Requirements Section 3.5](TechnicalRequirements.md#35-four-developer-collaboration-baseline). The [migration backlog](MIGRATION_BACKLOG.md) provides candidate tickets, dependencies and acceptance rules. Assign names and reviewers together; role letters are placeholders.
 
 | Role | Primary work |
 | :--- | :--- |
@@ -62,7 +62,7 @@ Keep detailed changes and discussion in PRs. Keep lasting architecture/product d
 
 ## 5. Verification and Product Integrity
 
-- Start from the existing Hello-world source. The target file tree is a placement guide, not completed source.
+- The Hello-world source is the migration destination. Inspect the legacy feature and agree behavior to preserve/correct/defer/remove before porting. Reuse sound source where available; otherwise identify the work as reviewed behavior reconstruction. The target file tree is a placement guide, not completed source.
 - Add executable test targets with the behavior being implemented. Generation/build success is not test execution.
 - Validate radio, location, battery and locked-screen behavior on physical devices; mocks/simulators cannot establish field reliability.
 - Preserve location measurement timestamps and accuracy. Never display an old coordinate as a fresh live position.

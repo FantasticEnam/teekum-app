@@ -621,7 +621,7 @@ Agree on session commands/state snapshots, transport events, location samples, d
 | `SessionStorage*` | `Core/Persistence/` |
 | QR generator/scanner, meeting sheet, agreement view | Owning feature, rather than generic `Views/Components/` |
 
-1. Start from the current Hello-world source and establish a repeatable build baseline. Add test targets and fixtures alongside implemented behavior; old prototype results are not acceptance evidence.
+1. Treat the current Hello-world repository as the migration destination. Capture accessible prototype source/build/screenshots and characterize each feature before migrating it. Agree preserve/correct/defer/remove decisions; where source is unavailable, explicitly approve behavior reconstruction. Establish the destination build baseline and add meaningful fixtures/tests alongside the migrated behavior.
 2. Confirm contracts and resolve protocol/security blockers in [Section 7 — Open Team Decisions](#7-open-team-decisions) before implementing transport or cryptography from these docs.
 3. Move feature files in small PRs, fixing Xcode target membership and references. Separate mechanical moves from behavior changes.
 4. Extract shared session ownership and dependency composition incrementally. Preserve teardown, permission/error behavior, publishing policy and honest SOS delivery states.
@@ -714,7 +714,7 @@ develop → feat/feature-name → PR to develop → PR to main → PR to prod
 - The repository contains a single SwiftUI Hello-world app and an XcodeGen configuration targeting iOS 27.0.
 - MVVM Feature-Driven foldering, file responsibilities and `Models/Enums/` placement are defined in Section 3; the feature source has not been created yet.
 - Developer A–D in Section 3.5 are responsibility slots, not assigned names. Agree names and reviewers before parallel implementation.
-- Start with owner/reviewer agreement, shared contracts and the decisions below, then deliver small reviewed feature changes with verification evidence.
+- The delivery approach is migration from the existing vibe-coded product/behavior reference, not an assumption that feature requirements start from zero. Use [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.md) to capture the baseline, assign owners/reviewers, resolve the decisions below and deliver reviewed feature changes with evidence.
 - Developers document their own implemented scope using the convention in [agent.md](agent.md#4-documentation-and-handoff). There is no shared chronological development-log requirement and no requirement to create completion reports before implementation.
 
 ## 7. Open Team Decisions
