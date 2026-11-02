@@ -351,42 +351,37 @@ No Coordinator framework, dependency injection package, mandatory Repository/Use
 
 ### 3.2 Dependency & Ownership Rules
 
-```text
-App (creates dependencies, owns their lifetime, composes screens)
-  ├── Features/Pairing, Map, MeetingPoint, SOS, Finder, Diagnostics
-  │      View -> ViewModel -> injected service / SessionStore
-  │                               |
-  └── Core (shared models, session state, messaging, platform services)
-                 |
-          Apple frameworks
+Start with regular MVVM inside feature folders:
 
-Shared/UI -> SwiftUI only (reusable presentation)
-Core must not depend on Features. Features must not import each other.
+```text
+TeekumApp                      // Create and retain shared dependencies; pass them to features
+└── AppRootView                // Show Pairing or Main Map from session state
+    └── Feature View -> ViewModel -> Service -> Apple frameworks
+                           |
+                    Shared session state, when needed
 ```
 
-1. **View:** Render state and forward actions. Keep transient presentation state (sheet selection, focus, navigation path) local where appropriate. No sockets, packet parsing, keys, or database access.
-2. **ViewModel:** `@MainActor @Observable` screen state and user actions. Call injected dependencies and map results to UI state. Never own the entire networking pipeline or create global services. A simple reusable view does not need a ViewModel.
-3. **Model:** Swift value types for app data. Payload-free categorical enums belong to the owning `Models/Enums/` folder (Section 3.3). A member's initials are a display label, not a unique identity. Packet DTOs and byte codecs belong to Messaging, not to a map ViewModel.
-4. **Service:** Own a concrete operation or platform lifecycle. Feature-only behavior stays in that feature; shared transport, cryptography, location, and persistence live in Core.
-5. **SessionStore:** One `@MainActor @Observable` owner of accepted session state (membership, latest member samples, active meeting point, emergency state). Feature ViewModels derive screen state from it; do not keep independently writable copies of the same roster or meeting point. Sample receipt time and location measurement time are separate fields.
-6. **SessionRuntime:** Own session-scoped tasks: transport event ingestion, validation, publishing, and teardown. It updates SessionStore through a MainActor boundary. It has no navigation or view references. Feature commands that affect shared state go through this session boundary, rather than each feature constructing encrypted packets.
-7. **Composition:** `AppDependencies` explicitly creates shared dependencies and injects only the capabilities each ViewModel needs. No global singleton/service locator. Create shared services once per intended lifecycle, never during `body` evaluation.
-8. **Concurrency:** Use actors for shared mutable networking/storage state where needed. Do not make every service an actor mechanically: UI-facing state and CoreLocation delegate integration need an explicit isolation plan. Pass immutable `Sendable` snapshots across isolation boundaries. Keep byte processing and blocking persistence work off the MainActor.
-9. **Event delivery:** SessionRuntime is the single consumer of inbound transport packets. It publishes validated state to SessionStore. Do not give multiple ViewModels a competing iterator over the same inbound stream. Cancel subscriptions and timers when their owner ends.
-10. **Shared promotion:** Move code to Core or Shared only when multiple features actually need it. Core contains behavior/data; Shared/UI contains presentation. Avoid catch-all `Utils`, `Helpers`, or `Managers` folders.
+1. **View:** Render state and forward user actions. Keep feature-local navigation, sheets, focus and selection inside the feature. Do not open sockets, parse packets or access the database from a View.
+2. **ViewModel:** `@MainActor @Observable` screen state and actions. Call the services it needs through initializer injection; format results for the View. Small reusable views do not need their own ViewModel.
+3. **Model:** Data records and value types. Put payload-free category/status enums in their owner's `Models/Enums/`. Initials are display labels, not unique member identity. Wire data and codecs belong to Messaging.
+4. **Service:** Own a concrete capability such as location, transport, crypto or persistence. Feature-only behavior stays in its feature; shared behavior belongs in Core. Do not add a protocol or extra wrapper for every class; introduce test seams at actual platform/shared boundaries.
+5. **App setup:** Create and retain shared services/state in `TeekumApp.swift`, then pass only what each feature needs. Do not recreate them inside `body` or use a global service locator. Direct constructor injection is sufficient.
+6. **Root and navigation:** `AppRootView` is a plain SwiftUI View that selects Pairing or Main Map from session state. Use native SwiftUI navigation and presentation in the owning feature. The root does not own every route or sheet.
+7. **Shared state:** Introduce one observable session-state owner when multiple features need the same accepted membership, member samples or meeting point. `SessionStore` is a suggested name, not a prerequisite for UI fixtures. Do not keep independently writable copies of the same session data in each ViewModel. Measurement time and receipt time remain distinct.
+8. **Service lifecycle:** Give the inbound transport stream one consumer in the service layer; validate events before updating shared state on the MainActor. Views/ViewModels observe accepted state instead of competing for the raw stream. Service owners cancel their tasks and reject old-session callbacks during teardown; these duties must not depend on whether a screen is visible.
+9. **Concurrency and boundaries:** Keep UI state on the MainActor; use actors where shared mutable service state needs isolation. Keep blocking persistence/byte work off the MainActor and use appropriate Sendable values across boundaries. Core does not depend on Features; compose feature-to-feature actions at the app boundary with callbacks or shared state. Promote code to Core/Shared only when it is actually reused.
 
-`SessionRuntime` is a session service, not a navigation Coordinator. Its concrete execution context and protocol signatures must be settled against the actual code before implementation.
+**Defer additional types:** There is no required `AppDependencies`, `SessionRuntime`, `SessionCommands`, Coordinator, Repository or UseCase layer. If dependency setup later becomes hard to read, extract a small factory/container from TeekumApp. If session orchestration becomes substantial, extract a focused session service with a clear lifecycle. Add either because existing code needs it, not to complete a folder diagram.
 
 ### 3.3 Target Folder Structure
 
-Paths below are proposed implementation files, not an inventory of source available in this repository. Comments use `//` to explain each file's responsibility. This is a placement guide: do not create empty files or placeholder folders just to complete the tree. Conditional files are marked explicitly.
+Paths below are placement suggestions, not files required before feature work can start. Begin with `App/TeekumApp.swift`, `AppRootView.swift` and the feature being migrated; add services/shared state as real behavior needs them. Comments use `//` for responsibilities. Do not create empty files/folders to complete the tree. The listed service protocols are examples of useful test seams, not an interface-per-service requirement. Small features may keep their ViewModel directly in the feature folder (for example `Features/Map/MapViewModel.swift`); add a `ViewModels/` subfolder only when it improves readability.
 
 ```text
 TeeKum/
 ├── App/
-│   ├── TeeKumApp.swift                       // App entry point; create and retain app dependencies
-│   ├── AppRootView.swift                     // Switch pairing/session roots; own navigation and sheet presentation
-│   └── AppDependencies.swift                 // Construct and inject services, SessionStore, SessionRuntime and ViewModels
+│   ├── TeekumApp.swift                       // Entry point; create/retain services and shared state; inject into features
+│   └── AppRootView.swift                     // Plain SwiftUI root: show Pairing or Main Map; keep feature sheets local
 ├── Features/
 │   ├── Pairing/
 │   │   ├── Views/
@@ -462,9 +457,7 @@ TeeKum/
 │   │       ├── MeetingAttendance.swift      // Payload-free attendance choices: pending, accepted or declined
 │   │       └── LocationFreshness.swift      // Payload-free sample classifications; age/accuracy remain in LocationSample
 │   ├── Session/
-│   │   ├── SessionStore.swift               // MainActor observable owner of accepted shared state; no sockets or keys
-│   │   ├── SessionRuntime.swift             // Session commands, inbound consumer, shared-state updates and task teardown
-│   │   └── SessionCommands.swift            // Narrow command contract injected into feature ViewModels
+│   │   └── SessionStore.swift               // Add when needed: one MainActor observable session-state owner; no sockets/keys
 │   ├── Messaging/
 │   │   ├── Models/
 │   │   │   ├── Packet.swift                 // Envelope and encrypted wire packet data; final schema pending reconciliation
@@ -534,7 +527,7 @@ TeeKumTests/
 │   ├── Finder/FinderViewModelTests.swift     // Unsupported/interrupted precision mode and compass fallback
 │   └── Diagnostics/DiagnosticsViewModelTests.swift // Unknown metrics and separate connection/sample states
 ├── Core/
-│   ├── Session/SessionRuntimeTests.swift    // Single inbound consumer, task cancellation and late-event rejection
+│   ├── Session/SessionStateTests.swift      // Shared-state consistency, teardown reset and old-session rejection
 │   ├── Messaging/PacketCodecTests.swift     // Golden wire vectors, byte boundaries, coordinates and initials codec
 │   ├── Messaging/ReplayFilterTests.swift    // Duplicates, per-sender replay checks and bounded-cache behavior
 │   ├── Transport/PeerTransportTests.swift   // Connection lifecycle, framing if applicable and reconnect behavior
@@ -570,24 +563,24 @@ docs/
 - Ownership takes precedence over global grouping: feature-only enums remain in that feature; shared domain enums live in `Core/Models/Enums/`; transport/wire-specific enums remain under their subsystem's `Models/Enums/`. Avoid duplicate `Status` definitions per feature.
 - One principal type per file; file name matches its type. Do not put views, ViewModels, services or codecs in `Models/Enums/`.
 
-The widget must not create a second SessionRuntime or hold group encryption keys. `Core/LiveActivity/SessionActivityAttributes.swift` is one shared source file with app/widget target membership, not two copied definitions. Share only the minimum display data required, with App Group configuration decided during implementation.
+The widget only renders shared display data; it must not start a duplicate transport/publishing session or hold group encryption keys. `Core/LiveActivity/SessionActivityAttributes.swift` is one shared source file with app/widget target membership, not two copied definitions. Share only the minimum display data required, with App Group configuration decided during implementation.
 
 ### 3.4 Feature Boundaries & Data Flow
 
 | Capability | UI owner | Shared behavior / source of truth |
 | :--- | :--- | :--- |
-| Create/join/leave group, QR/link | Pairing | SessionRuntime owns lifecycle, Security owns keys; SessionStore owns active membership. |
-| Map, member detail, status, sharing toggle | Map | Core/Location owns samples and publisher; session commands change sharing/status. |
-| Propose/accept meeting point | MeetingPoint | SessionRuntime applies updates; SessionStore owns one active point. Concurrent proposal resolution remains an open protocol decision. |
-| Hold SOS and show delivery | SOS | Core/Messaging owns urgent dispatch, retry and recipient ACK processing; SessionStore owns accepted emergency/delivery state. |
+| Create/join/leave group, QR/link | Pairing | PairingViewModel calls invite/key/transport services; one shared session-state owner tracks accepted membership. Extract lifecycle coordination into a service only when needed. |
+| Map, member detail, status, sharing toggle | Map | MapViewModel calls location/publishing services; shared accepted state feeds member display. |
+| Propose/accept meeting point | MeetingPoint | MeetingPointViewModel calls messaging behavior; one shared state owner stores the accepted point. Concurrent proposal resolution remains an open decision. |
+| Hold SOS and show delivery | SOS | SOSViewModel calls the delivery service; Core/Messaging owns dispatch, retries and ACKs beyond the screen lifetime. Accepted delivery state is shared where needed. |
 | Compass/UWB and beacon | Finder | Core supplies target location; feature service owns NearbyInteraction lifecycle and capability fallback. |
 | Debug HUD | Diagnostics | Reads transport/location/session snapshots; cannot infer a hardware state from a static label. |
 
-**Outbound example:** Map action -> MapViewModel -> session command -> publishing/codec/security/outbox -> transport. Toggle intent and actual publishing availability are separate states.
+**Outbound example:** Map action -> MapViewModel -> LocationPublisher/messaging service -> codec/security/outbox -> transport. Call concrete services directly where sufficient; no mandatory command layer. Toggle intent and actual publishing availability are separate states.
 
-**Inbound example:** transport -> SessionRuntime -> validation/decryption/replay checks -> accepted state update -> SessionStore -> observing feature ViewModels/Views. A fresh network receipt must not reset the age of an old location sample. Exact validation order and packet fields await protocol reconciliation.
+**Inbound example:** transport -> one service-owned ingestion pipeline -> validation/decryption/replay checks -> shared accepted state -> observing feature ViewModels/Views. Choose the concrete owning service during integration; a separate runtime class is not required. A new receipt must not refresh an old sample's measurement time. Exact validation order and packet fields await protocol reconciliation.
 
-**Deep link:** AppRootView hands validated invite input to Pairing; the session starts only after the required consent flow completes. Invites and raw keys must not enter diagnostics or logs.
+**Deep link:** Handle the incoming URL at the App boundary and pass it to PairingViewModel for invite validation and the required consent flow. AppRootView only switches the visible root from accepted session state. Never log invites or raw keys.
 
 **Leave/expiry:** stop publishers, close transport, cancel tasks, end Live Activity if present, clear UI/session state and delete session secrets/recovery data. Verify that late callbacks from the previous session cannot repopulate a new one.
 
@@ -602,14 +595,14 @@ This is a proposed responsibility split; assign names with the team. Each develo
 | Developer C | Map/status/sharing, location, battery; Live Activity if selected | Core/Location, Core/Power, app-side Live Activity; A reviews lifecycle |
 | Developer D | MeetingPoint, SOS UI/hold interaction, Finder | B reviews SOS/meeting wire contracts; C reviews location/finder integration |
 
-Agree on session commands/state snapshots, transport events, location samples, diagnostics fields, and SOS delivery semantics before parallel feature work. Define test seams at platform boundaries; do not create a protocol for every class. Use fakes while implementation proceeds. Each PR includes its relevant tests and a reviewer; shared schema or App composition changes need the responsible owner. Review workload at each milestone, especially transport/security and UWB.
+Agree on shared state and service method/event signatures, location samples, diagnostics fields, and SOS delivery semantics before dependent feature work. Define test seams at platform boundaries; do not create a protocol for every class. Use fakes while implementation proceeds. Each PR includes its relevant tests and a reviewer; shared schema or App composition changes need the responsible owner. Review workload at each milestone, especially transport/security and UWB.
 
 ### 3.6 Mapping & Migration Sequence
 
 | Legacy design path/name | Target destination |
 | :--- | :--- |
 | `Views/`, `ViewModels/` | Corresponding `Features/<Feature>/Views` and `ViewModels` |
-| `GroupSessionViewModel` | Pairing UI -> PairingViewModel; accepted state -> SessionStore; session tasks -> SessionRuntime |
+| `GroupSessionViewModel` | Pairing UI/actions -> PairingViewModel; reuse one shared session state owner when needed; platform work -> concrete services. No mandatory runtime/command layer. |
 | `Models/Packet.swift`, initials/wire codecs | `Core/Messaging/` |
 | Shared `Member`, location, group, meeting and SOS event records | `Core/Models/` |
 | Payload-free `Status`, `SOSDeliveryState` and other shared category enums | `Core/Models/Enums/` |
@@ -624,7 +617,7 @@ Agree on session commands/state snapshots, transport events, location samples, d
 1. Treat the current Hello-world repository as the migration destination. Capture accessible prototype source/build/screenshots and characterize each feature before migrating it. Agree preserve/correct/defer/remove decisions; where source is unavailable, explicitly approve behavior reconstruction. Establish the destination build baseline and add meaningful fixtures/tests alongside the migrated behavior.
 2. Confirm contracts and resolve protocol/security blockers in [Section 7 — Open Team Decisions](#7-open-team-decisions) before implementing transport or cryptography from these docs.
 3. Move feature files in small PRs, fixing Xcode target membership and references. Separate mechanical moves from behavior changes.
-4. Extract shared session ownership and dependency composition incrementally. Preserve teardown, permission/error behavior, publishing policy and honest SOS delivery states.
+4. Start with direct dependency creation in TeekumApp and concrete service calls from ViewModels. Add a shared session state owner when needed; extract further orchestration only when existing code becomes hard to maintain. Preserve teardown, errors, publishing policy and honest delivery states.
 5. Verify automated state/codec/security checks and physical-device flows. Include locked screen, sharing OFF, stale GPS, loss/reconnect, Low Power Mode, and leave/rejoin. A folder refactor alone cannot establish runtime correctness.
 
 ---
