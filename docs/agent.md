@@ -19,8 +19,10 @@ Technical Requirements owns the target architecture and team decisions. Keep det
 - Keep shared session state, messaging and platform infrastructure under `Core/`; reusable presentation belongs in `Shared/UI/`.
 - Put payload-free category/status enums in their owner's `Models/Enums/`. Structured records and associated-value enums stay in `Models/`.
 - Views render state and forward actions. UI-observed ViewModels/state use explicit MainActor isolation.
-- Inject dependencies from App composition. Core must not depend on Features; features must not depend directly on one another.
-- SessionStore owns accepted shared session state; SessionRuntime owns session-scoped ingestion, publishing and teardown. Do not duplicate their state or consume the inbound stream from multiple ViewModels.
+- Create/retain shared dependencies in `App/TeekumApp.swift` and pass them to ViewModels through initializers. A separate AppDependencies container or command/runtime layer is not required.
+- Keep `AppRootView` as a plain Pairing/Main Map state switch. Feature-local navigation and sheets stay inside the feature; no Coordinator is needed.
+- Introduce one shared observable session-state owner only when needed; do not duplicate accepted membership/member/meeting data. One service owns raw inbound ingestion and task cleanup independently of screen lifetime.
+- Core must not depend on Features. Compose cross-feature actions at the App boundary with callbacks or shared state.
 - Use actors where shared mutable state requires isolation; do not make every service an actor mechanically.
 - Use native SwiftUI navigation. No mandatory Coordinator, Repository, UseCase, DI framework or package-per-feature split.
 - Preserve the native-framework baseline. Discuss new external dependencies and permissions with the relevant owner before adoption.

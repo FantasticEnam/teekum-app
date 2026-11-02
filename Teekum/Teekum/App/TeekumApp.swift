@@ -11,7 +11,7 @@ import SwiftUI
 struct TeekumApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainMapView()
         }
     }
 }

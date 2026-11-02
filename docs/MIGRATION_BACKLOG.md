@@ -69,7 +69,7 @@ Start with these five parents. Finder is a later parent; cross-feature validatio
 | Subtask title | Short description | Owner |
 | :--- | :--- | :--- |
 | [Review] Pairing & Session | Identify available prototype source/builds; review create, join, share and leave flows and record agreed changes. | A |
-| [Contract] Session State & Feature Actions | Agree state ownership, feature commands, dependency injection, consent and session task lifetime. | A; B reviews |
+| [Contract] Session State & Feature Actions | Agree shared state, service methods, consent and task lifetime; create dependencies in TeekumApp without a mandatory container or command layer. | A; B reviews |
 | [UI Migration] Pairing & Group QR | Migrate group forms, QR/share screens and consent into feature-based Views/ViewModels. | A |
 | [Logic Migration] Session Lifecycle | Migrate invite validation, create/join/leave, key lifecycle and cleanup; connect the Pairing UI. | A; B reviews |
 | [Validation] Pairing & Session Flow | Verify valid/invalid invites, consent, leave/rejoin and cleanup without leaking secrets or accepting late callbacks. | A |
@@ -158,6 +158,7 @@ Track these as separate shared issues once the feature integrations are runnable
 | C | [Review] Map & Live Sharing | Location/power contract → Map UI + location provider/publisher. |
 | D | [Review] Meeting Point | Meeting contract → Meeting UI/logic; review SOS next and defer Finder. |
 
+- Keep the initial architecture small: TeekumApp creates dependencies, AppRootView selects Pairing/Main Map, and feature ViewModels call services. Add shared state as needed; no prerequisite AppDependencies, SessionRuntime or SessionCommands implementation.
 - Align session/member identity and message/security contracts early; dependent features must not invent their own versions.
 - Live peer exchange needs session and transport services. Location-dependent behavior needs the location provider. Preparatory work can use fakes, but final integration must use the agreed real services.
 - Review existing source where available. If only screenshots or a running reference are accessible, document unknowns and agree behavior reconstruction before claiming a logic migration.
