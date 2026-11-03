@@ -62,6 +62,7 @@ public enum Status: UInt8, CaseIterable, Codable, Sendable {
         }
     }
 
+// nanti jika ada cara kita hapus emoji karena blm tahu apa fungsi emoji di vscode
     public var emoji: String {
         switch self {
         case .available:      return "🟢"
