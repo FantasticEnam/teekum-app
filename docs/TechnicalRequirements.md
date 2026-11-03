@@ -456,6 +456,7 @@ TeeKum/
 │   │       ├── SOSDeliveryState.swift       // Payload-free delivery phases; event/recipient details stay in SOSEvent
 │   │       ├── MeetingAttendance.swift      // Payload-free attendance choices: pending, accepted or declined
 │   │       └── LocationFreshness.swift      // Payload-free sample classifications; age/accuracy remain in LocationSample
+│   │       └── SOSType.swift  
 │   ├── Session/
 │   │   └── SessionStore.swift               // Add when needed: one MainActor observable session-state owner; no sockets/keys
 │   ├── Messaging/

@@ -8,11 +8,17 @@
 import SwiftUI
 
 struct AppRootView: View {
+    let sessionStore: SessionStore
+
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+        if sessionStore.hasActiveSession {
+            MainMapView()
+        } else {
+            Text("Pairing View Placeholder (Developer A)")
+        }
     }
 }
 
 #Preview {
-    AppRootView()
+    AppRootView(sessionStore: .preview)
 }
