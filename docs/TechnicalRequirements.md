@@ -653,21 +653,21 @@ Simulator results cannot establish radio range, background reliability, location
 
 ## 5. Git Workflow
 
-Development is restricted to **four branch types**: `main`, `develop`, `prod`, and `feat/*`.
+The team uses two protected branches, `develop` and `main`, plus short-lived `feat/*` branches.
 
 ### 5.1 Branches
 
 | Branch | Purpose | Who can push directly? | Protected? |
 | :--- | :--- | :--- | :--- |
-| `main` | Stable release candidate, fully integrated and tested. | None (PR only). | Protected. |
-| `develop` | Active integration branch for combining and testing features. | None (PR only). | Protected. |
-| `prod` | Final production release code tagged for distribution. | Designated Release PIC. | Protected. |
+| `main` | Stable release candidates and the source for TestFlight and App Store delivery. | None (PR only). | Protected. |
+| `develop` | Integrate features and run CI build and test checks. TestFlight uploads are disabled for this branch. | None (PR only). | Protected. |
 | `feat/*` | Feature development branch branched off `develop`. | Feature developer. | Unprotected. |
 
 ### 5.2 Branch Diagram
 
 ```text
-develop → feat/feature-name → PR to develop → PR to main → PR to prod
+feat/feature-name → PR to develop (CI checks) → PR to main
+                                                └─→ TestFlight → approval → App Store
 ```
 
 ### 5.3 Merging Rules
@@ -676,7 +676,6 @@ develop → feat/feature-name → PR to develop → PR to main → PR to prod
 | :--- | :--- | :--- | :--- |
 | `feat/*` → `develop` | Feature is complete and verified locally. | PR owner. | Code review approved and local tests pass without errors. |
 | `develop` → `main` | Milestone features are verified as a stable release candidate. | Integration PIC. | Full offline peer-to-peer verification succeeds on physical devices. |
-| `main` → `prod` | Final build is verified for release. | Release PIC. | Release certificates signed and final acceptance criteria met. |
 
 ### 5.4 Step by Step: How One Feature Moves Through Our Workflow
 
@@ -685,7 +684,8 @@ develop → feat/feature-name → PR to develop → PR to main → PR to prod
 3. Opens a Pull Request (PR) to `develop` detailing changes and verification evidence.
 4. Reviewer reviews code; developer addresses feedback before merging.
 5. Stable features are promoted from `develop` to `main` via PRs.
-6. Release-ready builds from `main` are merged into `prod`.
+6. The Release PIC starts the TestFlight workflow from `main` after CI checks pass. Record the source commit, app version, and build number.
+7. After TestFlight validation and release approval, the Release PIC selects that same App Store-eligible build for submission. Tag the corresponding release commit on `main`.
 
 ### 5.5 Naming and Commit Conventions
 

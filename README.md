@@ -127,7 +127,7 @@ Developers document their delivered scope as work proceeds. Add a concise `docs/
 
 ## Contribution & Verification
 
-Follow the [Git Workflow](docs/TechnicalRequirements.md#5-git-workflow): `develop → feat/feature-name → PR to develop → main → prod`. The four-developer scope and reviewer split are in the Architecture section. Use commit prefixes such as `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, or `test:`.
+Create `feat/*` branches from `develop` and merge changes back through PRs. `develop` runs CI checks only. Promote release candidates to `main` through a PR for TestFlight distribution and App Store release. The four-developer scope and reviewer split are in the Architecture section. Use commit prefixes such as `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, or `test:`. [Git Workflow](docs/TechnicalRequirements.md#5-git-workflow)
 
 Read the requirements and open decisions before adding frameworks, permissions, or protocol changes. Include the scope, rationale and actual verification results in your PR; update the relevant specification or feature note as needed. Do not record group keys or private location data.
 
