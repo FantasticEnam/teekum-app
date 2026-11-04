@@ -9,6 +9,8 @@ import SwiftUI
 
 @main
 struct TeekumApp: App {
+    @State private var sessionStore = SessionStore.preview // Gunakan .preview sementara agar langsung masuk MainMapView
+    
     var body: some Scene {
         WindowGroup {
             MainMapView()

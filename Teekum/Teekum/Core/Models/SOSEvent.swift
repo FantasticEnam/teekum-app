@@ -7,23 +7,6 @@
 
 import Foundation
 
-/// Emergency category codes carried in SOS alerts.
-public enum SOSType: UInt8, CaseIterable, Codable, Sendable {
-    case general   = 0x00
-    case medical   = 0x01
-    case separated = 0x02
-    case security  = 0x03
-
-    public var title: String {
-        switch self {
-        case .general:   return "General Emergency"
-        case .medical:   return "Medical Assistance"
-        case .separated: return "Lost / Separated"
-        case .security:  return "Security Concern"
-        }
-    }
-}
-
 /// Emergency event identity, originator, sample and delivery records.
 public struct SOSEvent: Identifiable, Equatable, Hashable, Codable, Sendable {
     public let id: UInt32
