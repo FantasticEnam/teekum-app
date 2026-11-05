@@ -13,7 +13,8 @@ struct TeekumApp: App {
     
     var body: some Scene {
         WindowGroup {
-            MainMapView()
+            OrbitMapView()
+                .preferredColorScheme(.dark)
         }
     }
 }
