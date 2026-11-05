@@ -11,15 +11,23 @@ struct OrbitMapView: View {
     @State private var isPanelPresented = false
     
     var body: some View {
-        VStack(alignment: .leading) {
-            OrbitHeaderView()
+        ZStack() {
+            Color.black
+                .ignoresSafeArea()
             
-            Spacer()
-            OrbitControlsView {
-                isPanelPresented = true
+            OrbitSceneView()
+                .ignoresSafeArea()
+            
+            VStack(alignment: .leading) {
+                OrbitHeaderView()
+                
+                Spacer()
+                OrbitControlsView {
+                    isPanelPresented = true
+                }
             }
+            .padding(.horizontal)
         }
-        .padding(.horizontal)
     }
 }
 
