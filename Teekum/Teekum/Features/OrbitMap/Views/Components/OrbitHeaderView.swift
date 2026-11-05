@@ -14,8 +14,8 @@ struct OrbitHeaderView: View {
                 print("Settings Tapped")
             } label: {
                 Image(systemName: "gearshape.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 28, height: 28)
+                    .font(.system(size: 30, weight: .semibold))
+//                    .frame(width: 42, height: 42)
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
@@ -35,8 +35,8 @@ struct OrbitHeaderView: View {
                 print("Map Tapped")
             } label: {
                 Image(systemName: "map.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 28, height: 28)
+                    .font(.system(size: 30, weight: .semibold))
+//                    .frame(width: 62, height: 62)
             }
             .buttonStyle(.glass)
             .buttonStyle(.glass)

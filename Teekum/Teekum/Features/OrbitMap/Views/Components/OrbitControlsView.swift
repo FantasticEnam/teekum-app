@@ -16,11 +16,11 @@ struct OrbitControlsView: View {
                 print("SOS Tapped")
             } label: {
                 Text("SOS")
-                    .font(.custom("Charter-Roman", size: 17))
+                    .font(.custom("Charter-Roman", size: 25))
                     .bold()
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                    .frame(width: 28, height: 28)
+//                    .frame(width: 32, height: 62)
             }
             .buttonStyle(.glassProminent)
             .tint(.alertRed)
@@ -45,8 +45,8 @@ struct OrbitControlsView: View {
                 print("Message Tapped")
             } label: {
                 Image(systemName: "message.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 28, height: 28)
+                    .font(.system(size: 30, weight: .semibold))
+//                    .frame(width: 62, height: 62)
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
