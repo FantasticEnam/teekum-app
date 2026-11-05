@@ -8,12 +8,18 @@
 import SwiftUI
 
 struct OrbitMapView: View {
+    @State private var isPanelPresented = false
+    
     var body: some View {
         VStack(alignment: .leading) {
-           OrbitHeaderView()
+            OrbitHeaderView()
+            
+            Spacer()
+            OrbitControlsView {
+                isPanelPresented = true
+            }
         }
         .padding(.horizontal)
-        Spacer()
     }
 }
 

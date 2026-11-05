@@ -44,8 +44,6 @@ struct OrbitHeaderView: View {
             .controlSize(.large)
             .accessibilityLabel("Open meeting point map")
         }
-        
-        
     }
 }
 
