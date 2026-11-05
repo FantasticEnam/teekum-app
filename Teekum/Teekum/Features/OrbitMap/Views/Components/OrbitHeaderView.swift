@@ -26,7 +26,7 @@ struct OrbitHeaderView: View {
             
             Text("Group Name")
                 .bold()
-                .font(.custom("Charter-Roman", size: 22, relativeTo: .title2))
+                .font(.custom("Charter-Roman", size: 20, relativeTo: .title2))
                 .lineLimit(1)
             
             Spacer()
