@@ -16,10 +16,10 @@ struct MapPoint: Identifiable, Equatable, Sendable {
 //    public var attendance: [String: AttendanceStatus]
     
     public init(
-        id: UInt32 = UInt32.random(in: 1..UInt32.max),
+        id: UInt32 = UInt32.random(in: 1...UInt32.max),
         coordinate: CLLocationCoordinate2D,
-        createdAt: Date = Date()
-        proposerId: String
+        createdAt: Date = Date(),
+        proposerId: String,
         title: String
 //        attendance: [String: AttendanceStatus] = [:]
     ) {
