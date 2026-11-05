@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CryptoKit
 
 /// Thread-safe in-memory sliding window filter enforcing:
 /// 1. Exact packet deduplication (5-minute sliding window)
