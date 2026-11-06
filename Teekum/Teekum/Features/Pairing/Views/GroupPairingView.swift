@@ -21,7 +21,7 @@ struct GroupPairingView: View {
                         .padding(.bottom, 30)
 
                     GroupPairingProfileView()
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 30)
                     
                     // Segmented Controls using Native Apple
 
@@ -51,8 +51,8 @@ struct GroupPairingView: View {
                     Spacer(minLength: 28)
 
                     PrimaryButtonView(
-                        title: isCreatingGroup ? "Create Group" : "Join Group",
-                        action: performPrimaryAction
+                        title: "Generate QR",
+                        action: createQRAction
                     )
                 }
                 .frame(maxWidth: 400, minHeight: geometry.size.height)
@@ -70,6 +70,10 @@ struct GroupPairingView: View {
 
     private func performPrimaryAction() {
         // UI only. Group creation and joining will be connected separately.
+    }
+    
+    private func createQRAction() {
+        // Will be creating a QR CODE when user tap it
     }
 }
 
