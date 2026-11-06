@@ -15,7 +15,7 @@ struct OrbitMemberMarkerView: View {
         Circle()
             .fill(color)
             .frame(width: 30, height: 30)
-            .shadow(color: color.opacity(0.5), radius: 8)
+            .shadow(color: color.opacity(0.8), radius: 8)
             .overlay(alignment: .top) {
                 Text(initials)
                     .font(.custom("Charter-Roman", size: 13, relativeTo: .caption))

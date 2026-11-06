@@ -15,7 +15,7 @@ struct OrbitUserMarkerView: View {
             .fill(Color.greyProfile)
             .frame(width: 30, height: 30)
             .shadow(
-                color: Color.greyProfile.opacity(0.5),
+                color: Color.greyProfile.opacity(1),
                 radius: 8
             )
             .overlay {
