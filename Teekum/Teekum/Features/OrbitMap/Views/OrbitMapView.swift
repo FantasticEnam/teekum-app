@@ -8,9 +8,12 @@
 import SwiftUI
 
 struct OrbitMapView: View {
-    let sessionStore: SessionStore
-
+    @State private var viewModel: OrbitMapViewModel
     @State private var isPanelPresented = false
+
+    init(sessionStore: SessionStore) {
+        _viewModel = State(initialValue: OrbitMapViewModel(sessionStore: sessionStore))
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -22,7 +25,7 @@ struct OrbitMapView: View {
                     .ignoresSafeArea()
 
                 VStack(alignment: .leading) {
-                    OrbitHeaderView()
+                    OrbitHeaderView(groupName: viewModel.groupName)
 
                     Spacer()
                     OrbitControlsView(
@@ -51,7 +54,7 @@ struct OrbitMapView: View {
                     .accessibilityHidden(true)
 
                     FriendListSheet(
-                        members: sessionStore.members,
+                        sessionStore: viewModel.sessionStore,
                         onAddFriend: {
                             print("Open group invite")
                         },

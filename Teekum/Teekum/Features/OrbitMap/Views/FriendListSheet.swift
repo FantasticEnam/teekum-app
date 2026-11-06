@@ -8,14 +8,13 @@
 import SwiftUI
 
 struct FriendListSheet: View {
-    let members: [Member]
     let onAddFriend: () -> Void
     let onSelectMember: (Member) -> Void
     let onLeaveGroup: () -> Void
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var query = ""
+    @State private var viewModel: FriendListViewModel
     @State private var confirmLeave = false
 
     @ScaledMetric(relativeTo: .title2)
@@ -32,17 +31,22 @@ struct FriendListSheet: View {
         .creamProfile
     ]
 
-    private var filteredMembers: [Member] {
-        let search = query.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-
-        return search.isEmpty ? members : members.filter {
-            $0.initials.localizedCaseInsensitiveContains(search)
-        }
+    init(
+        sessionStore: SessionStore,
+        onAddFriend: @escaping () -> Void,
+        onSelectMember: @escaping (Member) -> Void,
+        onLeaveGroup: @escaping () -> Void
+    ) {
+        _viewModel = State(initialValue: FriendListViewModel(sessionStore: sessionStore))
+        self.onAddFriend = onAddFriend
+        self.onSelectMember = onSelectMember
+        self.onLeaveGroup = onLeaveGroup
     }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+        let members = viewModel.filteredMembers
+
         VStack(spacing: 0) {
             Button(
                 "Close friends",
@@ -67,7 +71,7 @@ struct FriendListSheet: View {
 
             HStack(spacing: 12) {
                 HStack {
-                    TextField("Search initials…", text: $query)
+                    TextField("Search initials…", text: $viewModel.searchQuery)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
 
@@ -98,7 +102,7 @@ struct FriendListSheet: View {
             .padding(.bottom, 28)
 
             ScrollView {
-                if filteredMembers.isEmpty {
+                if members.isEmpty {
                     ContentUnavailableView(
                         "No friends found",
                         systemImage: "person.2",
@@ -116,7 +120,7 @@ struct FriendListSheet: View {
                         ],
                         spacing: 24
                     ) {
-                        ForEach(filteredMembers) { member in
+                        ForEach(members) { member in
                             Button {
                                 onSelectMember(member)
                             } label: {
@@ -165,7 +169,7 @@ struct FriendListSheet: View {
 
 #Preview {
     FriendListSheet(
-        members: SessionStore.preview.members,
+        sessionStore: .preview,
         onAddFriend: {},
         onSelectMember: { _ in },
         onLeaveGroup: {}

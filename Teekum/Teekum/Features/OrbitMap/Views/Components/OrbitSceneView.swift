@@ -54,20 +54,12 @@ struct OrbitSceneView: View {
                             )
                     }
                     
-                    ForEach([0.55, 1.1, 1.55], id: \.self) { scale in
-                        Circle()
-                            .stroke(.white.opacity(0.4), lineWidth: 0.5)
-                            .frame(
-                                width: baseSize * scale,
-                                height: baseSize * scale
-                            )
-                    }
                     OrbitBloomView(
                         radius: outerRadius,
                         rotation: bloomRotation
                     )
                     
-                    // NANTI GANTI COMPASS
+                    // shortcut: heading and peer positions are design fixtures; replace during location/projection integration.
                     OrbitUserMarkerView(heading: .degrees(0))
                     
                     OrbitMemberMarkerView(

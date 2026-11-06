@@ -36,7 +36,7 @@ struct FriendListMemberView: View {
 
             if let date = member.latestLocation?.timestamp {
                 TimelineView(.periodic(from: date, by: 1)) { timeline in
-                    let label = Self.locationAgeLabel(from: date, relativeTo: timeline.date)
+                    let label = FriendListViewModel.locationAgeLabel(from: date, relativeTo: timeline.date)
 
                     Text(label)
                         .font(.caption2)
@@ -54,17 +54,6 @@ struct FriendListMemberView: View {
         .accessibilityElement(children: .combine)
     }
 
-    static func locationAgeLabel(from date: Date, relativeTo now: Date) -> LocalizedStringResource {
-        let age = now.timeIntervalSince(date)
-        guard age.isFinite, age >= 0, age < Double(Int.max) else {
-            return "Unavailable"
-        }
-
-        if age < 60 {
-            return "\(Int(age))s ago"
-        }
-        return "\(Int(age / 60))m ago"
-    }
 }
 
 #Preview("Seconds, minutes, and no location") {
