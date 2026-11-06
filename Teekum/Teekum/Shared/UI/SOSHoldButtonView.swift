@@ -20,6 +20,7 @@ struct SOSHoldButton: View {
     var body: some View {
         Text("SOS")
             .font(.custom("Charter-Roman", size: 25))
+            .bold()
             .foregroundStyle(.white)
             .frame(width: 64, height: 64)
             .background(Color.alertRed, in: .circle)
