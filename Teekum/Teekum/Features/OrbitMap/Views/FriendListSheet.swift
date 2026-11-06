@@ -11,15 +11,15 @@ struct FriendListSheet: View {
     let onAddFriend: () -> Void
     let onSelectMember: (Member) -> Void
     let onLeaveGroup: () -> Void
-
+    
     @Environment(\.dismiss) private var dismiss
-
+    
     @State private var viewModel: FriendListViewModel
     @State private var confirmLeave = false
-
+    
     @ScaledMetric(relativeTo: .title2)
     private var cellWidth = 66
-
+    
     // temporary palette, share the color contract with orbit markers during integration.
     private static let colors: [Color] = [
         .peachProfile,
@@ -30,7 +30,7 @@ struct FriendListSheet: View {
         .blueProfile,
         .creamProfile
     ]
-
+    
     init(
         sessionStore: SessionStore,
         onAddFriend: @escaping () -> Void,
@@ -42,11 +42,11 @@ struct FriendListSheet: View {
         self.onSelectMember = onSelectMember
         self.onLeaveGroup = onLeaveGroup
     }
-
+    
     var body: some View {
         @Bindable var viewModel = viewModel
         let members = viewModel.filteredMembers
-
+        
         VStack(spacing: 0) {
             Button(
                 "Close friends",
@@ -68,13 +68,13 @@ struct FriendListSheet: View {
                         }
                     }
             )
-
+            
             HStack(spacing: 12) {
                 HStack {
                     TextField("Search initials…", text: $viewModel.searchQuery)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
-
+                    
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
@@ -85,7 +85,7 @@ struct FriendListSheet: View {
                     .white.opacity(0.1),
                     in: .capsule
                 )
-
+                
                 Button(
                     "Add friend",
                     systemImage: "person.badge.plus",
@@ -100,7 +100,7 @@ struct FriendListSheet: View {
             .padding(.horizontal, 32)
             .padding(.top, 24)
             .padding(.bottom, 28)
-
+            
             ScrollView {
                 if members.isEmpty {
                     ContentUnavailableView(
@@ -140,7 +140,7 @@ struct FriendListSheet: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-
+            
             PrimaryButtonView(title: "Leave Group") {
                 confirmLeave = true
             }
@@ -154,15 +154,19 @@ struct FriendListSheet: View {
                 .fill(Color.blackCard)
                 .ignoresSafeArea(edges: .bottom)
         }
-        .confirmationDialog(
+        .alert(
             "Leave this group?",
             isPresented: $confirmLeave
         ) {
-            Button("Leave Group", role: .destructive) {
-                onLeaveGroup()
-            }
-
             Button("Cancel", role: .cancel) {}
+            
+            Button(
+                "Leave Group",
+                role: .destructive,
+                action: onLeaveGroup
+            )
+        } message: {
+            Text("Are you sure you want to leave this group?")
         }
     }
 }
