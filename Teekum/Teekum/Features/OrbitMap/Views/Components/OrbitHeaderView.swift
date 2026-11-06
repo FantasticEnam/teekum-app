@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct OrbitHeaderView: View {
+    @State private var isShowingMap: Bool = false
+    
     var body: some View {
         HStack {
             Button {
@@ -32,7 +34,7 @@ struct OrbitHeaderView: View {
             Spacer()
             
             Button {
-                print("Map Tapped")
+                isShowingMap = true
             } label: {
                 Image(systemName: "map.fill")
                     .font(.system(size: 30, weight: .semibold))
@@ -43,6 +45,10 @@ struct OrbitHeaderView: View {
             .buttonBorderShape(.circle)
             .controlSize(.large)
             .accessibilityLabel("Open meeting point map")
+            
+            .fullScreenCover(isPresented: $isShowingMap) {
+                MainMapView()
+            }
         }
     }
 }

@@ -9,12 +9,12 @@
 import Foundation
 import CoreLocation
 
-struct MapPoint: Identifiable, Sendable {
-    let id: UInt32
-    var coordinate: CLLocationCoordinate2D
-    var createdAt: Date
-    var proposerId: String
-    var title: String
+public struct MapPoint: Identifiable, Sendable {
+    public let id: UInt32
+    public var coordinate: CLLocationCoordinate2D
+    public var createdAt: Date
+    public var proposerId: String
+    public var title: String
 //    public var attendance: [String: AttendanceStatus]
     
     public init(
