@@ -80,7 +80,7 @@ struct FriendListSheet: View {
                         .accessibilityHidden(true)
                 }
                 .padding(.horizontal, 18)
-                .frame(minHeight: 44)
+                .frame(minHeight: 54)
                 .background(
                     .white.opacity(0.1),
                     in: .capsule
