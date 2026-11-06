@@ -19,11 +19,18 @@ struct OrbitControlsView: View {
             
             Button(action: onExpand) {
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 64, height: 44)
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 144, height: 64)
+                    .background {
+                        OrbitPanelShape(cornerRadius: 0)
+                            .fill(Color(hex: 0x141414))
+                            .ignoresSafeArea(edges: .bottom)
+                    }
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open orbit panel")
+            .accessibilityLabel("Open friends")
             
             Spacer()
             

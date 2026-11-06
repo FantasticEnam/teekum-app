@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct OrbitMapView: View {
+    let sessionStore: SessionStore
+
     @State private var isPanelPresented = false
     
     var body: some View {
@@ -33,9 +35,42 @@ struct OrbitMapView: View {
             }
             .padding(.horizontal)
         }
+        .fullScreenCover(isPresented: $isPanelPresented) {
+            GeometryReader { geometry in
+                ZStack(alignment: .bottom) {
+                    Button {
+                        isPanelPresented = false
+                    } label: {
+                        Color.black.opacity(0.45)
+                    }
+                    .buttonStyle(.plain)
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
+
+                    FriendListSheet(
+                        members: sessionStore.members,
+                        onAddFriend: {
+                            print("Open group invite")
+                        },
+                        onSelectMember: { member in
+                            print("Selected \(member.initials)")
+                        },
+                        onLeaveGroup: {
+                            print("Request session teardown")
+                        }
+                    )
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height * 0.78
+                    )
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .presentationBackground(.clear)
+        }
     }
 }
 
 #Preview {
-    OrbitMapView()
+    OrbitMapView(sessionStore: .preview)
 }
