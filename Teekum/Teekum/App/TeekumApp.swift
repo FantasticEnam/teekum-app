@@ -13,7 +13,7 @@ struct TeekumApp: App {
     
     var body: some Scene {
         WindowGroup {
-            OrbitMapView()
+            AppRootView(sessionStore: sessionStore)
                 .preferredColorScheme(.dark)
         }
     }

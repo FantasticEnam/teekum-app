@@ -8,36 +8,34 @@
 import SwiftUI
 
 struct OrbitControlsView: View {
+    let onSOS: () -> Void
     let onExpand: () -> Void
+    var bottomInset: CGFloat = 0
     
     var body: some View {
         HStack {
-            Button {
-                print("SOS Tapped")
-            } label: {
-                Text("SOS")
-                    .font(.custom("Charter-Roman", size: 25))
-                    .bold()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-//                    .frame(width: 32, height: 62)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(.alertRed)
-            .foregroundStyle(.white)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .accessibilityLabel("Hold for SOS")
-            
+            SOSHoldButton(onHoldCompleted: onSOS)
+        
             Spacer()
             
             Button(action: onExpand) {
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 64, height: 44)
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 144, height: 64)
+                    .background(alignment: .top) {
+                        OrbitPanelShape(
+                            cornerRadius: 0,
+                            crestHeight: 64
+                        )
+                            .fill(Color.blackCard)
+                            .frame(height: 64)
+                    }
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open orbit panel")
+            .accessibilityLabel("Open friends")
+            .offset(y: bottomInset)
             
             Spacer()
             
@@ -58,5 +56,8 @@ struct OrbitControlsView: View {
 }
 
 #Preview {
-    OrbitControlsView(onExpand: {})
+    OrbitControlsView(
+        onSOS: {},
+        onExpand: {}
+    )
 }
