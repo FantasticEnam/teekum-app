@@ -15,22 +15,22 @@ public struct MapPoint: Identifiable, Sendable {
     public var createdAt: Date
     public var proposerId: String
     public var title: String
-//    public var attendance: [String: AttendanceStatus]
+    public var attendance: [String: AttendanceStatus]
     
     public init(
         id: UInt32 = UInt32.random(in: 1...UInt32.max),
         coordinate: CLLocationCoordinate2D,
         createdAt: Date = Date(),
         proposerId: String,
-        title: String
-//        attendance: [String: AttendanceStatus] = [:]
+        title: String,
+        attendance: [String: AttendanceStatus] = [:]
     ) {
         self.id = id
         self.coordinate = coordinate
         self.createdAt = createdAt
         self.proposerId = proposerId // InitialsCodec.sanitize(proposerId)
         self.title = title
-//        self.attendance = attendance
+        self.attendance = attendance
     }
 }
 

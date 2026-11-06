@@ -95,8 +95,24 @@ public struct MainMapView: View {
                     Spacer()
                 }
                 Spacer()
+                // SIMULASI POV USER LAIN
+                Button {
+                    if viewModel.isLockedByOther {
+                        viewModel.stopMeetingPoint()
+                    } else {
+                        viewModel.simulateOtherUserMeetingPoint()
+                    }
+                } label: {
+                    Text(viewModel.isLockedByOther ? "Reset Mock" : "Mock POV Lain: NIC")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.yellow)
+                        .foregroundStyle(.black)
+                        .clipShape(Capsule())
+                }
             }
-                
+            
         }
         .onAppear {
             // Popup izin
@@ -116,7 +132,7 @@ public struct MainMapView: View {
         .alert("Stop Meeting Point?", isPresented: $viewModel.isShowingStopAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Stop", role: .destructive) {
-                viewModel.confirmStopMeetingPoint()
+                viewModel.stopMeetingPoint()
             }
         } message: {
             Text("Are you sure you want to stop the meeting point for everyone?")
@@ -126,6 +142,26 @@ public struct MainMapView: View {
         } message: {
             if viewModel.hasActiveMapPoint && !viewModel.isCurrentUserProposer {
                 Text("A meeting point is already set by another member. Only the creator can stop it.")
+            } else {
+                Text("A meeting point is already active. Please stop the current one before setting a new location.")
+            }
+        }
+        .alert("Meeting Point Set!", isPresented: $viewModel.isShowingRSVPAlert) {
+            Button("Not Now", role: .cancel) {
+                viewModel.respondRSVP(attending: false)
+            }
+            Button("Be Right There") {
+                viewModel.respondRSVP(attending: true)
+            }
+        } message: {
+            let proposer = viewModel.activeMapPoint?.proposerId ?? "Member"
+            Text("There's a meeting point at \(proposer)'s last known location.")
+        }
+        .alert("Cannot Set Meeting Point", isPresented: $viewModel.isShowingLockedAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            if let proposer = viewModel.activeMapPoint?.proposerId, viewModel.isLockedByOther {
+                Text("There's already an active meeting point set by \(proposer). You cannot set a new one until it is stopped.")
             } else {
                 Text("A meeting point is already active. Please stop the current one before setting a new location.")
             }

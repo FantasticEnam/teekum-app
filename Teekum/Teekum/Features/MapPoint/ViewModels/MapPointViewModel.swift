@@ -25,8 +25,11 @@ public final class MapPointViewModel {
     public var isShowingSetAlert: Bool = false
     public var isShowingStopAlert: Bool = false
     public var isShowingLockedAlert: Bool = false
+    public var isShowingRSVPAlert: Bool = false
     
     public var currentUserId: String = "MEE" // Injectable
+    
+    public var myAttendance: AttendanceStatus? = nil
     
     public var hasActiveMapPoint: Bool {
         activeMapPoint != nil
@@ -79,17 +82,35 @@ public final class MapPointViewModel {
         if isCurrentUserProposer {
             self.isShowingStopAlert = true
         } else {
-            self.isShowingLockedAlert = true
+            self.isShowingRSVPAlert = true
         }
     }
     
     // 5. saat stop meeting point
-    public func confirmStopMeetingPoint(){
+    public func stopMeetingPoint(){
         guard isCurrentUserProposer else { return }
         self.activeMapPoint = nil
         self.candidateCoordinate = nil
         self.isShowingStopAlert = false
     }
     
+    public func respondRSVP(attending: Bool){
+        let status: AttendanceStatus = attending ? .attending : .cantMakeIt
+        self.myAttendance = status
+        
+        // Current User attendance
+        if var point = activeMapPoint {
+            point.attendance[currentUserId] = status
+            self.activeMapPoint = point
+        }
+        self.isShowingRSVPAlert = false
+        print("User \(currentUserId) RSVP: \(status.title)")
+    }
+    
+    public func simulateOtherUserMeetingPoint(){
+        self.activeMapPoint = MapPoint(coordinate: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
+                                       proposerId: "NIC",
+                                       title: "NIC's Meeting Point")
+    }
         
 }
