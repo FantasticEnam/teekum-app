@@ -13,10 +13,10 @@ struct OrbitSceneView: View {
             let size = geometry.size
             let baseSize = min(size.width, size.height)
             let outerRadius = baseSize * 1.55 / 2
-
+            
             ZStack {
                 StarfieldView()
-
+                
                 RadialGradient(
                     stops: [
                         .init(
@@ -51,6 +51,27 @@ struct OrbitSceneView: View {
                                 height: baseSize * scale
                             )
                     }
+                    
+                    // NANTI GANTI COMPASS
+                    OrbitUserMarkerView(heading: .degrees(0))
+                    
+                    OrbitMemberMarkerView(
+                        initials: "HSN",
+                        color: .orangeProfile
+                    )
+                    .offset(
+                        x: -baseSize * 0.28,
+                        y: -baseSize * 0.45
+                    )
+                    
+                    OrbitMemberMarkerView(
+                        initials: "NIC",
+                        color: .peachProfile
+                    )
+                    .offset(
+                        x: baseSize * 0.35,
+                        y: -baseSize * 0.32
+                    )
                 }
                 .allowsHitTesting(false)
             }
