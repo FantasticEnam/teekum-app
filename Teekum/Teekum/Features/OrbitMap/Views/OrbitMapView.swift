@@ -15,16 +15,21 @@ struct OrbitMapView: View {
             Color.black
                 .ignoresSafeArea()
             
-            OrbitSceneView()
+            OrbitSceneView(bloomRotation: .degrees(5))
                 .ignoresSafeArea()
             
             VStack(alignment: .leading) {
                 OrbitHeaderView()
                 
                 Spacer()
-                OrbitControlsView {
-                    isPanelPresented = true
-                }
+                OrbitControlsView(
+                    onSOS: {
+                        print("SOS requested")
+                    },
+                    onExpand: {
+                        isPanelPresented = true
+                    }
+                )
             }
             .padding(.horizontal)
         }

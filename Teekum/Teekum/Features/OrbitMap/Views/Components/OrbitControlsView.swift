@@ -8,27 +8,13 @@
 import SwiftUI
 
 struct OrbitControlsView: View {
+    let onSOS: () -> Void
     let onExpand: () -> Void
     
     var body: some View {
         HStack {
-            Button {
-                print("SOS Tapped")
-            } label: {
-                Text("SOS")
-                    .font(.custom("Charter-Roman", size: 25))
-                    .bold()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-//                    .frame(width: 32, height: 62)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(.alertRed)
-            .foregroundStyle(.white)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .accessibilityLabel("Hold for SOS")
-            
+            SOSHoldButton(onHoldCompleted: onSOS)
+        
             Spacer()
             
             Button(action: onExpand) {
@@ -58,5 +44,8 @@ struct OrbitControlsView: View {
 }
 
 #Preview {
-    OrbitControlsView(onExpand: {})
+    OrbitControlsView(
+        onSOS: {},
+        onExpand: {}
+    )
 }

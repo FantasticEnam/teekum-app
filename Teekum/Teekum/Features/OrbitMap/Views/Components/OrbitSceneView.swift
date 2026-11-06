@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct OrbitSceneView: View {
+    var bloomRotation: Angle = .zero
+    
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
@@ -51,6 +53,19 @@ struct OrbitSceneView: View {
                                 height: baseSize * scale
                             )
                     }
+                    
+                    ForEach([0.55, 1.1, 1.55], id: \.self) { scale in
+                        Circle()
+                            .stroke(.white.opacity(0.4), lineWidth: 0.5)
+                            .frame(
+                                width: baseSize * scale,
+                                height: baseSize * scale
+                            )
+                    }
+                    OrbitBloomView(
+                        radius: outerRadius,
+                        rotation: bloomRotation
+                    )
                     
                     // NANTI GANTI COMPASS
                     OrbitUserMarkerView(heading: .degrees(0))
