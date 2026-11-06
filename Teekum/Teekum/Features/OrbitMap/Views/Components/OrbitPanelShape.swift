@@ -9,9 +9,10 @@ import SwiftUI
 
 struct OrbitPanelShape: Shape {
     var cornerRadius: CGFloat = 40
+    var crestHeight: CGFloat = 44
 
     func path(in rect: CGRect) -> Path {
-        let crest = min(44.0, rect.height)
+        let crest = min(crestHeight, rect.height)
         let radius = min(
             cornerRadius,
             rect.width / 2,
@@ -78,7 +79,7 @@ struct OrbitPanelShape: Shape {
 #Preview("Sheet and collapsed handle") {
     VStack(spacing: 32) {
         OrbitPanelShape()
-            .fill(Color(hex: 0x141414))
+            .fill(Color.blackCard)
             .frame(height: 280)
             .overlay(alignment: .top) {
                 Image(systemName: "chevron.down")
@@ -87,8 +88,8 @@ struct OrbitPanelShape: Shape {
                     .frame(height: 44)
             }
 
-        OrbitPanelShape(cornerRadius: 0)
-            .fill(Color(hex: 0x141414))
+        OrbitPanelShape(cornerRadius: 0, crestHeight: 64)
+            .fill(Color.blackCard)
             .frame(width: 144, height: 64)
             .overlay {
                 Image(systemName: "chevron.up")

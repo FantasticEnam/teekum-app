@@ -147,7 +147,7 @@ struct FriendListSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             OrbitPanelShape()
-                .fill(Color(hex: 0x141414))
+                .fill(Color.blackCard)
                 .ignoresSafeArea(edges: .bottom)
         }
         .confirmationDialog(

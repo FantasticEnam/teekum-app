@@ -16,6 +16,7 @@ extension Color {
     
     // MARK: - Backgrounds & Shadows
     static let themeShadow      = Color(hex: 0x1C1F2A) // Pantone 532 C
+    static let blackCard        = Color(hex: 0x141414)
     
     // MARK: - Profile Color
     static let yellowProfile = Color(hex: 0xFDC600)

@@ -10,6 +10,7 @@ import SwiftUI
 struct OrbitControlsView: View {
     let onSOS: () -> Void
     let onExpand: () -> Void
+    var bottomInset: CGFloat = 0
     
     var body: some View {
         HStack {
@@ -22,15 +23,19 @@ struct OrbitControlsView: View {
                     .font(.system(size: 24, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 144, height: 64)
-                    .background {
-                        OrbitPanelShape(cornerRadius: 0)
-                            .fill(Color(hex: 0x141414))
-                            .ignoresSafeArea(edges: .bottom)
+                    .background(alignment: .top) {
+                        OrbitPanelShape(
+                            cornerRadius: 0,
+                            crestHeight: 64
+                        )
+                            .fill(Color.blackCard)
+                            .frame(height: 64)
                     }
                     .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Open friends")
+            .offset(y: bottomInset)
             
             Spacer()
             

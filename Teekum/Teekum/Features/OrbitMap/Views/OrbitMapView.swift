@@ -13,27 +13,30 @@ struct OrbitMapView: View {
     @State private var isPanelPresented = false
     
     var body: some View {
-        ZStack() {
-            Color.black
-                .ignoresSafeArea()
-            
-            OrbitSceneView(bloomRotation: .degrees(5))
-                .ignoresSafeArea()
-            
-            VStack(alignment: .leading) {
-                OrbitHeaderView()
-                
-                Spacer()
-                OrbitControlsView(
-                    onSOS: {
-                        print("SOS requested")
-                    },
-                    onExpand: {
-                        isPanelPresented = true
-                    }
-                )
+        GeometryReader { geometry in
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
+
+                OrbitSceneView(bloomRotation: .degrees(5))
+                    .ignoresSafeArea()
+
+                VStack(alignment: .leading) {
+                    OrbitHeaderView()
+
+                    Spacer()
+                    OrbitControlsView(
+                        onSOS: {
+                            print("SOS requested")
+                        },
+                        onExpand: {
+                            isPanelPresented = true
+                        },
+                        bottomInset: geometry.safeAreaInsets.bottom
+                    )
+                }
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
         }
         .fullScreenCover(isPresented: $isPanelPresented) {
             GeometryReader { geometry in
