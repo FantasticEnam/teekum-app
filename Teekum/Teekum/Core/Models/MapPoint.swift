@@ -1,3 +1,5 @@
+// xcode: set sdk=iOS
+
 //
 //  MapPoint.swift
 //  
@@ -7,7 +9,7 @@
 import Foundation
 import CoreLocation
 
-struct MapPoint: Identifiable, Equatable, Sendable {
+struct MapPoint: Identifiable, Sendable {
     let id: UInt32
     var coordinate: CLLocationCoordinate2D
     var createdAt: Date
@@ -28,7 +30,7 @@ struct MapPoint: Identifiable, Equatable, Sendable {
         self.createdAt = createdAt
         self.proposerId = proposerId // InitialsCodec.sanitize(proposerId)
         self.title = title
-        self.attendance = attendance
+//        self.attendance = attendance
     }
 }
 

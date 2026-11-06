@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 import CoreLocation
 import Observation
 import MapKit
@@ -17,7 +18,7 @@ public final class MapPointViewModel {
     public var cameraPosition: MapCameraPosition = .automatic
     
     // State Map Point
-    public var activeMapPoint: MapPoint? = nil
+    private var activeMapPoint: MapPoint? = nil
     public var candidateCoordinate: CLLocationCoordinate2D? = nil
     public var isShowingConfirmation: Bool = false
     
@@ -29,7 +30,7 @@ public final class MapPointViewModel {
     
     public var isCurrentUserProposer: Bool {
         guard let active = activeMapPoint else { return false }
-        return active.proposerId = currentUserId
+        return active.proposerId == currentUserId
     }
     
         
