@@ -9,14 +9,17 @@ import SwiftUI
 
 struct GroupNameField: View {
     @Binding var groupName: String
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
     
     var body: some View {
         VStack{
             TextField(
                 "GroupName",
                 text: $groupName,
-                prompt: Text("....").foregroundStyle(Color.white)
+                prompt: Text(isFocused || isHovered ? "" : "Enter your group name...").foregroundStyle(.white.opacity(0.3))
             )
+            .focused($isFocused)
             .textFieldStyle(.plain)
             .font(.custom("Charter-Roman", size: 16, relativeTo: .body))
             .foregroundStyle(.white)
@@ -25,6 +28,7 @@ struct GroupNameField: View {
             .padding(.vertical, 16)
             .frame(minHeight: 54)
             .background(Color(white: 0.17), in: RoundedRectangle(cornerRadius: 17))
+            .onHover { isHovered = $0 }
         }
         
     }
