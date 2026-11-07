@@ -9,9 +9,10 @@ import SwiftUI
 
 struct GroupPairingProfileView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var profileColor = Color.yellowProfile
+    @Binding var profileColor: PairingProfileColor
     @State private var isProfilePickerVisible = false
-    @State private var initials = ""
+    @Binding var initials: String
+    var dismissKeyboard = false
     @State private var initialsSelection: TextSelection?
     @State private var isCursorVisible = true
     @FocusState private var isEditingInitials: Bool
@@ -23,9 +24,9 @@ struct GroupPairingProfileView: View {
     var body: some View {
         VStack(spacing: 0) {
             Circle()
-                .fill(profileColor)
+                .fill(profileColor.color)
                 .frame(width: 116, height: 116)
-                .shadow(color: profileColor.opacity(0.45), radius: 8)
+                .shadow(color: profileColor.color.opacity(0.45), radius: 8)
                 .overlay(alignment: .bottomTrailing) {
                     Button("Edit profile color", systemImage: "square.and.pencil", action: editProfilePhoto)
                         .labelStyle(.iconOnly)
@@ -42,18 +43,18 @@ struct GroupPairingProfileView: View {
             } else {
                 Text("Your Initial")
                     .padding(.top, 20)
-                    .font(.custom("Charter-Black", size: 17, relativeTo: .title))
+                    .font(.custom("Charter-Black", size: 14, relativeTo: .subheadline))
                     .bold()
                     .foregroundStyle(Color.white)
-                    .padding(.bottom, 15)
+                    .padding(.bottom, 6)
 
                 ZStack {
-                    HStack(spacing: 5) {
+                    HStack(spacing: 4) {
                         ForEach(0..<3) { index in
                             Text(initial(at: index))
                                 .font(.custom("Charter-Bold", size: 20, relativeTo: .title3))
                                 .foregroundStyle(.white)
-                                .frame(width: 45, height: 50)
+                                .frame(width: 36, height: 40)
                                 .background {
                                     RoundedRectangle(cornerRadius: 14)
                                         .strokeBorder(Color(white: 0.8), lineWidth: 1)
@@ -100,6 +101,9 @@ struct GroupPairingProfileView: View {
                 }
             }
         }
+        .onChange(of: dismissKeyboard) { _, shouldDismiss in
+            if shouldDismiss { isEditingInitials = false }
+        }
     }
 
     private func initial(at index: Int) -> String {
@@ -108,7 +112,7 @@ struct GroupPairingProfileView: View {
     }
 
     private func updateInitials(_ value: String) {
-        initials = String(value.uppercased().prefix(3))
+        initials = String(value.uppercased().filter { $0 >= "A" && $0 <= "Z" }.prefix(3))
         initialsSelection = TextSelection(insertionPoint: initials.endIndex)
         isCursorVisible = true
     }
@@ -143,7 +147,9 @@ struct GroupPairingProfileView: View {
 }
 
 #Preview {
-    GroupPairingProfileView()
+    @Previewable @State var form = PairingForm()
+
+    GroupPairingProfileView(profileColor: $form.profileColor, initials: $form.initials)
         .padding(40)
         .background(.black)
         .preferredColorScheme(.dark)

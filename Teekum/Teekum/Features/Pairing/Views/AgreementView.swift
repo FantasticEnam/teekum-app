@@ -8,9 +8,8 @@
 import SwiftUI
 
 struct AgreementView: View {
-    var groupName = "FANTASIX"
-    var hostInitials = "NIC"
-    var profileColor: Color = .yellowProfile
+    let form: PairingForm
+    var mode: PairingMode = .create
     var termsOfUseURL: URL? = nil
     var privacyPolicyURL: URL? = nil
     var onAgree: () -> Void = {}
@@ -18,8 +17,13 @@ struct AgreementView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 13) {
-                HeadAgreement(profileColor: profileColor)
-                AgreementGroupSummaryView(groupName: groupName, hostInitials: hostInitials)
+                HeadAgreement(profileColor: form.profileColor.color)
+                AgreementGroupSummaryView(
+                    groupName: form.trimmedSessionName,
+                    initials: form.initials,
+                    mode: mode,
+                    profileColor: form.profileColor.color
+                )
 
                 CardAgreement(
                     title: "Community-Powered Mesh Network",
@@ -69,5 +73,14 @@ struct AgreementView: View {
 }
 
 #Preview {
-    AgreementView()
+    AgreementView(form: PairingForm(
+        initials: "NIC", sessionName: "Fantasix", profileColor: .yellow
+    ))
+}
+
+#Preview("Join without group name") {
+    AgreementView(
+        form: PairingForm(initials: "ARI", profileColor: .blue),
+        mode: .join
+    )
 }

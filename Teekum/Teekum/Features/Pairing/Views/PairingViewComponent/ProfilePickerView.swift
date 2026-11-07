@@ -8,38 +8,29 @@
 import SwiftUI
 
 struct ProfilePickerView: View {
-    @Binding var selectedColor: Color
-
-    private let colors: [(name: LocalizedStringKey, color: Color)] = [
-        ("Red", .redProfile), ("Peach", .peachProfile),
-        ("Orange", .orangeProfile), ("Cream", .creamProfile),
-        ("Gray", .greyProfile), ("White", .whiteProfile),
-        ("Blue", .blueProfile), ("Green", .greenProfile),
-        ("Yellow", .yellowProfile)
-    ]
+    @Binding var selectedColor: PairingProfileColor
 
     var body: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 10) {
-                ForEach(colors.indices, id: \.self) { index in
-                    let swatch = colors[index]
+                ForEach(PairingProfileColor.allCases) { swatch in
                     Button {
-                        selectedColor = swatch.color
+                        selectedColor = swatch
                     } label: {
                         Circle()
                             .fill(swatch.color)
                             .shadow(color: swatch.color.opacity(0.6), radius: 4)
                             .frame(width: 40, height: 40)
                             .overlay {
-                                if selectedColor == swatch.color {
+                                if selectedColor == swatch {
                                     Circle().strokeBorder(.white, lineWidth: 2)
                                 }
                             }
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel(Text(swatch.name))
-                    .accessibilityAddTraits(selectedColor == swatch.color ? .isSelected : [])
+                    .accessibilityLabel(Text(swatch.rawValue.capitalized))
+                    .accessibilityAddTraits(selectedColor == swatch ? .isSelected : [])
                 }
             }
             .padding(.horizontal, 28)
@@ -62,7 +53,7 @@ struct ProfilePickerView: View {
 }
 
 #Preview {
-    @Previewable @State var color = Color.yellowProfile
+    @Previewable @State var color = PairingProfileColor.yellow
 
     ProfilePickerView(selectedColor: $color)
         .frame(width: 318)

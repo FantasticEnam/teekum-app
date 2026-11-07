@@ -44,7 +44,7 @@ struct FooterAgreement: View {
                 action: onAgree
             )
             .disabled(!hasAgreed)
-            .opacity(hasAgreed ? 1 : 0.85)
+            .opacity(hasAgreed ? 1 : 0.90)
 
             Text("By continuing, you agree to Teekum’s \(policyText(String(localized: "Terms of Use"), url: termsOfUseURL)) and \(policyText(String(localized: "Privacy Policy"), url: privacyPolicyURL))")
                 .font(.custom("Charter-Roman", size: 8.5, relativeTo: .caption2))

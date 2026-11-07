@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct GroupPairingView: View {
-    @State private var isCreatingGroup = true
-    @State private var groupName = ""
+    @State private var viewModel = PairingViewModel()
+    @State private var isShowingAgreement = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -20,14 +20,18 @@ struct GroupPairingView: View {
                         .padding(.top, 10)
                         .padding(.bottom, 30)
 
-                    GroupPairingProfileView()
-                        .padding(.bottom, 30)
+                    GroupPairingProfileView(
+                        profileColor: $viewModel.form.profileColor,
+                        initials: $viewModel.form.initials,
+                        dismissKeyboard: viewModel.isShowingQR || viewModel.mode == .join || isShowingAgreement
+                    )
+                        .padding(.bottom, 20)
                     
                     // Segmented Controls using Native Apple
 
-                    Picker("Group action", selection: $isCreatingGroup) {
-                        Text("Create Group").tag(true)
-                        Text("Join Group").tag(false)
+                    Picker("Group action", selection: $viewModel.mode) {
+                        Text("Create Group").tag(PairingMode.create)
+                        Text("Join Group").tag(PairingMode.join)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -36,24 +40,33 @@ struct GroupPairingView: View {
                     .frame(minHeight: 44)
                     .padding(.bottom, 24)
 
-                    // Text Field Group Name
-                    HStack {
+                    if viewModel.mode == .join {
+                        Text("Align QR code in frame")
+                            .font(.custom("Charter-Bold", size: 22, relativeTo: .title2))
+                            .padding(.bottom, 10)
+                        QRScannerView(isEnabled: viewModel.form.hasValidInitials && !isShowingAgreement)
+                    } else if viewModel.isShowingQR {
+                        GroupQRCodeView(sessionName: viewModel.form.trimmedSessionName)
+                    } else {
                         Text("Group Name")
                             .font(.custom("Charter-Black", size: 22, relativeTo: .title2))
-                            .bold()
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.bottom, 10)
-                            .padding(.leading, 5)
-                        Spacer()
+                        GroupNameField(groupName: $viewModel.form.sessionName)
                     }
-                    
-                    GroupNameField(groupName: $groupName)
 
                     Spacer(minLength: 28)
 
                     PrimaryButtonView(
-                        title: "Generate QR",
-                        action: createQRAction
+                        title: viewModel.mode == .join ? "Join Group" :
+                            (viewModel.isShowingQR ? "Create Group" : "Generate QR"),
+                        action: performPrimaryAction
                     )
+                    .disabled(!viewModel.canPerformPrimaryAction)
+                    .opacity(
+                        viewModel.canPerformPrimaryAction ? 1 : 0.9
+                    )
+
                 }
                 .frame(maxWidth: 400, minHeight: geometry.size.height)
                 .padding(.horizontal, 42)
@@ -66,14 +79,21 @@ struct GroupPairingView: View {
         .foregroundStyle(.white)
         .background(.black)
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $isShowingAgreement) {
+            AgreementView(
+                form: viewModel.form,
+                mode: viewModel.mode
+            )
+        }
     }
 
     private func performPrimaryAction() {
-        // UI only. Group creation and joining will be connected separately.
-    }
-    
-    private func createQRAction() {
-        // Will be creating a QR CODE when user tap it
+        guard viewModel.canPerformPrimaryAction else { return }
+        if viewModel.mode == .join || viewModel.isShowingQR {
+            isShowingAgreement = true
+        } else {
+            viewModel.showQRPreview()
+        }
     }
 }
 

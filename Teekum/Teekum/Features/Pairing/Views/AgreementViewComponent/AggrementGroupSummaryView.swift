@@ -9,10 +9,21 @@ import SwiftUI
 
 struct AgreementGroupSummaryView: View {
     let groupName: String
-    let hostInitials: String
+    let initials: String
+    var mode: PairingMode = .create
+    var profileColor: Color = .yellowProfile
 
     private let cardColor = Color(white: 0.15)
     private let secondaryText = Color(white: 0.68)
+
+    private var summaryTitle: String {
+        if groupName.isEmpty {
+            return mode == .join ? String(localized: "Joining a group") : String(localized: "Creating a group")
+        }
+        return mode == .join
+            ? String(localized: "Joining “\(groupName)”")
+            : String(localized: "Creating “\(groupName)”")
+    }
 
     var body: some View {
         HStack(spacing: 9) {
@@ -21,24 +32,26 @@ struct AgreementGroupSummaryView: View {
                     .font(.custom("Charter-Bold", size: 9, relativeTo: .caption2))
                     .foregroundStyle(secondaryText)
 
-                Text("Creating “\(groupName)”")
+                Text(summaryTitle)
                     .font(.custom("Charter-Roman", size: 14, relativeTo: .subheadline))
 
-                Text("You’re about to create a group as its host.")
+                Text(mode == .create
+                     ? "You’re about to create a group as its host."
+                     : "You’re about to join a group as a member.")
                     .font(.custom("Charter-Roman", size: 8, relativeTo: .caption2))
                     .foregroundStyle(secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Capsule()
-                .fill(Color.yellowProfile)
+                .fill(profileColor)
                 .frame(width: 1, height: 34)
                 .accessibilityHidden(true)
 
             VStack(spacing: 1) {
-                Text("Host Initials")
+                Text(mode == .create ? "Host Initials" : "Your Initials")
                     .font(.custom("Charter-Roman", size: 8, relativeTo: .caption2))
-                Text("[ \(hostInitials) ]")
+                Text("[ \(initials) ]")
                     .font(.custom("Charter-Roman", size: 18, relativeTo: .headline))
             }
             .padding(.horizontal, 12)
@@ -52,12 +65,12 @@ struct AgreementGroupSummaryView: View {
         .background(cardColor, in: RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.yellowProfile, lineWidth: 1)
+                .strokeBorder(profileColor, lineWidth: 1)
         }
     }
 }
 
 #Preview("Group Summary") {
-    AgreementGroupSummaryView(groupName: "FANTASIX", hostInitials: "NIC")
+    AgreementGroupSummaryView(groupName: "FANTASIX", initials: "NIC")
         
 }
