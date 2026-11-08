@@ -127,3 +127,12 @@ public final class MapPointViewModel {
         }
         
 }
+
+public enum MapPointAlert: Identifiable {
+    case setConfirmation
+    case stopConfirmation
+    case rsvp
+    case locked
+    
+    public var id: Self { self }
+}

@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct OrbitHeaderView: View {
+    // 1️⃣ Tambahkan state ini untuk kontrol buka/tutup peta
+    @State private var isShowingMap: Bool = false
     
     var body: some View {
         HStack {
@@ -16,7 +18,6 @@ struct OrbitHeaderView: View {
             } label: {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 30, weight: .semibold))
-//                    .frame(width: 42, height: 42)
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
@@ -32,18 +33,21 @@ struct OrbitHeaderView: View {
             
             Spacer()
             
+            // 2️⃣ Tombol Map
             Button {
-                print("Map Button")
+                isShowingMap = true // 👈 Buka peta saat ditekan
             } label: {
                 Image(systemName: "map.fill")
                     .font(.system(size: 30, weight: .semibold))
-//                    .frame(width: 62, height: 62)
             }
-            .buttonStyle(.glass)
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
             .controlSize(.large)
             .accessibilityLabel("Open meeting point map")
+            // 3️⃣ Munculkan MainMapView secara full screen
+            .fullScreenCover(isPresented: $isShowingMap) {
+                MainMapView()
+            }
         }
     }
 }

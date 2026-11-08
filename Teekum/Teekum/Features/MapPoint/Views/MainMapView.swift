@@ -11,72 +11,13 @@ import MapKit
 public struct MainMapView: View {
     @State private var viewModel = MapPointViewModel()
     @Environment(\.dismiss) private var dismiss
-    // Location based on user pos
-    @State private var cameraPosition: MapCameraPosition = .userLocation(
-        fallback: .camera(
-            MapCamera(
-                centerCoordinate: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
-                distance: 1200
-            )
-        )
-    )
-    
-    // Simpan titik yg di hold (titik kuning)
-    @State private var candidateCoordinate: CLLocationCoordinate2D? = nil
-    // Simpan posisi finger touch sementara
-    @State private var lastTouchPoint: CGPoint? = nil
     
     public var body: some View {
         ZStack(alignment: .bottom){
             // MAP Section
-            MapReader { proxy in
-                Map(position: $cameraPosition) {
-                    // Current user point
-                    UserAnnotation()
-                    
-                    // Active Meeting Point
-                    if let active = viewModel.activeMapPoint {
-                        Annotation(active.name, coordinate: active.coordinate) {
-                            MapPointPinView(title: active.name)
-                                .onTapGesture {
-                                    viewModel.handlePinTapped()
-                                }
-                        }
-                    }
-                    
-                    // Candicate Meeting Point
-                    if let candidate = viewModel.candidateCoordinate {
-                        Annotation("Meeting Point", coordinate: candidate) {
-                            MapPointPinView(title: "Meeting Point")
-                        }
-                    }
-                }
-                .mapStyle(.standard(elevation: .flat))
-                .mapControls {
-                    MapUserLocationButton()
-                }
-                .ignoresSafeArea()
-                // Posisi sentuhan jari
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                        .onChanged { value in
-                            lastTouchPoint = value.location
-                        }
-                )
-                // Detekse jari yg di hold
-                .simultaneousGesture(
-                    LongPressGesture(minimumDuration: 0.7)
-                        .onEnded { _ in
-                            guard let touch = lastTouchPoint,
-                                  let coord = proxy.convert(touch, from: .local) else { return }
-                            
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            
-                            viewModel.handleMapHold(at: coord)
-                        }
-                )
-            }
+            MapLayerView(viewModel: viewModel)
             
+            // HAPUS VSTACK KALO UDAH ADA NAVIGATION
             VStack {
                 HStack {
                     Button {
@@ -119,16 +60,20 @@ public struct MainMapView: View {
             CLLocationManager().requestWhenInUseAuthorization()
         }
         .preferredColorScheme(.dark)
-        .alert("Set Meeting Point", isPresented: $viewModel.isShowingSetAlert){
-            Button("Not Yet", role: .cancel){
+        
+        // 1. Alert Creator: Set Meeting Point
+        .alert("Set Meeting Point", isPresented: $viewModel.isShowingSetAlert) {
+            Button("Not Yet", role: .cancel) {
                 viewModel.cancelSetMeetingPoint()
             }
-            Button("Continue"){
+            Button("Continue") {
                 viewModel.confirmSetMeetingPoint()
             }
-        } message : {
+        } message: {
             Text("Has Everyone Joined? Friends who haven't joined the group won't be able to see your meeting point.")
         }
+        
+        // 2. Alert Creator: Stop Meeting Point
         .alert("Stop Meeting Point?", isPresented: $viewModel.isShowingStopAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Stop", role: .destructive) {
@@ -137,15 +82,8 @@ public struct MainMapView: View {
         } message: {
             Text("Are you sure you want to stop the meeting point for everyone?")
         }
-        .alert("Cannot Set Meeting Point", isPresented: $viewModel.isShowingLockedAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            if viewModel.hasActiveMapPoint && !viewModel.isCurrentUserProposer {
-                Text("A meeting point is already set by another member. Only the creator can stop it.")
-            } else {
-                Text("A meeting point is already active. Please stop the current one before setting a new location.")
-            }
-        }
+        
+        // 3. Alert User Lain: RSVP
         .alert("Meeting Point Set!", isPresented: $viewModel.isShowingRSVPAlert) {
             Button("Not Now", role: .cancel) {
                 viewModel.respondRSVP(attending: false)
@@ -157,6 +95,8 @@ public struct MainMapView: View {
             let proposer = viewModel.activeMapPoint?.proposerInitials ?? "Member"
             Text("There's a meeting point at \(proposer)'s last known location.")
         }
+        
+        // 4. Alert Dicegat: Locked (Sudah dibersihkan, hanya 1 alert)
         .alert("Cannot Set Meeting Point", isPresented: $viewModel.isShowingLockedAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -166,6 +106,7 @@ public struct MainMapView: View {
                 Text("A meeting point is already active. Please stop the current one before setting a new location.")
             }
         }
+        
     }
     
 }
