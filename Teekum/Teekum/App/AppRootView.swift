@@ -12,9 +12,11 @@ struct AppRootView: View {
 
     var body: some View {
         if sessionStore.hasActiveSession {
-            MainMapView()
+            OrbitMapView(sessionStore: sessionStore)
         } else {
-            Text("Pairing View Placeholder (Developer A)")
+            NavigationStack {
+                GroupPairingView(sessionStore: sessionStore)
+            }
         }
     }
 }
