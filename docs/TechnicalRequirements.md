@@ -1,7 +1,7 @@
 # TeeKum
 
 **Technical Requirements · Fantasix Team**
-**Last updated:** 29 October 2026
+**Last updated:** 5 November 2026
 **Status:** Team planning baseline for the current SwiftUI starter. Feature implementation and verification start from the source in this repository; no prototype completion or test results carry over. See [README.md](../README.md) for setup.
 
 > **Reading priority:** Sections 1 and 3 define product intent and the MVVM Feature-Driven structure. Section 3.5 proposes four-developer ownership. Section 7 tracks open team decisions and takes precedence over conflicting details in the retained technical references. Framework examples and legacy paths in Section 2 are design references, not existing starter features.
@@ -17,7 +17,7 @@
 **UI framework:** SwiftUI (Modern Swift Observation `@Observable`, MVVM Feature-Driven)
 
 **Description:**  
-TeeKum is an offline-first iOS app designed to help friends locate one another in crowded concerts, music festivals, and large venues where cellular data or internet access is weak or unavailable. Users form private groups, share their real-time coordinates and current activity status, view friends on an offline map, establish meeting points, and navigate directly toward a selected person.
+TeeKum is an offline-first iOS app designed to help friends locate one another in crowded concerts, music festivals, and large venues where cellular data or internet access is weak or unavailable. Users form private groups, share their real-time coordinates and current activity status, view friends in the Orbit overview, open a geographic map to choose a meeting point, and navigate toward a selected person.
 
 The system is designed to be completely serverless (*100% serverless*). Devices communicate directly peer-to-peer (Phase 1 MVP) via Apple Wireless Direct Link (AWDL) and Wi-Fi Direct using `Network.framework`. Devices can also opportunistically relay encrypted packets across a multi-hop mesh network for fellow festival attendees (Phase 2). Relay participation is entirely opt-in, and privacy is strictly guaranteed through end-to-end authenticated encryption (zero-knowledge relaying).
 
@@ -27,6 +27,7 @@ The system is designed to be completely serverless (*100% serverless*). Devices 
 - **Location + Status Coded Hash:** Periodic updates transmit location coordinates and current status together. Status strings are processed locally, and only a 1-byte compact coded hash is broadcast over the air to minimize radio bandwidth.
 - **SOS Is Exceptional:** The SOS emergency button requires a 3-second continuous press-and-hold to prevent accidental triggers while dancing. SOS packets are dispatched immediately through an urgent priority path, preempting normal queues, and receive maximum forwarding priority.
 - **User-Controlled Live Sharing:** Users maintain complete control via a *Live Sharing* toggle on the map screen. When OFF, GPS polling and broadcasting are paused to preserve battery and privacy while watching performances. When ON, updates are broadcast every 3–5 seconds while moving, or 15–30 seconds while stationary.
+- **Orbit & Geographic Map:** `OrbitMapView` is the active-session overview. Its top-right map action opens `Features/MapPoint/Views/MainMapView.swift` for the geographic map and meeting-point coordinate selection. UI slicing and remaining design decisions are recorded in Section 3.7.
 - **Single Active Meeting Point:** A group has strictly one active meeting point at any given time to eliminate confusion. Friends confirm attendance with a single tap (*"I'll be there"*).
 - **Compass to Ultra-Wideband Transition:** Long-range navigation (>8m) utilizes a 360° magnetic compass arrow calculating GPS bearing, then transitions automatically and seamlessly to an Ultra-Wideband (Nearby Interaction U1/U2) precision radar upon approaching within ~5–8 meters.
 - **Visual Strobe Beacon:** A 1-tap button turns the screen into a high-visibility, high-contrast flashing neon torch to hold above dark, dense crowds.
@@ -65,7 +66,7 @@ This project utilizes **100% Native Apple Frameworks (Zero External Packages / Z
 | **CoreMotion** | Apple Framework | Detects physical movement (walking vs stationary) via motion coprocessor to sleep GPS and save ~70% battery | `Services/LocationService.swift` |
 | **CryptoKit** | Apple Framework | Authenticated encryption (ChaCha20-Poly1305 / AES-256-GCM), symmetric key exchange, and tamper verification | `Services/CryptoService.swift` |
 | **NearbyInteraction** | Apple Framework | High-precision relative distance and 3D directional pointing (Ultra-Wideband U1/U2) within a 5–8 meter radius | `Views/FinderBeaconView.swift` |
-| **MapKit** | Apple Framework | Renders venue maps, friend pins, accuracy circles, and rendezvous points using cached offline map data | `Views/MainMapView.swift` |
+| **MapKit** | Apple Framework | Geographic venue map, member annotations, accuracy circles and meeting-point coordinate selection. Offline availability requires verification. | `Features/MapPoint/Views/Components/MapLayerView.swift` |
 | **ActivityKit** | Apple Framework | Presents persistent session status, friend proximity, and interactive communal relay approval on Lock Screen & Dynamic Island | `Views/DiagnosticsView.swift` & Widgets |
 | **Security (Keychain)** | Apple Framework | Securely stores 256-bit group session encryption keys inside the iOS Keychain / Secure Enclave | `Services/CryptoService.swift` |
 | **libsqlite3** | Native C Library | Lightweight local SQLite database for ephemeral session crash-recovery if the app is backgrounded by iOS | `Services/SessionStorage.swift` |
@@ -275,9 +276,9 @@ final class LocationSamplingPolicy {
 
 | Method / Function / Class | What it does | How we use it in our app | File |
 | :--- | :--- | :--- | :--- |
-| `Map` (SwiftUI) | Declarative container for presenting camera viewports, overlays, and annotations. | Renders the primary festival map interface in `MainMapView`. | `MainMapView.swift` |
-| `Annotation` | Displays custom interactive map pins at specified coordinates. | Renders friend avatars, current status emoji badges, and meeting point icons. | `MainMapView.swift` |
-| `MapCircle` | Renders a geographic circle overlay with an explicit radius in meters. | Displays coordinate accuracy rings that fade as signals degrade in crowds. | `MainMapView.swift` |
+| `Map` (SwiftUI) | Geographic viewport, overlays and annotations. | Renders the geographic meeting-point map opened from Orbit. | `Features/MapPoint/Views/Components/MapLayerView.swift` |
+| `Annotation` | Displays interactive map pins at geographic coordinates. | Renders active and candidate meeting-point annotations. | `Features/MapPoint/Views/Components/MapLayerView.swift` |
+| `MapCircle` | Renders a geographic circle with a radius in meters. | Planned location-uncertainty overlay; not currently rendered. Orbit ring scale is a separate design decision. | Future map UI; no current component. |
 
 ---
 
@@ -355,7 +356,7 @@ Start with regular MVVM inside feature folders:
 
 ```text
 TeekumApp                      // Create and retain shared dependencies; pass them to features
-└── AppRootView                // Show Pairing or Main Map from session state
+└── AppRootView                // Show Pairing or Orbit from session state
     └── Feature View -> ViewModel -> Service -> Apple frameworks
                            |
                     Shared session state, when needed
@@ -366,7 +367,7 @@ TeekumApp                      // Create and retain shared dependencies; pass th
 3. **Model:** Data records and value types. Put payload-free category/status enums in their owner's `Models/Enums/`. Initials are display labels, not unique member identity. Wire data and codecs belong to Messaging.
 4. **Service:** Own a concrete capability such as location, transport, crypto or persistence. Feature-only behavior stays in its feature; shared behavior belongs in Core. Do not add a protocol or extra wrapper for every class; introduce test seams at actual platform/shared boundaries.
 5. **App setup:** Create and retain shared services/state in `TeekumApp.swift`, then pass only what each feature needs. Do not recreate them inside `body` or use a global service locator. Direct constructor injection is sufficient.
-6. **Root and navigation:** `AppRootView` is a plain SwiftUI View that selects Pairing or Main Map from session state. Use native SwiftUI navigation and presentation in the owning feature. The root does not own every route or sheet.
+6. **Root and navigation:** `AppRootView` is a plain SwiftUI View that selects Pairing or Orbit from session state. Use native SwiftUI navigation and presentation in the owning feature. The root does not own every route or sheet.
 7. **Shared state:** Introduce one observable session-state owner when multiple features need the same accepted membership, member samples or meeting point. `SessionStore` is a suggested name, not a prerequisite for UI fixtures. Do not keep independently writable copies of the same session data in each ViewModel. Measurement time and receipt time remain distinct.
 8. **Service lifecycle:** Give the inbound transport stream one consumer in the service layer; validate events before updating shared state on the MainActor. Views/ViewModels observe accepted state instead of competing for the raw stream. Service owners cancel their tasks and reject old-session callbacks during teardown; these duties must not depend on whether a screen is visible.
 9. **Concurrency and boundaries:** Keep UI state on the MainActor; use actors where shared mutable service state needs isolation. Keep blocking persistence/byte work off the MainActor and use appropriate Sendable values across boundaries. Core does not depend on Features; compose feature-to-feature actions at the app boundary with callbacks or shared state. Promote code to Core/Shared only when it is actually reused.
@@ -375,74 +376,73 @@ TeekumApp                      // Create and retain shared dependencies; pass th
 
 ### 3.3 Target Folder Structure
 
-Paths below are placement suggestions, not files required before feature work can start. Begin with `App/TeekumApp.swift`, `AppRootView.swift` and the feature being migrated; add services/shared state as real behavior needs them. Comments use `//` for responsibilities. Do not create empty files/folders to complete the tree. The listed service protocols are examples of useful test seams, not an interface-per-service requirement. Small features may keep their ViewModel directly in the feature folder (for example `Features/Map/MapViewModel.swift`); add a `ViewModels/` subfolder only when it improves readability.
+The `Features/` and `Shared/` branches below reflect the current UI source structure as of 8 November 2026, relative to `Teekum/Teekum/`. Comments use `//` for responsibilities and explicitly identify placeholders. Other branches remain the existing design baseline; this UI update does not approve or revise Core/service logic. Do not create empty files/folders to complete the planned parts of the tree. The listed service protocols are examples of useful test seams, not an interface-per-service requirement.
 
 ```text
 TeeKum/
 ├── App/
 │   ├── TeekumApp.swift                       // Entry point; create/retain services and shared state; inject into features
-│   └── AppRootView.swift                     // Plain SwiftUI root: show Pairing or Main Map; keep feature sheets local
+│   └── AppRootView.swift                     // Plain SwiftUI root: show Pairing or Orbit; keep feature sheets local
 ├── Features/
 │   ├── Pairing/
-│   │   ├── Views/
-│   │   │   ├── GroupPairingView.swift        // Create-group form, initials input, scan-to-join and invite entry
-│   │   │   ├── GroupQRCodeView.swift         // Show current group's QR invite and native sharing action
-│   │   │   ├── QRScannerView.swift           // Camera preview bridge; forward scanned strings for validation
-│   │   │   └── MeshAgreementView.swift       // Present agreed relay/privacy policy before session activation
-│   │   ├── ViewModels/
-│   │   │   └── PairingViewModel.swift        // Form validation, pending invite, consent actions and pairing feedback
 │   │   ├── Models/
-│   │   │   ├── GroupInvite.swift             // Parsed invite data; contains sensitive key material, never log it
+│   │   │   ├── PairingForm.swift            // Draft initials, group name, profile color and input validity
+│   │   │   ├── GroupInvite.swift            // Placeholder; invite data contract is not implemented
 │   │   │   └── Enums/
-│   │   │       └── PairingMode.swift         // Payload-free UI choices: create group or scan to join
+│   │   │       ├── PairingMode.swift        // Create or join UI mode
+│   │   │       └── PairingProfileColor.swift // Profile color choices mapped to shared theme colors
+│   │   ├── ViewModels/
+│   │   │   └── PairingViewModel.swift       // Form/QR-preview state and local demo session activation
+│   │   ├── Views/
+│   │   │   ├── GroupPairingView.swift       // Compose create/join form and push AgreementView
+│   │   │   ├── GroupQRCodeView.swift        // Group title and invitation artwork; QR is currently a placeholder
+│   │   │   ├── QRScannerView.swift          // Camera preview, availability feedback and screen lifecycle
+│   │   │   ├── AgreementView.swift         // Compose group summary, policy cards and consent action
+│   │   │   ├── MeshAgreementView.swift      // Unused Hello-world placeholder; current flow uses AgreementView
+│   │   │   ├── PairingViewComponents/
+│   │   │   │   ├── GroupPairingProfileView.swift // Initials input, focus/cursor and profile-picker presentation
+│   │   │   │   ├── ProfilePickerView.swift  // Select the draft profile color
+│   │   │   │   ├── GroupNameField.swift     // Styled group-name text field
+│   │   │   │   ├── GroupPairingInviteView.swift // Static QR artwork and unconnected share action
+│   │   │   │   ├── CameraPreviewView.swift  // UIViewRepresentable bridge for the camera preview
+│   │   │   │   └── CameraPreviewSurface.swift // UIView hosting AVCaptureVideoPreviewLayer
+│   │   │   └── AgreementViewComponents/
+│   │   │       ├── HeadAgreement.swift      // Agreement header and profile accent
+│   │   │       ├── AggrementGroupSummaryView.swift // AgreementGroupSummaryView type; group/initials summary
+│   │   │       ├── CardAgreement.swift      // Reusable policy card within Pairing
+│   │   │       └── FooterAgreement.swift    // Local consent checkbox and shared primary-button action
 │   │   └── Services/
-│   │       ├── GroupInviteCodec.swift        // Encode/decode QR and deep-link invite formats; validate input
-│   │       ├── QRCodeGenerator.swift         // Generate QR image from invite content using CoreImage
-│   │       └── QRScannerService.swift        // Own AVFoundation capture session, permission and scan callbacks
-│   ├── Map/
-│   │   ├── Views/
-│   │   │   ├── MainMapView.swift             // MapKit viewport, member pins, accuracy rings and feature action callbacks
-│   │   │   ├── FriendDetailView.swift        // Show selected member's last sample, status, distance and finder action
-│   │   │   ├── StatusPickerView.swift        // Horizontal status choices; send selection to MapViewModel
-│   │   │   └── LiveSharingControlView.swift  // Sharing intent toggle plus actual publishing availability feedback
-│   │   └── ViewModels/
-│   │       └── MapViewModel.swift            // Map screen state, selected member, status/sharing commands and freshness display
-│   ├── MeetingPoint/
-│   │   ├── Views/
-│   │   │   ├── MeetingPointsView.swift       // Active group meeting point, proposal controls and attendance actions
-│   │   │   └── SetMeetingPointSheet.swift    // Confirm selected map coordinate and landmark label before proposing
-│   │   ├── ViewModels/
-│   │   │   └── MeetingPointViewModel.swift   // Proposal/attendance actions and screen state from shared session data
-│   │   └── Models/
-│   │       └── Enums/
-│   │           └── PremadeMeetingLocation.swift // Payload-free landmark label choices; not venue coordinates
-│   ├── SOS/
-│   │   ├── Views/
-│   │   │   ├── SOSButtonView.swift           // Three-second continuous hold, progress ring and early-release cancellation
-│   │   │   └── SOSDeliveryStatusView.swift   // Present pending, recipient-confirmed or failed delivery honestly
-│   │   ├── ViewModels/
-│   │   │   └── SOSViewModel.swift            // Hold interaction, trigger command and observed delivery feedback
-│   │   └── Services/
-│   │       └── SOSAudioAlert.swift           // Audible/haptic presentation for accepted alerts; no packet verification
-│   ├── Finder/
-│   │   ├── Views/
-│   │   │   ├── FinderBeaconView.swift        // Compose compass, supported precision mode and visual beacon controls
-│   │   │   ├── CompassView.swift             // Render estimated bearing, distance and location uncertainty
-│   │   │   ├── PrecisionRadarView.swift      // Render available NearbyInteraction distance/direction observations
-│   │   │   └── StrobeBeaconView.swift        // Visual beacon presentation with explicit start/stop control
-│   │   ├── ViewModels/
-│   │   │   └── FinderViewModel.swift         // Selected target, capability state, compass/radar selection and beacon state
+│   │       ├── GroupInvitedCodec.swift     // Placeholder; current filename includes "Invited"
+│   │       ├── QRCodeGenerator.swift       // Placeholder; QR generation is not connected
+│   │       └── QRScannerService.swift      // Camera permission and capture lifecycle; no QR decoding yet
+│   ├── OrbitMap/
 │   │   ├── Models/
-│   │   │   ├── ProximityObservation.swift    // Relative distance/direction, observation timestamp and availability
 │   │   │   └── Enums/
-│   │   │       └── FinderMode.swift          // Payload-free display modes: compass, precision radar or unavailable
-│   │   └── Services/
-│   │       └── NearbyInteractionService.swift // Own NISession, discovery-token exchange integration and interruption handling
-│   └── Diagnostics/
-│       ├── Views/
-│       │   └── DiagnosticsView.swift        // Debug HUD for measured session, location and transport snapshots
-│       └── ViewModels/
-│           └── DiagnosticsViewModel.swift   // Read-only diagnostic formatting; distinguish unavailable from measured values
+│   │   │       └── OrbitModal.swift         // Optional modal destination: friends or geographic map
+│   │   ├── ViewModels/
+│   │   │   ├── OrbitMapViewModel.swift      // Shared group title and local leave-session action
+│   │   │   └── FriendListViewModel.swift    // Roster filtering and compact seconds-or-minutes age labels
+│   │   └── Views/
+│   │       ├── OrbitMapView.swift           // Compose Orbit; own friends/map modal state and dismissal order
+│   │       ├── FriendListSheet.swift        // Searchable roster, add/select callbacks and native leave confirmation
+│   │       └── Components/
+│   │           ├── OrbitHeaderView.swift    // Group name, settings placeholder and geographic-map callback
+│   │           ├── OrbitControlsView.swift  // Shared SOS control, curved friends handle and chat placeholder
+│   │           ├── OrbitSceneView.swift     // Compose rings, starfield, bloom and fixture-positioned markers
+│   │           ├── StarfieldView.swift      // Procedural twinkle; pause for inactive scene, Reduce Motion or Low Power Mode
+│   │           ├── OrbitBloomView.swift     // Decorative outer-ring glow driven by a supplied rotation
+│   │           ├── OrbitMarkerMemberView.swift // OrbitMemberMarkerView type; peer dot, glow and initials
+│   │           ├── OrbitUserMarkerView.swift // Center marker and heading cursor
+│   │           ├── OrbitPanelShape.swift    // Curved crest used by the friends handle and panel background
+│   │           └── FriendListMemberView.swift // Member avatar and compact latest-location age
+│   └── MapPoint/
+│       ├── ViewModels/
+│       │   └── MapPointViewModel.swift      // Local candidate/alerts and shared meeting-point/attendance state
+│       └── Views/
+│           ├── MainMapView.swift           // Geographic map modal, close action and native meeting-point alerts
+│           └── Components/
+│               ├── MapLayerView.swift      // MapKit viewport, annotations and long-press coordinate selection
+│               └── MapPointPinView.swift   // Meeting-point annotation artwork and title
 ├── Core/
 │   ├── Models/
 │   │   ├── GroupSession.swift               // Active group metadata, membership and expiry; no invite parsing
@@ -456,6 +456,7 @@ TeeKum/
 │   │       ├── SOSDeliveryState.swift       // Payload-free delivery phases; event/recipient details stay in SOSEvent
 │   │       ├── MeetingAttendance.swift      // Payload-free attendance choices: pending, accepted or declined
 │   │       └── LocationFreshness.swift      // Payload-free sample classifications; age/accuracy remain in LocationSample
+│   │       └── SOSType.swift  
 │   ├── Session/
 │   │   └── SessionStore.swift               // Add when needed: one MainActor observable session-state owner; no sockets/keys
 │   ├── Messaging/
@@ -508,8 +509,9 @@ TeeKum/
 │       └── SessionActivityService.swift     // Conditional: start/update/end Live Activity; no background-runtime guarantee
 ├── Shared/
 │   └── UI/
-│       ├── StatusBadgeView.swift            // Reusable status presentation; accepts display data, no SessionStore access
-│       └── Theme.swift                      // Shared semantic colors/type styles used across feature views
+│       ├── PrimaryButtonView.swift         // Shared capsule CTA with optional trailing icon and injected action
+│       ├── SOSHoldButtonView.swift         // SOSHoldButton type; 1.5-second hold, progress, glow and haptic callback
+│       └── Theme.swift                     // Semantic/profile colors, blackCard surface and hex initializer
 └── Resources/
     ├── Assets.xcassets                      // App icon, semantic color assets and shipped images
     └── Localizable.xcstrings                // User-facing strings and localization catalog
@@ -521,7 +523,7 @@ TeeKumLiveActivity/                           // Conditional Widget Extension ta
 TeeKumTests/
 ├── Features/
 │   ├── Pairing/PairingViewModelTests.swift   // Form validation, invite rejection, consent and pending-action behavior
-│   ├── Map/MapViewModelTests.swift           // Sharing intent, stale sample display and status commands
+│   ├── Map/OrbitMapViewModelTests.swift      // Shared-state presentation, stale markers and status/sharing commands
 │   ├── MeetingPoint/MeetingPointViewModelTests.swift // Proposal/attendance actions against shared state
 │   ├── SOS/SOSViewModelTests.swift           // Hold timing, early cancellation and honest delivery presentation
 │   ├── Finder/FinderViewModelTests.swift     // Unsupported/interrupted precision mode and compass fallback
@@ -554,6 +556,8 @@ docs/
 └── PROTOCOL_SPECIFICATION.md                // Draft cryptography, nonce, AAD and validation reference
 ```
 
+The current UI tree preserves filenames exactly, including `AggrementGroupSummaryView.swift`, `GroupInvitedCodec.swift`, `OrbitMarkerMemberView.swift` and `SOSHoldButtonView.swift`. Their comments identify the corresponding types or placeholder status. Planned SOS delivery, Finder and Diagnostics screens are not present in the current feature tree; their logic and contracts remain outside this UI update.
+
 #### Model & Enum Placement Convention
 
 - Put a payload-free enum representing a category or simple choice in `Models/Enums/` under its owner. Examples: `Core/Models/Enums/Status.swift`, `Features/Pairing/Models/Enums/PairingMode.swift`, and `Core/Transport/Models/Enums/TransportState.swift`.
@@ -569,14 +573,17 @@ The widget only renders shared display data; it must not start a duplicate trans
 
 | Capability | UI owner | Shared behavior / source of truth |
 | :--- | :--- | :--- |
-| Create/join/leave group, QR/link | Pairing | PairingViewModel calls invite/key/transport services; one shared session-state owner tracks accepted membership. Extract lifecycle coordination into a service only when needed. |
-| Map, member detail, status, sharing toggle | Map | MapViewModel calls location/publishing services; shared accepted state feeds member display. |
-| Propose/accept meeting point | MeetingPoint | MeetingPointViewModel calls messaging behavior; one shared state owner stores the accepted point. Concurrent proposal resolution remains an open decision. |
-| Hold SOS and show delivery | SOS | SOSViewModel calls the delivery service; Core/Messaging owns dispatch, retries and ACKs beyond the screen lifetime. Accepted delivery state is shared where needed. |
-| Compass/UWB and beacon | Finder | Core supplies target location; feature service owns NearbyInteraction lifecycle and capability fallback. |
-| Debug HUD | Diagnostics | Reads transport/location/session snapshots; cannot infer a hardware state from a static label. |
+| Create/join and agreement | Pairing | PairingViewModel owns the draft and local demo activation. QR artwork is static; invite decoding, sharing and P2P joining are not connected. |
+| Orbit overview and friends panel | OrbitMap | OrbitMapViewModel reads the shared group title; FriendListViewModel reads/filters members. Scene positions and heading are fixtures. |
+| Leave group | OrbitMap | FriendListSheet presents native confirmation; OrbitMapView closes the modal before the ViewModel resets local SessionStore data. Service teardown remains future integration work. |
+| Geographic map and meeting-point UI | MapPoint | MainMapView composes MapLayerView and alerts. MapPointViewModel reads/writes the shared activeMeetingPoint; candidate coordinate stays feature-local. Network synchronization remains undecided. |
+| Hold SOS control | Shared/UI, composed by OrbitMap | SOSHoldButtonView.swift provides the hold/progress/haptic interaction and completion callback. The current Orbit callback is a placeholder; delivery/ACK behavior is not implemented by this control. |
+| Compass/UWB and beacon | Finder (planned) | Core supplies target location; feature service owns NearbyInteraction lifecycle and capability fallback. |
+| Debug HUD | Diagnostics (planned) | Reads transport/location/session snapshots; cannot infer a hardware state from a static label. |
 
-**Outbound example:** Map action -> MapViewModel -> LocationPublisher/messaging service -> codec/security/outbox -> transport. Call concrete services directly where sufficient; no mandatory command layer. Toggle intent and actual publishing availability are separate states.
+This table records current UI ownership, not approval of the future service design below. The UI uses the existing SessionStore through initializer injection; session activation is currently a local navigation demo.
+
+**Outbound example:** Map action -> OrbitMapViewModel -> LocationPublisher/messaging service -> codec/security/outbox -> transport. Call concrete services directly where sufficient; no mandatory command layer. Toggle intent and actual publishing availability are separate states.
 
 **Inbound example:** transport -> one service-owned ingestion pipeline -> validation/decryption/replay checks -> shared accepted state -> observing feature ViewModels/Views. Choose the concrete owning service during integration; a separate runtime class is not required. A new receipt must not refresh an old sample's measurement time. Exact validation order and packet fields await protocol reconciliation.
 
@@ -592,8 +599,8 @@ This is a proposed responsibility split; assign names with the team. Each develo
 | :--- | :--- | :--- |
 | Developer A | Pairing, invite validation, session lifecycle, recovery | Core/Session, Core/Security, Core/Persistence, App composition |
 | Developer B | Transport, packet codec/validation, delivery pipeline; Diagnostics UI | Core/Transport, Core/Messaging; A reviews security/session changes |
-| Developer C | Map/status/sharing, location, battery; Live Activity if selected | Core/Location, Core/Power, app-side Live Activity; A reviews lifecycle |
-| Developer D | MeetingPoint, SOS UI/hold interaction, Finder | B reviews SOS/meeting wire contracts; C reviews location/finder integration |
+| Developer C | Orbit UI, geographic map/coordinate selection, status/sharing, location and power; Live Activity if selected | Core/Location, Core/Power, app-side Live Activity; A reviews lifecycle |
+| Developer D | Meeting proposals/attendance/sync, SOS interaction and Finder | B reviews SOS/meeting wire contracts; C reviews location/finder integration |
 
 Agree on shared state and service method/event signatures, location samples, diagnostics fields, and SOS delivery semantics before dependent feature work. Define test seams at platform boundaries; do not create a protocol for every class. Use fakes while implementation proceeds. Each PR includes its relevant tests and a reviewer; shared schema or App composition changes need the responsible owner. Review workload at each milestone, especially transport/security and UWB.
 
@@ -601,7 +608,10 @@ Agree on shared state and service method/event signatures, location samples, dia
 
 | Legacy design path/name | Target destination |
 | :--- | :--- |
-| `Views/`, `ViewModels/` | Corresponding `Features/<Feature>/Views` and `ViewModels` |
+| `Views/`, `ViewModels/` | Corresponding feature-owned `Views/` and `ViewModels/` folders in Pairing, OrbitMap or MapPoint. |
+| Legacy main-map overview | `Features/OrbitMap/Views/OrbitMapView.swift` and `Features/OrbitMap/ViewModels/OrbitMapViewModel.swift`. |
+| Geographic map and meeting-point UI | `Features/MapPoint/Views/MainMapView.swift`, `Views/Components/MapLayerView.swift` and `ViewModels/MapPointViewModel.swift`. |
+| Primary CTA and SOS hold control | Reuse `Shared/UI/PrimaryButtonView.swift` and `Shared/UI/SOSHoldButtonView.swift`; supply actions from the owning feature. |
 | `GroupSessionViewModel` | Pairing UI/actions -> PairingViewModel; reuse one shared session state owner when needed; platform work -> concrete services. No mandatory runtime/command layer. |
 | `Models/Packet.swift`, initials/wire codecs | `Core/Messaging/` |
 | Shared `Member`, location, group, meeting and SOS event records | `Core/Models/` |
@@ -619,6 +629,59 @@ Agree on shared state and service method/event signatures, location samples, dia
 3. Move feature files in small PRs, fixing Xcode target membership and references. Separate mechanical moves from behavior changes.
 4. Start with direct dependency creation in TeekumApp and concrete service calls from ViewModels. Add a shared session state owner when needed; extract further orchestration only when existing code becomes hard to maintain. Preserve teardown, errors, publishing policy and honest delivery states.
 5. Verify automated state/codec/security checks and physical-device flows. Include locked screen, sharing OFF, stale GPS, loss/reconnect, Low Power Mode, and leave/rejoin. A folder refactor alone cannot establish runtime correctness.
+
+
+### 3.7 Orbit Design & UI Slicing
+
+**Current UI baseline, 8 November 2026:** Pairing, OrbitMap and MapPoint are separate feature folders. OrbitMapView is the active-session overview; the top-right map action opens MapPoint's MainMapView. The scene contains procedural stars, rings, decorative bloom, a center heading cursor and fixture peer markers. The bottom chevron opens the friends panel. A member-joined banner is still a design proposal, not an existing component.
+
+#### Component Boundaries
+
+| File | Responsibility and inputs |
+| :--- | :--- |
+| `OrbitMapView.swift` | Compose the screen and own one optional OrbitModal destination for friends or map; dismiss before leaving the session. |
+| `OrbitMapViewModel.swift` | Read the group title from the injected SessionStore and reset local session data on leave. |
+| `OrbitSceneView.swift`, `StarfieldView.swift`, `OrbitBloomView.swift` | Compose rings and fixture markers; draw procedural twinkle and outer-ring glow. Rotation is supplied by the caller; it is not yet live compass data. |
+| `OrbitMarkerMemberView.swift`, `OrbitUserMarkerView.swift` | Separate peer-dot/initials presentation from the center marker/heading cursor. The first file declares OrbitMemberMarkerView. |
+| `OrbitHeaderView.swift` | Render group name, settings placeholder and map action supplied by OrbitMapView. |
+| `OrbitControlsView.swift`, `OrbitPanelShape.swift` | Arrange the shared SOS hold control, chat placeholder and curved friends-panel handle. Reuse the same shape for the panel surface. |
+| `FriendListSheet.swift`, `FriendListMemberView.swift` | Render search, roster cells, compact location age and native leave confirmation; reuse PrimaryButtonView for Leave Group. |
+| `FriendListViewModel.swift` | Filter shared members by initials and format age as seconds below one minute, otherwise whole minutes; never combine both units. |
+| `MainMapView.swift`, `MapLayerView.swift`, `MapPointPinView.swift` | Compose the geographic modal, map viewport/long-press selection, annotations and native confirmation/RSVP alerts under Features/MapPoint. |
+| `MapPointViewModel.swift` | Keep candidate/alert state local and read/write the accepted meeting point through the same SessionStore. Current actions are local; synchronization is not implemented. |
+| `Shared/UI/PrimaryButtonView.swift` | Reuse the capsule CTA for Pairing, Agreement and Leave Group; inject the action and optional trailing icon. |
+| `Shared/UI/SOSHoldButtonView.swift`, `Theme.swift` | Reuse the 1.5-second hold interaction and shared semantic/profile colors, including blackCard. The hold callback does not establish SOS delivery. |
+
+Keep Orbit-only components in `Features/OrbitMap/Views/Components/` and geographic-map components in `Features/MapPoint/Views/Components/`. Keep Pairing's existing `PairingViewComponents/` and `AgreementViewComponents/` groups under its Views folder. Only the existing reusable controls and theme belong in Shared/UI; they do not own SessionStore or navigation.
+
+#### Current UI Navigation
+
+| Flow | Method and owner |
+| :--- | :--- |
+| Pairing → Agreement | GroupPairingView uses `navigationDestination(isPresented:)` inside the root's NavigationStack. Back returns to the same draft. |
+| Agreement → Orbit | PairingViewModel activates a local demo session; AppRootView switches its root based on session state. |
+| Orbit → friends or MapPoint | OrbitMapView presents one `fullScreenCover(item:)` using OrbitModal. The friends panel keeps its custom curved surface and transparent backdrop. |
+| MapPoint/friends → Orbit | The close action uses `dismiss()`; closing a modal does not leave the group. |
+| Leave Group → Pairing | Native confirmation closes the friends modal; its `onDismiss` then resets local session state and the root switches to Pairing. |
+
+#### UI Handoff and Remaining Slices
+
+1. **Start from the existing screens.** Reuse GroupPairingView, AgreementView, OrbitMapView and MainMapView rather than creating duplicate page shells. Keep focus, camera viewport and modal presentation local to their owning Views.
+2. **Reuse current components.** Check Shared/UI before adding a CTA, SOS control or color. Feature-only visuals remain with their feature; UI state/formatting stays in the existing ViewModels where appropriate.
+3. **Keep demo boundaries visible.** Create/join currently demonstrate navigation; QR artwork is static and the scanner only previews the camera. Orbit positions/heading are fixtures. Settings, chat, invite sharing and friend-selection callbacks remain unconnected.
+4. **Slice remaining UI separately.** Confirm the member-joined banner, member-detail interaction, status/Live Sharing placement and any idle badge design before adding their components. Do not infer a transport or detection contract from a UI mockup.
+5. **Review the UI manually.** Check safe areas, panel width/curve, keyboard dismissal, long labels, Dynamic Type, VoiceOver, Reduce Motion and modal close/leave behavior. This documentation change does not add UI tests.
+6. **Discuss logic before integration.** Real heading/projection, member colors, idle timing, invite validation and peer synchronization remain separate logic work. Existing Core responsibilities and open decisions are unchanged by this UI inventory.
+
+#### Design Decisions to Confirm
+
+- **Ring meaning and orientation:** Decide whether rings represent fixed metric distances, an adaptive range or a purely visual arrangement. Agree north-up versus heading-up behavior, out-of-range markers and uncertainty presentation before interpreting placement as real direction/distance.
+- **Local position:** Orbit needs the local user's location and heading as well as peer samples. Confirm the provider contract during Location integration; a centered fixture alone does not supply geographic calculations.
+- **Colors and labels:** Agree whether color denotes member identity, status or another meaning. Preserve freshness/uncertainty cues and text accessibility alongside the visual palette.
+- **Bottom controls and settings:** The chevron opens FriendListSheet. Settings, chat, add-friend and member-selection destinations still need agreement; their callbacks do not establish working features.
+- **Existing controls:** Decide where status selection and Live Sharing are accessible in the revised design. Keep their product behavior accounted for while the previous always-visible controls are reorganized.
+- **Meeting selection:** MainMapView currently opens full screen and dismisses back to Orbit. Long-press selection feeds local native confirmation alerts; the accepted point is shared through SessionStore. Peer synchronization remains future logic work.
+- **Orbit versus precision finding:** Relative placement based on GPS and heading needs its own uncertainty handling. NearbyInteraction capability/session behavior remains owned by Finder if it is included.
 
 ---
 
@@ -652,43 +715,55 @@ Simulator results cannot establish radio range, background reliability, location
 
 ## 5. Git Workflow
 
-Development is restricted to **four branch types**: `main`, `develop`, `prod`, and `feat/*`.
+The team uses two protected branches, `develop` and `main`, plus short-lived `f/ui/*` and `f/logic/*` branches. UI slicing and logic implementation are separate work scopes.
 
 ### 5.1 Branches
 
 | Branch | Purpose | Who can push directly? | Protected? |
 | :--- | :--- | :--- | :--- |
-| `main` | Stable release candidate, fully integrated and tested. | None (PR only). | Protected. |
-| `develop` | Active integration branch for combining and testing features. | None (PR only). | Protected. |
-| `prod` | Final production release code tagged for distribution. | Designated Release PIC. | Protected. |
-| `feat/*` | Feature development branch branched off `develop`. | Feature developer. | Unprotected. |
+| `main` | Stable release candidates and the source for TestFlight and App Store delivery. | None (PR only). | Protected. |
+| `develop` | Integrate features and run CI build and test checks. TestFlight uploads are disabled for this branch. | None (PR only). | Protected. |
+| `f/ui/<feature>` | UI slicing, components, presentation state and navigation, branched off `develop`. | Feature developer. | Unprotected. |
+| `f/logic/<feature>` | Feature logic and service/data integration, branched off `develop` after the relevant contracts are discussed. | Feature developer. | Unprotected. |
 
 ### 5.2 Branch Diagram
 
 ```text
-develop → feat/feature-name → PR to develop → PR to main → PR to prod
+f/ui/<feature> ─────┐
+                   ├─→ PR to develop (CI checks) → PR to main
+f/logic/<feature> ──┘                                  └─→ TestFlight → approval → App Store
 ```
 
 ### 5.3 Merging Rules
 
 | Merge | When does it happen? | Who does it? | What must be true first? |
 | :--- | :--- | :--- | :--- |
-| `feat/*` → `develop` | Feature is complete and verified locally. | PR owner. | Code review approved and local tests pass without errors. |
+| `f/ui/*` → `develop` | The declared UI slice is complete and reviewed locally. | PR owner. | Code review approved; include UI verification evidence and identify placeholders. UI completion does not imply logic completion. |
+| `f/logic/*` → `develop` | The declared logic/integration scope is complete and verified locally. | PR owner. | Relevant contracts reviewed, code review approved and applicable local checks pass. |
 | `develop` → `main` | Milestone features are verified as a stable release candidate. | Integration PIC. | Full offline peer-to-peer verification succeeds on physical devices. |
-| `main` → `prod` | Final build is verified for release. | Release PIC. | Release certificates signed and final acceptance criteria met. |
 
 ### 5.4 Step by Step: How One Feature Moves Through Our Workflow
 
-1. Developer creates a branch `feat/feature-name` from the latest `develop`.
-2. Implements focused, modular changes.
+1. Developer creates `f/ui/<feature>` for UI slicing or `f/logic/<feature>` for logic work from the latest `develop`. List any prerequisite PRs when the slice depends on other work.
+2. Implements focused changes within the declared UI or logic scope. A UI PR may include presentation state and navigation; it must label mock data and unconnected actions.
 3. Opens a Pull Request (PR) to `develop` detailing changes and verification evidence.
 4. Reviewer reviews code; developer addresses feedback before merging.
 5. Stable features are promoted from `develop` to `main` via PRs.
-6. Release-ready builds from `main` are merged into `prod`.
+6. The Release PIC starts the TestFlight workflow from `main` after CI checks pass. Record the source commit, app version, and build number.
+7. After TestFlight validation and release approval, the Release PIC selects that same App Store-eligible build for submission. Tag the corresponding release commit on `main`.
 
 ### 5.5 Naming and Commit Conventions
 
-**Branch naming:** `feat/feature-name`, lowercase with hyphens (*kebab-case*).  
+**Branch naming:** `f/ui/<feature>` or `f/logic/<feature>`. Use lowercase and hyphens for the feature name (*kebab-case*). Examples:
+
+| Feature | UI slicing | Logic/integration |
+| :--- | :--- | :--- |
+| Orbit map | `f/ui/orbit-map` | `f/logic/orbit-map` |
+| Pairing and group QR | `f/ui/pairing-group-qr` | `f/logic/pairing-group-qr` |
+| Geographic map and meeting point | `f/ui/map-point` | `f/logic/map-point` |
+
+The `f/` branch prefix does not change the conventional commit types below.
+
 **Commit message format:** `type: short description` or `type(scope): short description`.  
 
 | Type | Usage | Example |
@@ -704,8 +779,8 @@ develop → feat/feature-name → PR to develop → PR to main → PR to prod
 
 ## 6. Team Starting Point
 
-- The repository contains a single SwiftUI Hello-world app and an XcodeGen configuration targeting iOS 27.0.
-- MVVM Feature-Driven foldering, file responsibilities and `Models/Enums/` placement are defined in Section 3; the feature source has not been created yet.
+- The repository contains a single SwiftUI app and an XcodeGen configuration targeting iOS 27.0; Pairing, OrbitMap and MapPoint UI sources are present.
+- Section 3 lists the current Features/Shared UI structure and `Models/Enums/` placement. UI presence, local state and demo navigation do not establish completed networking or other production logic.
 - Developer A–D in Section 3.5 are responsibility slots, not assigned names. Agree names and reviewers before parallel implementation.
 - The delivery approach is migration from the existing vibe-coded product/behavior reference, not an assumption that feature requirements start from zero. Use [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.md) to capture the baseline, assign owners/reviewers, resolve the decisions below and deliver reviewed feature changes with evidence.
 - Developers document their own implemented scope using the convention in [agent.md](agent.md#4-documentation-and-handoff). There is no shared chronological development-log requirement and no requirement to create completion reports before implementation.
