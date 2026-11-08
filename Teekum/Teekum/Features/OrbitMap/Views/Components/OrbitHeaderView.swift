@@ -34,7 +34,7 @@ struct OrbitHeaderView: View {
             Spacer()
             
             Button {
-                print("Map Tapped")
+                print("Map Button")
             } label: {
                 Image(systemName: "map.fill")
                     .font(.system(size: 30, weight: .semibold))
