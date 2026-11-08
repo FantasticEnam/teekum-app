@@ -24,12 +24,6 @@ struct GroupPairingView: View {
                         .padding(.top, 10)
                         .padding(.bottom, 30)
 
-                    Text("Local navigation demo · QR joining and P2P are not connected yet.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.bottom, 20)
-
                     GroupPairingProfileView(
                         profileColor: $viewModel.form.profileColor,
                         initials: $viewModel.form.initials,

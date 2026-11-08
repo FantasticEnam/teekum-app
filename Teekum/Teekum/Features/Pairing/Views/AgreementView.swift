@@ -17,11 +17,6 @@ struct AgreementView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 13) {
-                Text("Local navigation demo only. Continuing does not join a nearby device or start P2P.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-
                 HeadAgreement(profileColor: form.profileColor.color)
                 AgreementGroupSummaryView(
                     groupName: form.trimmedSessionName,
