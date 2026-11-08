@@ -72,3 +72,19 @@ public struct MapLayerView: View {
         }
     }
 }
+
+//#Preview("Peta Kosong") {
+//    MapLayerView(viewModel: MapPointViewModel())
+//        .preferredColorScheme(.dark)
+//}
+
+#Preview("Dengan Titik Aktif") {
+    let vm = MapPointViewModel()
+    vm.activeMapPoint = MeetingPoint(
+        name: "ADI's Meeting Point",
+        coordinate: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
+        proposerInitials: "ADI"
+    )
+    return MapLayerView(viewModel: vm)
+        .preferredColorScheme(.dark)
+}
