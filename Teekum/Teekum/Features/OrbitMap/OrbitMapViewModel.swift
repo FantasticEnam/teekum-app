@@ -6,3 +6,18 @@
 //
 
 import Foundation
+import Observation
+
+@MainActor
+@Observable
+final class OrbitMapViewModel {
+    let sessionStore: SessionStore
+
+    var groupName: String {
+        sessionStore.activeSession?.sessionName ?? "Group Name"
+    }
+
+    init(sessionStore: SessionStore) {
+        self.sessionStore = sessionStore
+    }
+}

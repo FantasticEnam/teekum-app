@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct OrbitHeaderView: View {
-    
+    let groupName: String
+
     var body: some View {
         HStack {
             Button {
@@ -25,7 +26,7 @@ struct OrbitHeaderView: View {
             
             Spacer()
             
-            Text("Group Name")
+            Text(groupName)
                 .bold()
                 .font(.custom("Charter-Roman", size: 20, relativeTo: .title2))
                 .lineLimit(1)
@@ -40,7 +41,6 @@ struct OrbitHeaderView: View {
 //                    .frame(width: 62, height: 62)
             }
             .buttonStyle(.glass)
-            .buttonStyle(.glass)
             .buttonBorderShape(.circle)
             .controlSize(.large)
             .accessibilityLabel("Open meeting point map")
@@ -49,5 +49,5 @@ struct OrbitHeaderView: View {
 }
 
 #Preview {
-    OrbitHeaderView()
+    OrbitHeaderView(groupName: "Fantasix")
 }
