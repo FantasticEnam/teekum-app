@@ -20,4 +20,9 @@ final class OrbitMapViewModel {
     init(sessionStore: SessionStore) {
         self.sessionStore = sessionStore
     }
+
+    func leaveGroup() {
+        // shortcut: state-only teardown; stop session publishers/transport here when those services are integrated.
+        sessionStore.resetSessionState()
+    }
 }

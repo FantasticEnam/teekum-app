@@ -8,8 +8,12 @@
 import SwiftUI
 
 struct GroupPairingView: View {
-    @State private var viewModel = PairingViewModel()
+    @State private var viewModel: PairingViewModel
     @State private var isShowingAgreement = false
+
+    init(sessionStore: SessionStore) {
+        _viewModel = State(initialValue: PairingViewModel(sessionStore: sessionStore))
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -19,6 +23,12 @@ struct GroupPairingView: View {
                         .font(.custom("Charter-Bold", size: 20, relativeTo: .title3))
                         .padding(.top, 10)
                         .padding(.bottom, 30)
+
+                    Text("Local navigation demo · QR joining and P2P are not connected yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.bottom, 20)
 
                     GroupPairingProfileView(
                         profileColor: $viewModel.form.profileColor,
@@ -79,11 +89,16 @@ struct GroupPairingView: View {
         .foregroundStyle(.white)
         .background(.black)
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $isShowingAgreement) {
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $isShowingAgreement) {
             AgreementView(
                 form: viewModel.form,
-                mode: viewModel.mode
+                mode: viewModel.mode,
+                onAgree: viewModel.activateLocalSession
             )
+            .navigationTitle("Group Agreement")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
         }
     }
 
@@ -98,5 +113,7 @@ struct GroupPairingView: View {
 }
 
 #Preview {
-    GroupPairingView()
+    NavigationStack {
+        GroupPairingView(sessionStore: SessionStore())
+    }
 }

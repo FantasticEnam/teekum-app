@@ -9,15 +9,18 @@ import SwiftUI
 import MapKit
 
 public struct MainMapView: View {
-    @State private var viewModel = MapPointViewModel()
+    @State private var viewModel: MapPointViewModel
     @Environment(\.dismiss) private var dismiss
+
+    public init(sessionStore: SessionStore) {
+        _viewModel = State(initialValue: MapPointViewModel(sessionStore: sessionStore))
+    }
     
     public var body: some View {
         ZStack(alignment: .bottom){
             // MAP Section
             MapLayerView(viewModel: viewModel)
             
-            // HAPUS VSTACK KALO UDAH ADA NAVIGATION
             VStack {
                 HStack {
                     Button {
@@ -30,34 +33,18 @@ public struct MainMapView: View {
                             .foregroundStyle(.white)
                             .clipShape(Circle())
                     }
+                    .accessibilityLabel("Back to Orbit")
+                    .frame(minWidth: 44, minHeight: 44)
                     .padding(.leading, 16)
-                    .padding(.top, 60) // Agar tidak nabrak Dynamic Island
                     
                     Spacer()
                 }
                 Spacer()
-                // SIMULASI POV USER LAIN
-                Button {
-                    if viewModel.isLockedByOther {
-                        viewModel.stopMeetingPoint()
-                    } else {
-                        viewModel.simulateOtherUserMeetingPoint()
-                    }
-                } label: {
-                    Text(viewModel.isLockedByOther ? "Reset Mock" : "Mock POV Lain: NIC")
-                        .font(.caption.bold())
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.yellow)
-                        .foregroundStyle(.black)
-                        .clipShape(Capsule())
-                }
             }
             
         }
         .onAppear {
-            // Popup izin
-            CLLocationManager().requestWhenInUseAuthorization()
+            viewModel.requestLocationPermission()
         }
         .preferredColorScheme(.dark)
         
@@ -93,7 +80,7 @@ public struct MainMapView: View {
             }
         } message: {
             let proposer = viewModel.activeMapPoint?.proposerInitials ?? "Member"
-            Text("There's a meeting point at \(proposer)'s last known location.")
+            Text("There's a meeting point selected by \(proposer). Would you like to join?")
         }
         
         // 4. Alert Dicegat: Locked (Sudah dibersihkan, hanya 1 alert)
@@ -112,5 +99,5 @@ public struct MainMapView: View {
 }
 
 #Preview {
-    MainMapView()
+    MainMapView(sessionStore: .preview)
 }
