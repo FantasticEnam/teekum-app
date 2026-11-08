@@ -1,8 +1,8 @@
 //
-//  PeerTransportService+Diagnostics.swift
-//  TeeKum Prototype
+//  PeerTransportServiceDiagnostics.swift
+//  Teekum
 //
-//  Created by Nicho on 27/10/26.
+//  Created by Nicho on 06/11/26.
 //
 
 import Foundation
