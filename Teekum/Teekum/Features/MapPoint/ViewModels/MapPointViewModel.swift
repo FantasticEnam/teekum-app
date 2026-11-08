@@ -18,7 +18,7 @@ public final class MapPointViewModel {
     public var cameraPosition: MapCameraPosition = .automatic
     
     // State Map Point
-    public var activeMapPoint: MapPoint? = nil
+    public var activeMapPoint: MeetingPoint? = nil
     public var candidateCoordinate: CLLocationCoordinate2D? = nil
     
     // State Native Alert
@@ -27,9 +27,16 @@ public final class MapPointViewModel {
     public var isShowingLockedAlert: Bool = false
     public var isShowingRSVPAlert: Bool = false
     
-    public var currentUserId: String = "MEE" // Injectable
+    public var currentUserId: String
+    public var currentMemberID: MemberID {
+        MemberID.fromInitials(currentUserId)
+    }
+    // Injectable: default "MEE" untuk testing/preview, nanti bisa diisi inisial asli saat runtime (session.localInitital) di MainMapView
+    public init(currentUserId: String = "MEE"){
+        self.currentUserId = currentUserId
+    }
     
-    public var myAttendance: AttendanceStatus? = nil
+    public var myAttendance: MeetingAttendance? = nil
     
     public var hasActiveMapPoint: Bool {
         activeMapPoint != nil
@@ -37,7 +44,7 @@ public final class MapPointViewModel {
     
     public var isCurrentUserProposer: Bool {
         guard let active = activeMapPoint else { return false }
-        return active.proposerId == currentUserId
+        return active.proposerId == currentMemberID
     }
     
     
@@ -62,7 +69,11 @@ public final class MapPointViewModel {
     public func confirmSetMeetingPoint(){
         guard let coord = candidateCoordinate else { return }
         
-        self.activeMapPoint = MapPoint(coordinate: coord, proposerId: currentUserId, title: "\(currentUserId)'s Meeting Point")
+        self.activeMapPoint = MeetingPoint(
+            name: "\(currentUserId)'s Meeting Point",
+            coordinate: coord,
+            proposerInitials: currentUserId
+        )
         
         // Reset titik kandidat
         self.candidateCoordinate = nil
@@ -88,29 +99,31 @@ public final class MapPointViewModel {
     
     // 5. saat stop meeting point
     public func stopMeetingPoint(){
-        guard isCurrentUserProposer else { return }
         self.activeMapPoint = nil
         self.candidateCoordinate = nil
+        self.myAttendance = nil
         self.isShowingStopAlert = false
     }
     
     public func respondRSVP(attending: Bool){
-        let status: AttendanceStatus = attending ? .attending : .cantMakeIt
+        let status: MeetingAttendance = attending ? .accepted : .declined
         self.myAttendance = status
         
         // Current User attendance
         if var point = activeMapPoint {
-            point.attendance[currentUserId] = status
+            point.attendance[currentMemberID] = status
             self.activeMapPoint = point
         }
         self.isShowingRSVPAlert = false
         print("User \(currentUserId) RSVP: \(status.title)")
     }
     
-    public func simulateOtherUserMeetingPoint(){
-        self.activeMapPoint = MapPoint(coordinate: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
-                                       proposerId: "NIC",
-                                       title: "NIC's Meeting Point")
-    }
+    public func simulateOtherUserMeetingPoint() {
+            self.activeMapPoint = MeetingPoint(
+                name: "NIC's Meeting Point",
+                coordinate: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
+                proposerInitials: "NIC"
+            )
+        }
         
 }

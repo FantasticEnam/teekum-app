@@ -8,8 +8,8 @@
 import Foundation
 import CoreLocation
 
-/// Active proposal identity, coordinate, author and attendance data.
-/// Enforces the single active meeting point rule per group session.
+// Active proposal identity, coordinate, author and attendance data.
+// Enforces the single active meeting point rule per group session.
 public struct MeetingPoint: Identifiable, Equatable, Hashable, Codable, Sendable {
     public let id: UInt32
     public var name: String

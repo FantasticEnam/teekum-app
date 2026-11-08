@@ -36,8 +36,8 @@ public struct MainMapView: View {
                     
                     // Active Meeting Point
                     if let active = viewModel.activeMapPoint {
-                        Annotation(active.title, coordinate: active.coordinate) {
-                            MapPointPinView(title: active.title)
+                        Annotation(active.name, coordinate: active.coordinate) {
+                            MapPointPinView(title: active.name)
                                 .onTapGesture {
                                     viewModel.handlePinTapped()
                                 }
@@ -154,13 +154,13 @@ public struct MainMapView: View {
                 viewModel.respondRSVP(attending: true)
             }
         } message: {
-            let proposer = viewModel.activeMapPoint?.proposerId ?? "Member"
+            let proposer = viewModel.activeMapPoint?.proposerInitials ?? "Member"
             Text("There's a meeting point at \(proposer)'s last known location.")
         }
         .alert("Cannot Set Meeting Point", isPresented: $viewModel.isShowingLockedAlert) {
             Button("OK", role: .cancel) { }
         } message: {
-            if let proposer = viewModel.activeMapPoint?.proposerId, viewModel.isLockedByOther {
+            if let proposer = viewModel.activeMapPoint?.proposerInitials, viewModel.isLockedByOther {
                 Text("There's already an active meeting point set by \(proposer). You cannot set a new one until it is stopped.")
             } else {
                 Text("A meeting point is already active. Please stop the current one before setting a new location.")
