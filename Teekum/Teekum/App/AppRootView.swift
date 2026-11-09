@@ -14,7 +14,9 @@ struct AppRootView: View {
         if sessionStore.hasActiveSession {
             OrbitMapView(sessionStore: sessionStore)
         } else {
-            Text("Pairing View Placeholder (Developer A)")
+            NavigationStack {
+                GroupPairingView(sessionStore: sessionStore)
+            }
         }
     }
 }

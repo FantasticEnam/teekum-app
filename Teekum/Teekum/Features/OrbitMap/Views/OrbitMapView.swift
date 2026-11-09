@@ -9,7 +9,8 @@ import SwiftUI
 
 struct OrbitMapView: View {
     @State private var viewModel: OrbitMapViewModel
-    @State private var isPanelPresented = false
+    @State private var activeModal: OrbitModal?
+    @State private var isLeavingGroup = false
 
     init(sessionStore: SessionStore) {
         _viewModel = State(initialValue: OrbitMapViewModel(sessionStore: sessionStore))
@@ -25,7 +26,9 @@ struct OrbitMapView: View {
                     .ignoresSafeArea()
 
                 VStack(alignment: .leading) {
-                    OrbitHeaderView(groupName: viewModel.groupName)
+                    OrbitHeaderView(groupName: viewModel.groupName) {
+                        activeModal = .mapPoint
+                    }
 
                     Spacer()
                     OrbitControlsView(
@@ -33,7 +36,7 @@ struct OrbitMapView: View {
                             print("SOS requested")
                         },
                         onExpand: {
-                            isPanelPresented = true
+                            activeModal = .friends
                         },
                         bottomInset: geometry.safeAreaInsets.bottom
                     )
@@ -41,39 +44,54 @@ struct OrbitMapView: View {
                 .padding(.horizontal)
             }
         }
-        .fullScreenCover(isPresented: $isPanelPresented) {
-            GeometryReader { geometry in
-                ZStack(alignment: .bottom) {
-                    Button {
-                        isPanelPresented = false
-                    } label: {
-                        Color.black.opacity(0.45)
-                    }
-                    .buttonStyle(.plain)
-                    .ignoresSafeArea()
-                    .accessibilityHidden(true)
-
-                    FriendListSheet(
-                        sessionStore: viewModel.sessionStore,
-                        onAddFriend: {
-                            print("Open group invite")
-                        },
-                        onSelectMember: { member in
-                            print("Selected \(member.initials)")
-                        },
-                        onLeaveGroup: {
-                            print("Request session teardown")
+        .disabled(isLeavingGroup)
+        .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
+            switch modal {
+            case .mapPoint:
+                MainMapView(sessionStore: viewModel.sessionStore)
+            case .friends:
+                GeometryReader { geometry in
+                    ZStack(alignment: .bottom) {
+                        Button {
+                            activeModal = nil
+                        } label: {
+                            Color.black.opacity(0.45)
                         }
-                    )
-                    .frame(
-                        width: geometry.size.width,
-                        height: geometry.size.height * 0.78
-                    )
+                        .buttonStyle(.plain)
+                        .ignoresSafeArea()
+                        .accessibilityHidden(true)
+
+                        FriendListSheet(
+                            sessionStore: viewModel.sessionStore,
+                            onAddFriend: {
+                                print("Open group invite")
+                            },
+                            onSelectMember: { member in
+                                print("Selected \(member.initials)")
+                            },
+                            onLeaveGroup: requestLeaveGroup
+                        )
+                        .frame(
+                            width: geometry.size.width,
+                            height: geometry.size.height * 0.78
+                        )
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .presentationBackground(.clear)
             }
-            .presentationBackground(.clear)
         }
+    }
+
+    private func requestLeaveGroup() {
+        isLeavingGroup = true
+        activeModal = nil
+    }
+
+    private func finishModalDismissal() {
+        guard isLeavingGroup else { return }
+        isLeavingGroup = false
+        viewModel.leaveGroup()
     }
 }
 

@@ -2,7 +2,10 @@
 //  PairingMode.swift
 //  Teekum
 //
-//  Created by Ari Hasan on 05/11/26.
+//  Created by Ari Hasan on 07/11/26.
 //
 
-import Foundation
+enum PairingMode: String, CaseIterable {
+    case create
+    case join
+}
