@@ -123,11 +123,18 @@ public final class MapPointViewModel {
     }
 }
 
-public enum MapPointAlert: Identifiable {
-    case setConfirmation
-    case stopConfirmation
-    case rsvp
-    case locked
-    
-    public var id: Self { self }
+
+// Just For Preview on MapLayer (delete if unnecessary)
+extension MapPointViewModel {
+    public static var preview: MapPointViewModel {
+        let store = SessionStore.preview
+        store.activeMeetingPoint = MeetingPoint(
+            name: "ADI's Meeting Point",
+            coordinate: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
+            proposerInitials: "ADI"
+        )
+        return MapPointViewModel(sessionStore: store)
+    }
 }
+
+
