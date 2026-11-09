@@ -9,13 +9,13 @@ import Foundation
 
 /// Active group metadata, membership and expiry; no invite parsing or raw keys.
 public struct GroupSession: Identifiable, Equatable, Hashable, Codable, Sendable {
-    public static let defaultSessionId: UInt16 = 0x7E3A
+    public static let defaultSessionId: UInt32 = 0x7E3A45
     public static let defaultDuration: TimeInterval = 24 * 60 * 60 // 24 hours
 
-    public var id: UInt16 { sessionId }
+    public var id: UInt32 { sessionId }
 
-    /// 16-bit group network session ID (`0x0001...0xFFFF`).
-    public let sessionId: UInt16
+    /// 24-bit group network session ID (`0x000001...0xFFFFFF`).
+    public let sessionId: UInt32
 
     /// Human-readable group name (e.g. "Festival Crew").
     public var sessionName: String
@@ -36,7 +36,7 @@ public struct GroupSession: Identifiable, Equatable, Hashable, Codable, Sendable
     public let expiresAt: Date
 
     public init(
-        sessionId: UInt16 = Self.defaultSessionId,
+        sessionId: UInt32 = Self.defaultSessionId,
         sessionName: String,
         localMemberId: MemberID? = nil,
         localInitials: String,

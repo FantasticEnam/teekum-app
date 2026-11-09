@@ -8,8 +8,13 @@
 import SwiftUI
 
 struct GroupPairingView: View {
-    @State private var viewModel = PairingViewModel()
+    @State private var viewModel: PairingViewModel
     @State private var isShowingAgreement = false
+    @FocusState private var focusedField: PairingField?
+
+    init(sessionStore: SessionStore) {
+        _viewModel = State(initialValue: PairingViewModel(sessionStore: sessionStore))
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -23,7 +28,7 @@ struct GroupPairingView: View {
                     GroupPairingProfileView(
                         profileColor: $viewModel.form.profileColor,
                         initials: $viewModel.form.initials,
-                        dismissKeyboard: viewModel.isShowingQR || viewModel.mode == .join || isShowingAgreement
+                        focusedField: $focusedField
                     )
                         .padding(.bottom, 20)
                     
@@ -52,7 +57,10 @@ struct GroupPairingView: View {
                             .font(.custom("Charter-Black", size: 22, relativeTo: .title2))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.bottom, 10)
-                        GroupNameField(groupName: $viewModel.form.sessionName)
+                        GroupNameField(
+                            groupName: $viewModel.form.sessionName,
+                            focusedField: $focusedField
+                        )
                     }
 
                     Spacer(minLength: 28)
@@ -71,24 +79,40 @@ struct GroupPairingView: View {
                 .frame(maxWidth: 400, minHeight: geometry.size.height)
                 .padding(.horizontal, 42)
                 .frame(maxWidth: .infinity)
+                .background {
+                    Color.clear
+                        .contentShape(.rect)
+                        .onTapGesture { focusedField = nil }
+                }
             }
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white)
-        .background(.black)
+        .background {
+            Color.black
+                .ignoresSafeArea()
+                .onTapGesture { focusedField = nil }
+        }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $isShowingAgreement) {
+        .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: viewModel.mode) { focusedField = nil }
+        .navigationDestination(isPresented: $isShowingAgreement) {
             AgreementView(
                 form: viewModel.form,
-                mode: viewModel.mode
+                mode: viewModel.mode,
+                onAgree: viewModel.activateLocalSession
             )
+            .navigationTitle("Group Agreement")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
         }
     }
 
     private func performPrimaryAction() {
         guard viewModel.canPerformPrimaryAction else { return }
+        focusedField = nil
         if viewModel.mode == .join || viewModel.isShowingQR {
             isShowingAgreement = true
         } else {
@@ -98,5 +122,7 @@ struct GroupPairingView: View {
 }
 
 #Preview {
-    GroupPairingView()
+    NavigationStack {
+        GroupPairingView(sessionStore: SessionStore())
+    }
 }

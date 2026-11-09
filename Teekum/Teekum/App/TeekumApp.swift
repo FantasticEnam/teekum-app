@@ -9,11 +9,12 @@ import SwiftUI
 
 @main
 struct TeekumApp: App {
-    @State private var sessionStore = SessionStore.preview // Gunakan .preview sementara agar langsung masuk MainMapView
+    @State private var sessionStore = SessionStore()
     
     var body: some Scene {
         WindowGroup {
-            GroupPairingView()
+            AppRootView(sessionStore: sessionStore)
+                .preferredColorScheme(.dark)
         }
     }
 }

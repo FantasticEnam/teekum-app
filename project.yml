@@ -24,9 +24,10 @@ targets:
       - path: Teekum/Teekum
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.teekum
+        PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_NSCameraUsageDescription: "Use the camera to preview a group QR code when joining a group."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Show your location on the map when choosing a group meeting point."
         INFOPLIST_KEY_CFBundleDisplayName: Teekum
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES

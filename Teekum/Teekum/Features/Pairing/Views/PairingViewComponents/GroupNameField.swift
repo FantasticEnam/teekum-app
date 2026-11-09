@@ -9,8 +9,12 @@ import SwiftUI
 
 struct GroupNameField: View {
     @Binding var groupName: String
-    @FocusState private var isFocused: Bool
+    var focusedField: FocusState<PairingField?>.Binding
     @State private var isHovered = false
+
+    private var isFocused: Bool {
+        focusedField.wrappedValue == .groupName
+    }
     
     var body: some View {
         VStack{
@@ -19,7 +23,9 @@ struct GroupNameField: View {
                 text: $groupName,
                 prompt: Text(isFocused || isHovered ? "" : "Enter your group name...").foregroundStyle(.white.opacity(0.3))
             )
-            .focused($isFocused)
+            .focused(focusedField, equals: .groupName)
+            .submitLabel(.done)
+            .onSubmit { focusedField.wrappedValue = nil }
             .textFieldStyle(.plain)
             .font(.custom("Charter-Roman", size: 16, relativeTo: .body))
             .foregroundStyle(.white)
@@ -36,8 +42,9 @@ struct GroupNameField: View {
 
 #Preview("Group Name") {
     @Previewable @State var groupName = ""
+    @Previewable @FocusState var focusedField: PairingField?
 
-    GroupNameField(groupName: $groupName)
+    GroupNameField(groupName: $groupName, focusedField: $focusedField)
         .padding(24)
         .background(.black)
         .preferredColorScheme(.dark)

@@ -13,6 +13,7 @@ public enum SOSType: UInt8, CaseIterable, Codable, Sendable {
     case medical   = 0x01
     case separated = 0x02
     case security  = 0x03
+    case inactivity = 0x04
 
     public var title: String {
         switch self {
@@ -20,6 +21,7 @@ public enum SOSType: UInt8, CaseIterable, Codable, Sendable {
         case .medical:   return "Medical Assistance"
         case .separated: return "Lost / Separated"
         case .security:  return "Security Concern"
+        case .inactivity: return "Inactivity / Man Down"
         }
     }
 }
