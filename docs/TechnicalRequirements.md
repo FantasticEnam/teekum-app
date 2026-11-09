@@ -389,6 +389,7 @@ TeeKum/
 │   │   │   ├── PairingForm.swift            // Draft initials, group name, profile color and input validity
 │   │   │   ├── GroupInvite.swift            // Placeholder; invite data contract is not implemented
 │   │   │   └── Enums/
+│   │   │       ├── PairingField.swift       // Focused pairing input: initials or group name
 │   │   │       ├── PairingMode.swift        // Create or join UI mode
 │   │   │       └── PairingProfileColor.swift // Profile color choices mapped to shared theme colors
 │   │   ├── ViewModels/

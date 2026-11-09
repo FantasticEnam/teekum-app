@@ -12,10 +12,13 @@ struct GroupPairingProfileView: View {
     @Binding var profileColor: PairingProfileColor
     @State private var isProfilePickerVisible = false
     @Binding var initials: String
-    var dismissKeyboard = false
+    var focusedField: FocusState<PairingField?>.Binding
     @State private var initialsSelection: TextSelection?
     @State private var isCursorVisible = true
-    @FocusState private var isEditingInitials: Bool
+
+    private var isEditingInitials: Bool {
+        focusedField.wrappedValue == .initials
+    }
 
     private var activeInitialIndex: Int {
         min(initials.count, 2)
@@ -79,7 +82,7 @@ struct GroupPairingProfileView: View {
                         .tint(.clear)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
-                        .focused($isEditingInitials)
+                        .focused(focusedField, equals: .initials)
                         .submitLabel(.done)
                         .accessibilityLabel("Your initials")
                         .accessibilityHint("Enter up to three characters")
@@ -101,9 +104,6 @@ struct GroupPairingProfileView: View {
                 }
             }
         }
-        .onChange(of: dismissKeyboard) { _, shouldDismiss in
-            if shouldDismiss { isEditingInitials = false }
-        }
     }
 
     private func initial(at index: Int) -> String {
@@ -118,12 +118,12 @@ struct GroupPairingProfileView: View {
     }
 
     private func focusInitials() {
-        isEditingInitials = true
+        focusedField.wrappedValue = .initials
         initialsSelection = TextSelection(insertionPoint: initials.endIndex)
     }
 
     private func finishEditingInitials() {
-        isEditingInitials = false
+        focusedField.wrappedValue = nil
     }
 
     private func blinkCursor() async {
@@ -141,15 +141,20 @@ struct GroupPairingProfileView: View {
     }
 
     private func editProfilePhoto() {
-        isEditingInitials = false
+        focusedField.wrappedValue = nil
         isProfilePickerVisible.toggle()
     }
 }
 
 #Preview {
     @Previewable @State var form = PairingForm()
+    @Previewable @FocusState var focusedField: PairingField?
 
-    GroupPairingProfileView(profileColor: $form.profileColor, initials: $form.initials)
+    GroupPairingProfileView(
+        profileColor: $form.profileColor,
+        initials: $form.initials,
+        focusedField: $focusedField
+    )
         .padding(40)
         .background(.black)
         .preferredColorScheme(.dark)

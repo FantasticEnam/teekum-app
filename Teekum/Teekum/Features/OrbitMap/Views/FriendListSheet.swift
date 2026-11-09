@@ -16,6 +16,7 @@ struct FriendListSheet: View {
     
     @State private var viewModel: FriendListViewModel
     @State private var confirmLeave = false
+    @FocusState private var isSearchFocused: Bool
     
     @ScaledMetric(relativeTo: .title2)
     private var cellWidth = 66
@@ -72,6 +73,9 @@ struct FriendListSheet: View {
             HStack(spacing: 12) {
                 HStack {
                     TextField("Search initials…", text: $viewModel.searchQuery)
+                        .focused($isSearchFocused)
+                        .submitLabel(.done)
+                        .onSubmit { isSearchFocused = false }
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                     
@@ -89,7 +93,10 @@ struct FriendListSheet: View {
                 Button(
                     "Add friend",
                     systemImage: "person.badge.plus",
-                    action: onAddFriend
+                    action: {
+                        isSearchFocused = false
+                        onAddFriend()
+                    }
                 )
                 .labelStyle(.iconOnly)
                 .font(.title3)
@@ -122,6 +129,7 @@ struct FriendListSheet: View {
                     ) {
                         ForEach(members) { member in
                             Button {
+                                isSearchFocused = false
                                 onSelectMember(member)
                             } label: {
                                 FriendListMemberView(
@@ -140,8 +148,14 @@ struct FriendListSheet: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .background {
+                Color.clear
+                    .contentShape(.rect)
+                    .onTapGesture { isSearchFocused = false }
+            }
             
             PrimaryButtonView(title: "Leave Group") {
+                isSearchFocused = false
                 confirmLeave = true
             }
             .padding(.horizontal, 40)
@@ -153,6 +167,7 @@ struct FriendListSheet: View {
             OrbitPanelShape()
                 .fill(Color.blackCard)
                 .ignoresSafeArea(edges: .bottom)
+                .onTapGesture { isSearchFocused = false }
         }
         .alert(
             "Leave this group?",
