@@ -9,6 +9,7 @@ import SwiftUI
 
 struct OrbitHeaderView: View {
     let groupName: String
+    let onOpenMap: () -> Void
 
     var body: some View {
         HStack {
@@ -33,9 +34,7 @@ struct OrbitHeaderView: View {
             
             Spacer()
             
-            Button {
-                print("Map Button")
-            } label: {
+            Button(action: onOpenMap) {
                 Image(systemName: "map.fill")
                     .font(.system(size: 30, weight: .semibold))
 //                    .frame(width: 62, height: 62)
@@ -49,5 +48,5 @@ struct OrbitHeaderView: View {
 }
 
 #Preview {
-    OrbitHeaderView(groupName: "Fantasix")
+    OrbitHeaderView(groupName: "Fantasix", onOpenMap: {})
 }

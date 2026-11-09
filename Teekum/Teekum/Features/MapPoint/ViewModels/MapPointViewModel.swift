@@ -6,20 +6,17 @@
 //
 
 import Foundation
-import SwiftUI
 import CoreLocation
 import Observation
-import MapKit
 
 @Observable
 @MainActor
 public final class MapPointViewModel {
-    // State Peta
-    public var cameraPosition: MapCameraPosition = .automatic
-    
-    // State Map Point
-    public var activeMapPoint: MeetingPoint? = nil
-    public var candidateCoordinate: CLLocationCoordinate2D? = nil
+    private let sessionStore: SessionStore
+    @ObservationIgnored private var locationManager: CLLocationManager?
+
+    public var activeMapPoint: MeetingPoint? { sessionStore.activeMeetingPoint }
+    public private(set) var candidateCoordinate: CLLocationCoordinate2D?
     
     // State Native Alert
     public var isShowingSetAlert: Bool = false
@@ -27,33 +24,41 @@ public final class MapPointViewModel {
     public var isShowingLockedAlert: Bool = false
     public var isShowingRSVPAlert: Bool = false
     
-    public var currentUserId: String
-    public var currentMemberID: MemberID {
-        MemberID.fromInitials(currentUserId)
+    public init(sessionStore: SessionStore) {
+        self.sessionStore = sessionStore
     }
-    // Injectable: default "MEE" untuk testing/preview, nanti bisa diisi inisial asli saat runtime (session.localInitital) di MainMapView
-    public init(currentUserId: String = "MEE"){
-        self.currentUserId = currentUserId
+
+    public var myAttendance: MeetingAttendance? {
+        guard let memberID = sessionStore.activeSession?.localMemberId else { return nil }
+        return activeMapPoint?.attendance[memberID]
     }
-    
-    public var myAttendance: MeetingAttendance? = nil
     
     public var hasActiveMapPoint: Bool {
         activeMapPoint != nil
     }
     
     public var isCurrentUserProposer: Bool {
-        guard let active = activeMapPoint else { return false }
-        return active.proposerId == currentMemberID
+        guard let active = activeMapPoint,
+              let memberID = sessionStore.activeSession?.localMemberId else { return false }
+        return active.proposerId == memberID
     }
     
     
     public var isLockedByOther: Bool {
         hasActiveMapPoint && !isCurrentUserProposer
     }
+
+    public func requestLocationPermission() {
+        if locationManager == nil { locationManager = CLLocationManager() }
+        if locationManager?.authorizationStatus == .notDetermined {
+            locationManager?.requestWhenInUseAuthorization()
+        }
+    }
     
     // 1. Saat hold di map
     public func handleMapHold(at coordinate: CLLocationCoordinate2D) {
+        guard sessionStore.hasActiveSession,
+              CLLocationCoordinate2DIsValid(coordinate) else { return }
         // Jika udah ada meeting point aktif
         if hasActiveMapPoint {
             self.isShowingLockedAlert = true
@@ -66,18 +71,21 @@ public final class MapPointViewModel {
     }
     
     // 2. konfirmasi
-    public func confirmSetMeetingPoint(){
-        guard let coord = candidateCoordinate else { return }
-        
-        self.activeMapPoint = MeetingPoint(
-            name: "\(currentUserId)'s Meeting Point",
+    public func confirmSetMeetingPoint() {
+        defer { cancelSetMeetingPoint() }
+        guard let session = sessionStore.activeSession,
+              let coord = candidateCoordinate else { return }
+        guard !hasActiveMapPoint else {
+            isShowingLockedAlert = true
+            return
+        }
+
+        sessionStore.activeMeetingPoint = MeetingPoint(
+            name: "\(session.localInitials)'s Meeting Point",
             coordinate: coord,
-            proposerInitials: currentUserId
+            proposerId: session.localMemberId,
+            proposerInitials: session.localInitials
         )
-        
-        // Reset titik kandidat
-        self.candidateCoordinate = nil
-        self.isShowingSetAlert = false
     }
     
     // 3. saat batal di konfirmasi
@@ -99,33 +107,20 @@ public final class MapPointViewModel {
     
     // 5. saat stop meeting point
     public func stopMeetingPoint(){
-        self.activeMapPoint = nil
+        guard isCurrentUserProposer else { return }
+        sessionStore.activeMeetingPoint = nil
         self.candidateCoordinate = nil
-        self.myAttendance = nil
         self.isShowingStopAlert = false
     }
     
     public func respondRSVP(attending: Bool){
+        guard let memberID = sessionStore.activeSession?.localMemberId,
+              var point = activeMapPoint else { return }
         let status: MeetingAttendance = attending ? .accepted : .declined
-        self.myAttendance = status
-        
-        // Current User attendance
-        if var point = activeMapPoint {
-            point.attendance[currentMemberID] = status
-            self.activeMapPoint = point
-        }
+        point.attendance[memberID] = status
+        sessionStore.activeMeetingPoint = point
         self.isShowingRSVPAlert = false
-        print("User \(currentUserId) RSVP: \(status.title)")
     }
-    
-    public func simulateOtherUserMeetingPoint() {
-            self.activeMapPoint = MeetingPoint(
-                name: "NIC's Meeting Point",
-                coordinate: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
-                proposerInitials: "NIC"
-            )
-        }
-        
 }
 
 public enum MapPointAlert: Identifiable {

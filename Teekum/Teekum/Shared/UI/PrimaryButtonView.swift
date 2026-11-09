@@ -9,15 +9,22 @@ import SwiftUI
 
 struct PrimaryButtonView: View {
     let title: LocalizedStringKey
+    var trailingSystemImage: String? = nil
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.custom("Charter-Bold", size: 16, relativeTo: .headline))
-                .foregroundStyle(.black)
-                .frame(maxWidth: .infinity, minHeight: 62)
-                .background(Color.yellowProfile, in: Capsule())
+            HStack(spacing: 8) {
+                Text(title)
+                if let trailingSystemImage {
+                    Image(systemName: trailingSystemImage)
+                        .accessibilityHidden(true)
+                }
+            }
+            .font(.custom("Charter-Bold", size: 16, relativeTo: .headline))
+            .foregroundStyle(.black)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(Color.yellowProfile, in: Capsule())
         }
         .buttonStyle(.plain)
     }
