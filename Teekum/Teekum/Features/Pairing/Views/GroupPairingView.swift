@@ -10,6 +10,7 @@ import SwiftUI
 struct GroupPairingView: View {
     @State private var viewModel: PairingViewModel
     @State private var isShowingAgreement = false
+    @State private var isProfilePickerVisible = false
     @FocusState private var focusedField: PairingField?
 
     init(sessionStore: SessionStore) {
@@ -20,7 +21,7 @@ struct GroupPairingView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
-                    Text("ORBIT")
+                    Text("meepo")
                         .font(.custom("Charter-Bold", size: 20, relativeTo: .title3))
                         .padding(.top, 10)
                         .padding(.bottom, 30)
@@ -28,6 +29,7 @@ struct GroupPairingView: View {
                     GroupPairingProfileView(
                         profileColor: $viewModel.form.profileColor,
                         initials: $viewModel.form.initials,
+                        isProfilePickerVisible: $isProfilePickerVisible,
                         focusedField: $focusedField
                     )
                         .padding(.bottom, 20)
@@ -82,7 +84,7 @@ struct GroupPairingView: View {
                 .background {
                     Color.clear
                         .contentShape(.rect)
-                        .onTapGesture { focusedField = nil }
+                        .onTapGesture(perform: dismissEditing)
                 }
             }
             .scrollIndicators(.hidden)
@@ -93,11 +95,14 @@ struct GroupPairingView: View {
         .background {
             Color.black
                 .ignoresSafeArea()
-                .onTapGesture { focusedField = nil }
+                .onTapGesture(perform: dismissEditing)
         }
         .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
-        .onChange(of: viewModel.mode) { focusedField = nil }
+        .onChange(of: viewModel.mode, dismissEditing)
+        .onChange(of: focusedField) {
+            if focusedField != nil { isProfilePickerVisible = false }
+        }
         .navigationDestination(isPresented: $isShowingAgreement) {
             AgreementView(
                 form: viewModel.form,
@@ -112,12 +117,17 @@ struct GroupPairingView: View {
 
     private func performPrimaryAction() {
         guard viewModel.canPerformPrimaryAction else { return }
-        focusedField = nil
+        dismissEditing()
         if viewModel.mode == .join || viewModel.isShowingQR {
             isShowingAgreement = true
         } else {
             viewModel.showQRPreview()
         }
+    }
+
+    private func dismissEditing() {
+        focusedField = nil
+        isProfilePickerVisible = false
     }
 }
 

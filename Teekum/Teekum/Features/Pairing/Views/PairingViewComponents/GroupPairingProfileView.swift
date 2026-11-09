@@ -10,8 +10,8 @@ import SwiftUI
 struct GroupPairingProfileView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var profileColor: PairingProfileColor
-    @State private var isProfilePickerVisible = false
     @Binding var initials: String
+    @Binding var isProfilePickerVisible: Bool
     var focusedField: FocusState<PairingField?>.Binding
     @State private var initialsSelection: TextSelection?
     @State private var isCursorVisible = true
@@ -148,11 +148,13 @@ struct GroupPairingProfileView: View {
 
 #Preview {
     @Previewable @State var form = PairingForm()
+    @Previewable @State var isProfilePickerVisible = false
     @Previewable @FocusState var focusedField: PairingField?
 
     GroupPairingProfileView(
         profileColor: $form.profileColor,
         initials: $form.initials,
+        isProfilePickerVisible: $isProfilePickerVisible,
         focusedField: $focusedField
     )
         .padding(40)
