@@ -774,6 +774,7 @@ The `f/` branch prefix does not change the conventional commit types below.
 | `refactor:`| Code restructuring without visual or functional changes. | `refactor(crypto): isolate keychain storage actor` |
 | `chore:` | Repository maintenance, build settings, or `.gitignore`. | `chore: update xcode build settings` |
 | `test:` | Adding or improving tests. | `test(packet): add 54-byte codec roundtrip tests` |
+| `ci:` | Configuration atau workflow continuous integration. | `ci: add pull request checks` |
 
 ---
 
