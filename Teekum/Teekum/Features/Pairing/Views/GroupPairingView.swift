@@ -21,7 +21,7 @@ struct GroupPairingView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
-                    Text("ORBIT")
+                    Text("meepo")
                         .font(.custom("Charter-Bold", size: 20, relativeTo: .title3))
                         .padding(.top, 10)
                         .padding(.bottom, 30)
