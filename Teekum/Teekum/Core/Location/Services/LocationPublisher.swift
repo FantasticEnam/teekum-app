@@ -27,9 +27,9 @@ public final class LocationPublisher {
     
     // MARK: - Dependencies
     
-    public let locationService: LocationServiceProvider
+    public let locationService: LocationServiceProtocol
     private let sessionProvider: @Sendable () -> GroupSession?
-    public let cryptoService: CryptoServiceProvider
+    public let cryptoService: CryptoServiceProtocol
     public let transport: PeerTransport
     
     // MARK: - State Properties
@@ -52,9 +52,9 @@ public final class LocationPublisher {
     // MARK: - Initialization
     
     public init(
-        locationService: LocationServiceProvider,
+        locationService: LocationServiceProtocol,
         sessionProvider: @escaping @Sendable () -> GroupSession?,
-        cryptoService: CryptoServiceProvider,
+        cryptoService: CryptoServiceProtocol,
         transport: PeerTransport
     ) {
         self.locationService = locationService
