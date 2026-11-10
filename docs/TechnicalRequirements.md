@@ -389,6 +389,7 @@ TeeKum/
 │   │   │   ├── PairingForm.swift            // Draft initials, group name, profile color and input validity
 │   │   │   ├── GroupInvite.swift            // Placeholder; invite data contract is not implemented
 │   │   │   └── Enums/
+│   │   │       ├── PairingField.swift       // Focused pairing input: initials or group name
 │   │   │       ├── PairingMode.swift        // Create or join UI mode
 │   │   │       └── PairingProfileColor.swift // Profile color choices mapped to shared theme colors
 │   │   ├── ViewModels/
@@ -774,6 +775,7 @@ The `f/` branch prefix does not change the conventional commit types below.
 | `refactor:`| Code restructuring without visual or functional changes. | `refactor(crypto): isolate keychain storage actor` |
 | `chore:` | Repository maintenance, build settings, or `.gitignore`. | `chore: update xcode build settings` |
 | `test:` | Adding or improving tests. | `test(packet): add 54-byte codec roundtrip tests` |
+| `ci:` | Configuration atau workflow continuous integration. | `ci: add pull request checks` |
 
 ---
 
