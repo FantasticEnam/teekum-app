@@ -32,6 +32,7 @@ public actor SOSForwardingEngine: SOSForwardingManaging {
     let neighborTable: NeighborManaging?
     let rateLimiter: ForwardingBudgetManaging?
     let clock: MeshClock
+    let sequenceAllocator: PacketSequenceAllocator?
     let sessionProvider: (@Sendable () -> GroupSession?)?
     let audioAlerter: SOSAudioAlerting?
     
@@ -68,6 +69,9 @@ public actor SOSForwardingEngine: SOSForwardingManaging {
     // Internal tasks
     var retryTask: Task<Void, Never>?
     var lastDispatchedPayload: SOSPayload?
+    var sessionGeneration = UUID()
+    var outgoingGeneration = UUID()
+    var measurementProvider: (@MainActor @Sendable () -> (LocationPin?, Float))?
     
     // MARK: - State Change Handlers
     
@@ -83,6 +87,7 @@ public actor SOSForwardingEngine: SOSForwardingManaging {
         neighborTable: NeighborManaging? = nil,
         rateLimiter: ForwardingBudgetManaging? = nil,
         clock: MeshClock = SystemMeshClock(),
+        sequenceAllocator: PacketSequenceAllocator? = nil,
         sessionProvider: (@Sendable () -> GroupSession?)? = nil,
         audioAlerter: SOSAudioAlerting? = nil,
         onDeliveryStateChanged: (@Sendable (SOSDeliveryState) -> Void)? = nil,
@@ -94,6 +99,7 @@ public actor SOSForwardingEngine: SOSForwardingManaging {
         self.neighborTable = neighborTable
         self.rateLimiter = rateLimiter
         self.clock = clock
+        self.sequenceAllocator = sequenceAllocator
         self.sessionProvider = sessionProvider
         self.audioAlerter = audioAlerter
         self.onDeliveryStateChanged = onDeliveryStateChanged
@@ -107,7 +113,18 @@ public actor SOSForwardingEngine: SOSForwardingManaging {
         self.onDeliveryStateChanged = onDeliveryStateChanged
         self.onIncomingAlertTriggered = onIncomingAlertTriggered
     }
+
+    public func setMeasurementProvider(_ provider: (@MainActor @Sendable () -> (LocationPin?, Float))?) {
+        measurementProvider = provider
+    }
     
+    func nextSequenceNumber(for session: GroupSession) async throws -> UInt32 {
+        if let sequenceAllocator { return try await sequenceAllocator.next(for: session) }
+        let sequence = CleartextEnvelope.makeSequenceNumber(memberSlot: session.memberSlot, counter: monotonicCounter)
+        monotonicCounter &+= 1
+        return sequence
+    }
+
     // MARK: - State Management & Diagnostics
     
     func updateDeliveryState(_ newState: SOSDeliveryState) {
@@ -122,8 +139,22 @@ public actor SOSForwardingEngine: SOSForwardingManaging {
     }
     
     public func reset() {
+        sessionGeneration = UUID()
+        cancelOutgoingSOS()
+        dismissIncomingAlert()
+        seenSOSEventIds.removeAll()
+        measurementProvider = nil
+    }
+
+    public func cancelOutgoingSOS() {
+        outgoingGeneration = UUID()
         cancelRetries()
-        currentDeliveryState = .idle
+        lastDeliveredFriendId = nil
+        lastDeliveredTimestamp = nil
+        lastDeliveredHopCount = nil
+        lastRelayHopCount = nil
+        lastRelayResponderId = nil
+        updateDeliveryState(.idle)
         currentRouteChoice = .none
         activeSOSEventId = nil
         retryCount = 0

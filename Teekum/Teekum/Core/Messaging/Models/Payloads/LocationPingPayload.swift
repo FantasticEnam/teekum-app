@@ -75,9 +75,9 @@ public struct LocationPingPayload: Equatable, Sendable {
             throw PacketCodecError.bufferUnderflow
         }
         let start = data.startIndex
-        let latRaw = data.subdata(in: start..<(start + 4)).withUnsafeBytes { $0.load(as: Int32.self).bigEndian }
-        let lonRaw = data.subdata(in: (start + 4)..<(start + 8)).withUnsafeBytes { $0.load(as: Int32.self).bigEndian }
-        let tsRaw = data.subdata(in: (start + 8)..<(start + 12)).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let latRaw = data.subdata(in: start..<(start + 4)).withUnsafeBytes { $0.loadUnaligned(as: Int32.self).bigEndian }
+        let lonRaw = data.subdata(in: (start + 4)..<(start + 8)).withUnsafeBytes { $0.loadUnaligned(as: Int32.self).bigEndian }
+        let tsRaw = data.subdata(in: (start + 8)..<(start + 12)).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let accuracy = data[start + 12]
         
         let initialBytes = [data[start + 13], data[start + 14]]

@@ -160,5 +160,5 @@ nonisolated public struct MeshTimingConfiguration: Equatable, Sendable {
     }
     
     /// Global shared timing configuration. Modify this instance to tune network timing app-wide.
-    public static var `default` = MeshTimingConfiguration()
+    public static let `default` = MeshTimingConfiguration()
 }

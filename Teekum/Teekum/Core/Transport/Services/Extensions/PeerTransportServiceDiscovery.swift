@@ -52,12 +52,19 @@ extension PeerTransportService {
             txtRecord: txtData
         )
         
+        let generation = radioGeneration
         newListener.stateUpdateHandler = { [weak self] state in
-            Task { await self?.handleListenerState(state) }
+            Task {
+                guard await self?.isCurrentGeneration(generation) == true else { return }
+                await self?.handleListenerState(state)
+            }
         }
         
         newListener.newConnectionHandler = { [weak self] connection in
-            Task { await self?.handleIncomingConnection(connection) }
+            Task {
+                guard await self?.isCurrentGeneration(generation) == true else { connection.cancel(); return }
+                await self?.handleIncomingConnection(connection)
+            }
         }
         
         newListener.start(queue: dispatchQueue)
@@ -66,15 +73,22 @@ extension PeerTransportService {
     
     func startBrowser() throws {
         let params = createParameters()
-        let descriptor = NWBrowser.Descriptor.bonjour(type: serviceType, domain: nil)
+        let descriptor = NWBrowser.Descriptor.bonjourWithTXTRecord(type: serviceType, domain: nil)
         let newBrowser = NWBrowser(for: descriptor, using: params)
         
+        let generation = radioGeneration
         newBrowser.stateUpdateHandler = { [weak self] state in
-            Task { await self?.handleBrowserState(state) }
+            Task {
+                guard await self?.isCurrentGeneration(generation) == true else { return }
+                await self?.handleBrowserState(state)
+            }
         }
         
         newBrowser.browseResultsChangedHandler = { [weak self] results, changes in
-            Task { await self?.handleBrowseResults(results, changes: changes) }
+            Task {
+                guard await self?.isCurrentGeneration(generation) == true else { return }
+                await self?.handleBrowseResults(results, changes: changes)
+            }
         }
         
         newBrowser.start(queue: dispatchQueue)
@@ -83,8 +97,8 @@ extension PeerTransportService {
     
     // MARK: - State Handlers
     
-    func restartListener() {
-        guard activeSession != nil, currentState != .stopped else { return }
+    func restartListener(generation: UUID) {
+        guard isCurrentGeneration(generation), currentState != .stopped else { return }
         listener?.cancel()
         listener = nil
         do {
@@ -95,8 +109,8 @@ extension PeerTransportService {
         }
     }
     
-    func restartBrowser() {
-        guard activeSession != nil, currentState != .stopped else { return }
+    func restartBrowser(generation: UUID) {
+        guard isCurrentGeneration(generation), currentState != .stopped else { return }
         browser?.cancel()
         browser = nil
         do {
@@ -116,9 +130,11 @@ extension PeerTransportService {
             logEvent("NWListener failed: \(error)", level: .error)
             if activeSession != nil, currentState != .stopped {
                 logEvent("NWListener failed during active session, scheduling recovery restart...", level: .warning)
-                Task { [weak self] in
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    await self?.restartListener()
+                let generation = radioGeneration
+                listenerRecoveryTask?.cancel()
+                listenerRecoveryTask = Task { [weak self] in
+                    do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                    await self?.restartListener(generation: generation)
                 }
             } else {
                 updateState(.failed(err))
@@ -140,9 +156,11 @@ extension PeerTransportService {
             logEvent("NWBrowser failed: \(error)", level: .error)
             if activeSession != nil, currentState != .stopped {
                 logEvent("NWBrowser failed during active session, scheduling recovery restart...", level: .warning)
-                Task { [weak self] in
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    await self?.restartBrowser()
+                let generation = radioGeneration
+                browserRecoveryTask?.cancel()
+                browserRecoveryTask = Task { [weak self] in
+                    do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                    await self?.restartBrowser(generation: generation)
                 }
             } else {
                 updateState(.failed(err))
@@ -159,6 +177,7 @@ extension PeerTransportService {
     
     func handleBrowseResults(_ results: Set<NWBrowser.Result>, changes: Set<NWBrowser.Result.Change>) {
         guard let session = activeSession else { return }
+        latestBrowseResults = results
         
         var currentDiscovered: [String: (endpoint: NWEndpoint, displayName: String?, isGroup: Bool)] = [:]
         
@@ -248,15 +267,18 @@ extension PeerTransportService {
     }
     
     func scheduleFallbackConnection(to endpoint: NWEndpoint, peerId: String, displayName: String?, isGroupMember: Bool) {
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 3_500_000_000) // 3.5 seconds
-            guard let self = self else { return }
-            await self.checkAndFallbackConnect(to: endpoint, peerId: peerId, displayName: displayName, isGroupMember: isGroupMember)
+        let generation = radioGeneration
+        fallbackTasks[peerId]?.cancel()
+        fallbackTasks[peerId] = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(3.5)) } catch { return }
+            await self?.checkAndFallbackConnect(to: endpoint, peerId: peerId, displayName: displayName,
+                isGroupMember: isGroupMember, generation: generation)
         }
     }
     
-    func checkAndFallbackConnect(to endpoint: NWEndpoint, peerId: String, displayName: String?, isGroupMember: Bool) {
-        guard activeSession != nil, currentState != .stopped else { return }
+    func checkAndFallbackConnect(to endpoint: NWEndpoint, peerId: String, displayName: String?, isGroupMember: Bool, generation: UUID) {
+        guard isCurrentGeneration(generation), currentState != .stopped else { return }
+        fallbackTasks.removeValue(forKey: peerId)
         guard discoveredEndpoints[peerId] != nil else { return }
         
         if let conn = connections[peerId], conn.isReady {

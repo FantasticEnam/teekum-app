@@ -40,13 +40,14 @@ extension ChatMessageEngine {
     }
     
     /// Ingests an inbound `InboundPacket` struct.
-    public func handleInboundPacket(_ inbound: InboundPacket) async throws -> InboundChatOutcome {
+    public func handleInboundPacket(_ inbound: InboundPacket, relay: Bool = true) async throws -> InboundChatOutcome {
         let wireData = try inbound.rawPacket.toWireData()
         return try await handleInboundPacket(
             rawPacket: inbound.rawPacket,
             wireData: wireData,
             fromPeerId: inbound.sourcePeerId,
-            receivedRssi: inbound.receivedRssi
+            receivedRssi: inbound.receivedRssi,
+            relay: relay
         )
     }
     
@@ -54,9 +55,11 @@ extension ChatMessageEngine {
         rawPacket: RawWirePacket,
         wireData: Data,
         fromPeerId: String,
-        receivedRssi: Int8? = nil
+        receivedRssi: Int8? = nil,
+        relay: Bool = true
     ) async throws -> InboundChatOutcome {
         let envelope = rawPacket.envelope
+        let generation = sessionGeneration
         
         // Verify protocol version
         guard envelope.version == PacketConstants.protocolVersion else {
@@ -64,7 +67,7 @@ extension ChatMessageEngine {
         }
         
         // Hop count enforcement (Requirement 2: Max 8 hops)
-        guard envelope.hopCount < envelope.hopLimit else {
+        guard envelope.hopCount <= envelope.hopLimit else {
             return .droppedHopLimitExceeded
         }
         
@@ -72,6 +75,7 @@ extension ChatMessageEngine {
         
         // 2. Stranger Packet Relaying (Requirement 3: Zero-Knowledge Blind Relaying)
         if let session = activeSession, envelope.sessionId != session.sessionId {
+            guard envelope.hopCount < envelope.hopLimit else { return .droppedHopLimitExceeded }
             // Stranger packet! Verify relay policy and battery cutoff (<20%)
             guard currentBatteryLevel >= 0.20 && !isLowPowerMode && !isSurvivalMode else {
                 return .droppedPolicyDisabled
@@ -85,9 +89,12 @@ extension ChatMessageEngine {
                 }
             }
             
+            guard generation == sessionGeneration else { return .droppedSecurityFailed }
+
             // Deduplication suppression (Requirement 4)
             let packetKey = PacketKey(wirePacket: rawPacket)
             let isDuplicate = await seenPacketCache.isDuplicateAndRecord(packetKey, now: clock.now())
+            guard generation == sessionGeneration else { return .droppedSecurityFailed }
             if isDuplicate {
                 return .droppedDuplicate(sequenceNumber: envelope.sequenceNumber)
             }
@@ -98,7 +105,7 @@ extension ChatMessageEngine {
             
             // Blind forward across mesh (never decrypt or display)
             try await forwardOpaquePacket(mutatedData, exceptPeerId: fromPeerId)
-            return .relayedStranger(sessionId: envelope.sessionId, hopCount: envelope.hopCount + 1)
+            return .relayedStranger(sessionId: UInt32(envelope.sessionId), hopCount: envelope.hopCount + 1)
         }
         
         // 3. Local Group Session Ingestion
@@ -115,7 +122,7 @@ extension ChatMessageEngine {
                 let responder = ackPayload?.responderInitials ?? fromPeerId
                 return .ackProcessed(sequenceNumber: envelope.sequenceNumber, responderInitials: responder, isDelivered: true)
             }
-            if envelope.hopCount + 1 < envelope.hopLimit {
+            if relay && envelope.hopCount < envelope.hopLimit {
                 var mutatedData = wireData
                 mutatedData[mutatedData.startIndex + 2] = envelope.hopCount + 1
                 try await forwardOpaquePacket(mutatedData, exceptPeerId: fromPeerId)
@@ -125,17 +132,6 @@ extension ChatMessageEngine {
         
         guard envelope.type == .chatMessage else {
             return .droppedMalformed
-        }
-        
-        // Duplicate suppression (Requirement 4)
-        let packetKey = PacketKey(wirePacket: rawPacket)
-        let isDuplicate = await seenPacketCache.isDuplicateAndRecord(packetKey, now: clock.now())
-        if isDuplicate || seenChatSequences.contains(envelope.sequenceNumber) {
-            return .droppedDuplicate(sequenceNumber: envelope.sequenceNumber)
-        }
-        seenChatSequences.insert(envelope.sequenceNumber)
-        if seenChatSequences.count > 1000 {
-            seenChatSequences.removeAll()
         }
         
         // 4. Cryptographic Authentication & Decryption (Requirement 1)
@@ -152,6 +148,8 @@ extension ChatMessageEngine {
             return .droppedSecurityFailed
         }
         
+        guard generation == sessionGeneration else { return .droppedSecurityFailed }
+
         // Deserialization & validation
         guard let payload = try? ChatMessagePayload.deserialize(from: decrypted) else {
             return .droppedMalformed
@@ -161,6 +159,26 @@ extension ChatMessageEngine {
             return .droppedSelfEcho
         }
         
+        guard abs(clock.now().timeIntervalSince(payload.timestamp)) <= CarryMessageStore.retention else {
+            return .droppedMalformed
+        }
+
+        // Duplicate suppression (Requirement 4)
+        let packetKey = PacketKey(wirePacket: rawPacket)
+        let isDuplicate = await seenPacketCache.isDuplicateAndRecord(packetKey, now: clock.now())
+        guard generation == sessionGeneration else { return .droppedSecurityFailed }
+        if isDuplicate || seenChatSequences.contains(envelope.sequenceNumber) {
+            // The first ACK may have been lost. Confirm authenticated receipt again,
+            // without adding another message or forwarding the chat again.
+            try await sendDeliveryACK(for: rawPacket, senderInitials: payload.senderInitials,
+                receivedRssi: receivedRssi ?? -70)
+            return .droppedDuplicate(sequenceNumber: envelope.sequenceNumber)
+        }
+        seenChatSequences.insert(envelope.sequenceNumber)
+        if seenChatSequences.count > 1000 {
+            seenChatSequences.removeAll()
+        }
+
         // 5. In-Memory Message Display (Requirement 9: In-Memory Only, Zero Persistence)
         let message = ChatMessage(
             sequenceNumber: envelope.sequenceNumber,
@@ -182,7 +200,7 @@ extension ChatMessageEngine {
         )
         
         // 7. Multi-Hop Forwarding if hops remain (Requirement 2)
-        if envelope.hopCount + 1 < envelope.hopLimit {
+        if relay && envelope.hopCount < envelope.hopLimit {
             var mutatedData = wireData
             mutatedData[mutatedData.startIndex + 2] = envelope.hopCount + 1
             try await forwardOpaquePacket(mutatedData, exceptPeerId: fromPeerId)

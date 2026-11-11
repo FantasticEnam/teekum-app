@@ -50,7 +50,7 @@ struct SOSHoldButton: View {
             .contentShape(.circle)
             .gesture(
                 LongPressGesture(
-                    minimumDuration: 1.5,
+                    minimumDuration: TeeKumConfiguration.SOS.holdDuration,
                     maximumDistance: 20
                 )
                 .updating($isPressing) { value, state, _ in
@@ -69,7 +69,7 @@ struct SOSHoldButton: View {
             .id(scenePhase)
             .onChange(of: isPressing) { _, pressing in
                 withAnimation(
-                    .linear(duration: pressing ? 1.5 : 0.15)
+                    .linear(duration: pressing ? TeeKumConfiguration.SOS.holdDuration : 0.15)
                 ) {
                     progress = pressing ? 1 : 0
                 }

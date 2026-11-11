@@ -35,6 +35,7 @@ public actor ChatMessageEngine {
     let rateLimiter: ForwardingBudgetManaging?
     let seenPacketCache: SeenPacketCache
     let clock: MeshClock
+    let sequenceAllocator: PacketSequenceAllocator?
     var sessionProvider: (@Sendable () -> GroupSession?)?
     var recipientsProvider: (@MainActor @Sendable () -> [String])?
     
@@ -60,13 +61,10 @@ public actor ChatMessageEngine {
     // Deduplication tracking for received chat sequence numbers
     var seenChatSequences: Set<UInt32> = []
     
-    // Stream of message updates for UI observers
-    var messageUpdateContinuation: AsyncStream<ChatMessage>.Continuation?
-    public nonisolated let messageUpdates: AsyncStream<ChatMessage>
-    
     // Direct callback for state updates
     var onMessageUpdated: (@Sendable (ChatMessage) -> Void)?
     var retrySupervisorTask: Task<Void, Never>?
+    var sessionGeneration = UUID()
     
     // MARK: - Initialization
     
@@ -78,6 +76,7 @@ public actor ChatMessageEngine {
         rateLimiter: ForwardingBudgetManaging? = nil,
         seenPacketCache: SeenPacketCache? = nil,
         clock: MeshClock = SystemMeshClock(),
+        sequenceAllocator: PacketSequenceAllocator? = nil,
         timingConfig: MeshTimingConfiguration = MeshTimingConfiguration(),
         sessionProvider: (@Sendable () -> GroupSession?)? = nil,
         recipientsProvider: (@MainActor @Sendable () -> [String])? = nil,
@@ -90,14 +89,12 @@ public actor ChatMessageEngine {
         self.rateLimiter = rateLimiter
         self.seenPacketCache = seenPacketCache ?? SeenPacketCache(clock: clock)
         self.clock = clock
+        self.sequenceAllocator = sequenceAllocator
         self.timingConfig = timingConfig
         self.sessionProvider = sessionProvider
         self.recipientsProvider = recipientsProvider
         self.onMessageUpdated = onMessageUpdated
         
-        let (stream, continuation) = AsyncStream.makeStream(of: ChatMessage.self)
-        self.messageUpdates = stream
-        self.messageUpdateContinuation = continuation
     }
     
     public func setOnMessageUpdated(_ handler: (@Sendable (ChatMessage) -> Void)?) {
@@ -109,6 +106,7 @@ public actor ChatMessageEngine {
         sessionProvider: (@Sendable () -> GroupSession?)?,
         recipientsProvider: (@MainActor @Sendable () -> [String])? = nil
     ) {
+        sessionGeneration = UUID()
         self.sessionProvider = sessionProvider
         self.recipientsProvider = recipientsProvider
         
@@ -126,6 +124,13 @@ public actor ChatMessageEngine {
         }
     }
     
+    func nextSequenceNumber(for session: GroupSession) async throws -> UInt32 {
+        if let sequenceAllocator { return try await sequenceAllocator.next(for: session) }
+        let sequence = CleartextEnvelope.makeSequenceNumber(memberSlot: session.memberSlot, counter: monotonicCounter)
+        monotonicCounter &+= 1
+        return sequence
+    }
+
     // MARK: - Battery & Power Policy
     
     /// Updates hardware power state. Automatically disables outgoing chat at <20% battery or Low Power Mode.
@@ -154,7 +159,6 @@ public actor ChatMessageEngine {
     }
     
     func notifyMessageUpdated(_ message: ChatMessage) {
-        messageUpdateContinuation?.yield(message)
         onMessageUpdated?(message)
     }
     
@@ -172,10 +176,13 @@ public actor ChatMessageEngine {
     }
     
     func forwardOpaquePacket(_ wireData: Data, exceptPeerId: String?) async throws {
+        let generation = sessionGeneration
         if let neighbors = neighborTable {
             let active = await neighbors.activeNeighbors()
+            guard generation == sessionGeneration else { return }
             let targets = active.filter { $0.id != exceptPeerId }
             for peer in targets {
+                guard generation == sessionGeneration else { return }
                 _ = try? await transport.sendFrame(wireData, to: peer.id)
             }
         } else {

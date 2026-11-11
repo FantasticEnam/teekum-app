@@ -22,6 +22,10 @@ extension SOSForwardingEngine {
         timestamp: Date,
         batteryPct: UInt8
     ) async throws -> UInt32 {
+        cancelRetries()
+        outgoingGeneration = UUID()
+        let generation = sessionGeneration
+        let outgoing = outgoingGeneration
         guard let session = sessionProvider?() else {
             throw TransportError.sessionInvalid
         }
@@ -43,6 +47,7 @@ extension SOSForwardingEngine {
         self.lastDispatchedPayload = payload
         
         let neighbors = await transport.activeNeighbors()
+        guard generation == sessionGeneration, outgoing == outgoingGeneration else { throw TransportError.sessionInvalid }
         if neighbors.isEmpty {
             updateDeliveryState(.searchingPeers)
             self.currentRouteChoice = .none
@@ -50,8 +55,9 @@ extension SOSForwardingEngine {
             updateDeliveryState(.localSending)
         }
         
-        let seq = CleartextEnvelope.makeSequenceNumber(memberSlot: session.memberSlot, counter: monotonicCounter)
-        monotonicCounter &+= 1
+        guard generation == sessionGeneration, outgoing == outgoingGeneration else { throw TransportError.sessionInvalid }
+        let seq = try await nextSequenceNumber(for: session)
+        guard generation == sessionGeneration, outgoing == outgoingGeneration else { throw TransportError.sessionInvalid }
         
         let envelope = CleartextEnvelope(
             version: PacketConstants.protocolVersion,
@@ -63,8 +69,10 @@ extension SOSForwardingEngine {
         )
         
         let key = SymmetricKey(data: session.symmetricKeyData)
-        try await broadcastEmergencySOS(payload: payload, envelope: envelope, symmetricKey: key)
+        do { try await broadcastEmergencySOS(payload: payload, envelope: envelope, symmetricKey: key) }
+        catch { await recordSendFailure(error, generation: generation, outgoing: outgoing) }
         
+        guard generation == sessionGeneration, outgoing == outgoingGeneration else { throw TransportError.sessionInvalid }
         totalDispatchedCount += 1
         
         // Start bounded retries task
@@ -80,23 +88,18 @@ extension SOSForwardingEngine {
         envelope: CleartextEnvelope,
         symmetricKey: SymmetricKey
     ) async throws {
-        // Enforce SOS token budget if rate limiter is present
-        if let rateLimiter = rateLimiter {
-            let allowed = await rateLimiter.consumeSOSToken()
-            if !allowed {
-                // In emergency life-safety scenarios, rate limiter drops excessive bursts
-                // but logs telemetry
-            }
-        }
-        
+        let generation = sessionGeneration
+        let outgoing = outgoingGeneration
+        // The transport owns the SOS token budget; do not charge a second time here.
         let payloadData = payload.serialize()
         let sealed = try await cryptoService.seal(payload: payloadData, envelope: envelope, using: symmetricKey)
         let wirePacket = RawWirePacket(envelope: envelope, ciphertext: sealed.ciphertext, authTag: sealed.authTag)
         let wireData = try wirePacket.toWireData()
         
         let neighbors = await transport.activeNeighbors()
+        guard generation == sessionGeneration, outgoing == outgoingGeneration else { throw TransportError.sessionInvalid }
         if neighbors.isEmpty {
-            updateDeliveryState(.searchingPeers)
+            if !currentDeliveryState.isRelayed && !currentDeliveryState.isDelivered { updateDeliveryState(.searchingPeers) }
             self.currentRouteChoice = .none
             try await transport.broadcastFrame(wireData)
             return
@@ -116,6 +119,7 @@ extension SOSForwardingEngine {
                 }
             }
             
+            guard generation == sessionGeneration, outgoing == outgoingGeneration else { throw TransportError.sessionInvalid }
             if let route = selectedRoute, activeNeighbors.contains(where: { $0.id == route.nextHopPeerId }) {
                 self.currentRouteChoice = .knownRoute(nextHop: route.nextHopPeerId, hopCount: route.hopCount)
                 _ = try await transport.sendFrame(wireData, to: route.nextHopPeerId)

@@ -13,6 +13,7 @@ import Observation
 @MainActor
 public final class MapPointViewModel {
     private let sessionStore: SessionStore
+    private let meetingService: MeetingPointService
     @ObservationIgnored private var locationManager: CLLocationManager?
 
     public var activeMapPoint: MeetingPoint? { sessionStore.activeMeetingPoint }
@@ -23,9 +24,14 @@ public final class MapPointViewModel {
     public var isShowingStopAlert: Bool = false
     public var isShowingLockedAlert: Bool = false
     public var isShowingRSVPAlert: Bool = false
+    public var isShowingTimeOptions = false
+    public var timePreset: MeetingTimePreset = .rightNow
+    public var isCustomTime = false
+    public var customTime = Date.now
     
-    public init(sessionStore: SessionStore) {
+    public init(sessionStore: SessionStore, meetingService: MeetingPointService? = nil) {
         self.sessionStore = sessionStore
+        self.meetingService = meetingService ?? MeetingPointService(sessionStore: sessionStore)
     }
 
     public var myAttendance: MeetingAttendance? {
@@ -59,8 +65,8 @@ public final class MapPointViewModel {
     public func handleMapHold(at coordinate: CLLocationCoordinate2D) {
         guard sessionStore.hasActiveSession,
               CLLocationCoordinate2DIsValid(coordinate) else { return }
-        // Jika udah ada meeting point aktif
-        if hasActiveMapPoint {
+        meetingService.checkExpiration()
+        if isLockedByOther {
             self.isShowingLockedAlert = true
             return
         }
@@ -75,23 +81,21 @@ public final class MapPointViewModel {
         defer { cancelSetMeetingPoint() }
         guard let session = sessionStore.activeSession,
               let coord = candidateCoordinate else { return }
-        guard !hasActiveMapPoint else {
+        guard meetingService.canSetMeetingPoint(by: session.localInitials) else {
             isShowingLockedAlert = true
             return
         }
 
-        sessionStore.activeMeetingPoint = MeetingPoint(
-            name: "\(session.localInitials)'s Meeting Point",
-            coordinate: coord,
-            proposerId: session.localMemberId,
-            proposerInitials: session.localInitials
-        )
+        meetingService.proposeMeetingPoint(coordinate: coord,
+            meetupTime: isCustomTime ? customTime : timePreset.targetDate(),
+            isRightNow: !isCustomTime && timePreset == .rightNow)
     }
     
     // 3. saat batal di konfirmasi
     public func cancelSetMeetingPoint() {
         self.candidateCoordinate = nil
         self.isShowingSetAlert = false
+        self.isShowingTimeOptions = false
     }
     
     // 4. saat titik pin meeting poin di tap di map
@@ -107,20 +111,17 @@ public final class MapPointViewModel {
     
     // 5. saat stop meeting point
     public func stopMeetingPoint(){
-        guard isCurrentUserProposer else { return }
-        sessionStore.activeMeetingPoint = nil
+        guard meetingService.cancelMeetingPoint() else { return }
         self.candidateCoordinate = nil
         self.isShowingStopAlert = false
     }
     
     public func respondRSVP(attending: Bool){
-        guard let memberID = sessionStore.activeSession?.localMemberId,
-              var point = activeMapPoint else { return }
-        let status: MeetingAttendance = attending ? .accepted : .declined
-        point.attendance[memberID] = status
-        sessionStore.activeMeetingPoint = point
+        meetingService.respond(status: attending ? .attending : .cantMakeIt)
         self.isShowingRSVPAlert = false
     }
+
+    public var errorMessage: String? { meetingService.errorMessage }
 }
 
 public enum MapPointAlert: Identifiable {

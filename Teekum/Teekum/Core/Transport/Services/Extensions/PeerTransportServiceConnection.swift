@@ -77,6 +77,7 @@ extension PeerTransportService {
     }
     
     func handleConnectionStateChange(peer: PeerConnection, state: NWConnection.State) {
+        guard activeSession != nil, connections[peer.peerId] === peer else { return }
         switch state {
         case .ready:
             peer.isReady = true
@@ -119,8 +120,10 @@ extension PeerTransportService {
     }
     
     func handleDisconnection(peer: PeerConnection, error: Error?) {
+        guard connections[peer.peerId] === peer else { return }
         let peerId = peer.peerId
         peer.isReady = false
+        carryStore.disconnected(peerId)
         peer.connection.cancel()
         connections.removeValue(forKey: peerId)
         
@@ -155,15 +158,18 @@ extension PeerTransportService {
         let delaySeconds = min(5.0, Double(1 << (nextRetry - 1))) + Double.random(in: 0.1...0.3)
         logEvent("Scheduling reconnection attempt \(nextRetry)/\(maxRetries) to \(peerId) in \(String(format: "%.1f", delaySeconds))s.", level: .info)
         
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
-            guard let self = self else { return }
-            await self.attemptReconnection(peerId: peerId, endpoint: lastEndpoint, retryCount: nextRetry)
+        let generation = radioGeneration
+        reconnectTasks[peerId]?.cancel()
+        reconnectTasks[peerId] = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(delaySeconds)) } catch { return }
+            await self?.attemptReconnection(peerId: peerId, endpoint: lastEndpoint, retryCount: nextRetry,
+                generation: generation)
         }
     }
     
-    func attemptReconnection(peerId: String, endpoint: NWEndpoint, retryCount: Int) {
-        guard activeSession != nil, currentState != .stopped else { return }
+    func attemptReconnection(peerId: String, endpoint: NWEndpoint, retryCount: Int, generation: UUID) {
+        guard isCurrentGeneration(generation), currentState != .stopped else { return }
+        reconnectTasks.removeValue(forKey: peerId)
         // Ensure no active connection exists before reconnecting
         if let existing = connections[peerId], existing.isReady {
             return

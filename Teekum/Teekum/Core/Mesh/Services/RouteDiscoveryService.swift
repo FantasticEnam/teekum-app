@@ -28,6 +28,7 @@ public actor RouteDiscoveryService: RouteDiscoveryManaging {
     let neighborTable: NeighborManaging
     let transport: MeshTransport
     let cryptoService: CryptoServiceProtocol
+    let sequenceAllocator: PacketSequenceAllocator?
     let clock: MeshClock
     let maxHops: UInt8
     let maxInFlightCapacity: Int
@@ -57,6 +58,8 @@ public actor RouteDiscoveryService: RouteDiscoveryManaging {
     
     /// Monotonic sequence counter per session
     var sequenceCounters: [UInt32: UInt32] = [:]
+    var discoveryTimeoutTasks: [UInt32: Task<Void, Never>] = [:]
+    var sessionGeneration = UUID()
     
     // MARK: - Telemetry & Diagnostics Counters
     
@@ -83,12 +86,14 @@ public actor RouteDiscoveryService: RouteDiscoveryManaging {
         clock: MeshClock = SystemMeshClock(),
         maxHops: UInt8 = PacketConstants.defaultHopLimit,
         maxInFlightCapacity: Int = 16,
-        onTargetReached: (@Sendable (String) -> Void)? = nil
+        onTargetReached: (@Sendable (String) -> Void)? = nil,
+        sequenceAllocator: PacketSequenceAllocator? = nil
     ) {
         self.routingTable = routingTable
         self.neighborTable = neighborTable
         self.transport = transport
         self.cryptoService = cryptoService
+        self.sequenceAllocator = sequenceAllocator
         self.clock = clock
         self.maxHops = min(maxHops, PacketConstants.defaultHopLimit)
         self.maxInFlightCapacity = max(1, maxInFlightCapacity)
@@ -108,11 +113,12 @@ public actor RouteDiscoveryService: RouteDiscoveryManaging {
         consumeToken()
     }
     
-    func nextSequenceNumber(for session: GroupSession) -> UInt32 {
+    func nextSequenceNumber(for session: GroupSession) async throws -> UInt32 {
+        if let sequenceAllocator { return try await sequenceAllocator.next(for: session) }
         let sid = UInt32(session.sessionId)
         let counter = (sequenceCounters[sid] ?? 0) &+ 1
         sequenceCounters[sid] = counter
-        return CleartextEnvelope.makeSequenceNumber(memberSlot: 1, counter: counter)
+        return CleartextEnvelope.makeSequenceNumber(memberSlot: session.memberSlot, counter: counter)
     }
     
     func consumeToken() -> Bool {

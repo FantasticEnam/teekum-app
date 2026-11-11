@@ -40,6 +40,7 @@ extension RouteDiscoveryService {
         session: GroupSession,
         timeout: TimeInterval = 3.0
     ) async throws -> RouteEntry {
+        let generation = sessionGeneration
         let sanitizedTarget = InitialsCodec.sanitize(targetInitials)
         
         // Loop prevention: cannot discover route to self
@@ -77,7 +78,8 @@ extension RouteDiscoveryService {
         
         // 5. Construct authenticated Route Request datagram
         let nonce = UInt32.random(in: 1...UInt32.max)
-        let seq = nextSequenceNumber(for: session)
+        let seq = try await nextSequenceNumber(for: session)
+        guard generation == sessionGeneration, !Task.isCancelled else { throw RouteDiscoveryFailure.sessionTerminated }
         
         let reqPayload = RouteReqPayload(
             originatorInitials: session.localInitials,
@@ -98,18 +100,20 @@ extension RouteDiscoveryService {
             using: SymmetricKey(data: session.symmetricKeyData)
         )
         
+        guard generation == sessionGeneration, !Task.isCancelled else { throw RouteDiscoveryFailure.sessionTerminated }
         totalDiscoveriesInitiatedCount += 1
         totalRReqSentCount += 1
         
         // 6. Broadcast across all active connected radio links
         try await transport.broadcastFrame(wireData)
         
+        guard generation == sessionGeneration, !Task.isCancelled else { throw RouteDiscoveryFailure.sessionTerminated }
         // 7. Track in-flight state and set timeout deadline
         let deadline = now.addingTimeInterval(max(0.5, timeout))
         
         // Schedule background timeout task
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+        discoveryTimeoutTasks[nonce] = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(max(0.5, timeout))) } catch { return }
             await self?.handleDiscoveryTimeout(nonce: nonce)
         }
         
@@ -145,6 +149,7 @@ extension RouteDiscoveryService {
     }
     
     public func handleDiscoveryTimeout(nonce: UInt32) {
+        discoveryTimeoutTasks.removeValue(forKey: nonce)?.cancel()
         guard let inFlight = inFlightDiscoveries.removeValue(forKey: nonce) else { return }
         let targetKey = "\(inFlight.sessionId):\(inFlight.targetInitials)"
         inFlightByTarget.removeValue(forKey: targetKey)

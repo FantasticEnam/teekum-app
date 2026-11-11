@@ -41,7 +41,7 @@ public struct PacketKey: Hashable, Sendable, CustomStringConvertible {
         let b5 = UInt32(wireData[wireData.startIndex + 5])
         let sid = (b3 << 16) | (b4 << 8) | b5
         let seq = wireData.subdata(in: (wireData.startIndex + 6)..<(wireData.startIndex + 10)).withUnsafeBytes {
-            $0.load(as: UInt32.self).bigEndian
+            $0.loadUnaligned(as: UInt32.self).bigEndian
         }
         self.sessionId = sid
         self.sequenceNumber = seq

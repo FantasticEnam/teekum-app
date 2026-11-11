@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import CryptoKit
 
 public protocol SOSForwardingManaging: Actor {
     /// Dispatches an immediate emergency SOS alert across all mesh links via bounded flooding.

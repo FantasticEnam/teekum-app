@@ -18,6 +18,7 @@ extension RouteDiscoveryService {
         fromPeerId: String,
         session: GroupSession
     ) async throws -> RouteReqHandlingResult {
+        let generation = sessionGeneration
         totalRReqReceivedCount += 1
         
         // 1. Packet structure verification
@@ -56,6 +57,7 @@ extension RouteDiscoveryService {
             return .droppedSecurityFailed
         }
         
+        guard generation == sessionGeneration else { return .droppedSecurityFailed }
         guard let payload = try? RouteReqPayload.deserialize(from: decrypted) else {
             return .droppedSecurityFailed
         }
@@ -145,6 +147,7 @@ extension RouteDiscoveryService {
                 using: SymmetricKey(data: session.symmetricKeyData)
             )
             
+            guard generation == sessionGeneration else { return .droppedSecurityFailed }
             totalRRespSentCount += 1
             _ = try await transport.sendFrame(respWire, to: fromPeerId)
             onTargetReached?(payload.originatorInitials)
@@ -182,6 +185,7 @@ extension RouteDiscoveryService {
         fromPeerId: String,
         session: GroupSession
     ) async throws -> RouteRespHandlingResult {
+        let generation = sessionGeneration
         totalRRespReceivedCount += 1
         
         // 1. Packet structure verification
@@ -219,6 +223,7 @@ extension RouteDiscoveryService {
             return .droppedSecurityFailed
         }
         
+        guard generation == sessionGeneration else { return .droppedSecurityFailed }
         guard let payload = try? RouteRespPayload.deserialize(from: decrypted) else {
             return .droppedSecurityFailed
         }
@@ -277,6 +282,7 @@ extension RouteDiscoveryService {
             }
             
             totalDiscoveriesSucceededCount += 1
+            discoveryTimeoutTasks.removeValue(forKey: payload.discoveryNonce)?.cancel()
             for cont in inFlight.continuations {
                 cont.resume(returning: entry)
             }

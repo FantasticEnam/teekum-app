@@ -31,7 +31,7 @@ import Observation
 /// GPS and radio duty cycles without making rigid power or battery percentage guarantees.
 @Observable
 @MainActor
-public final class LocationService: NSObject, CLLocationManagerDelegate, LocationServiceProvider {
+public final class LocationService: NSObject, CLLocationManagerDelegate, LocationServiceProtocol {
     
     // MARK: - Core Location & Motion Hardware
     

@@ -24,6 +24,7 @@ extension ChatMessageEngine {
         text: String,
         targetRecipients: [String]? = nil
     ) async throws -> ChatMessage {
+        let generation = sessionGeneration
         // 1. Session verification
         guard let session = sessionProvider?() else {
             throw ChatEngineError.noActiveSession
@@ -59,9 +60,11 @@ extension ChatMessageEngine {
             resolvedRecipients = []
         }
         
+        guard generation == sessionGeneration else { throw ChatEngineError.noActiveSession }
+
         // 6. Sequence Number Generation
-        let seq = (UInt32(session.memberSlot) << 24) | (monotonicCounter & 0x00FFFFFF)
-        monotonicCounter &+= 1
+        let seq = try await nextSequenceNumber(for: session)
+        guard generation == sessionGeneration else { throw ChatEngineError.noActiveSession }
         
         // 7. Payload Serialization
         let payload = ChatMessagePayload(
@@ -108,6 +111,8 @@ extension ChatMessageEngine {
             throw ChatEngineError.serializationFailed
         }
         
+        guard generation == sessionGeneration else { throw ChatEngineError.noActiveSession }
+
         // 9. Initial In-Memory Message Model (Requirement 8 & 9)
         var initialRecipientStates: [String: RecipientDeliveryState] = [:]
         for recipient in resolvedRecipients {
@@ -141,6 +146,8 @@ extension ChatMessageEngine {
         // Submit to transport outbox (FIFO Tier 3, ahead of stranger relays)
         try await transport.broadcastFrame(wireData)
         
+        guard generation == sessionGeneration else { throw ChatEngineError.noActiveSession }
+
         // 11. Register in-flight message for ACK tracking & retries (Requirement 5 & 6)
         let inFlight = InFlightMessage(
             message: message,

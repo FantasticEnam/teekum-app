@@ -9,7 +9,7 @@ import Foundation
 import CoreLocation
 
 /// Represents a peer member participating in an active TeeKum group session.
-/// Uniquely identified by their 3-letter Base-26 initials (e.g., "DNA", "ALX").
+/// Uses the prototype's sanitized initials identity within a session.
 public struct Member: Identifiable, Equatable, Hashable, Sendable {
     /// 3-letter uppercase initials identifying the member.
     public let id: String
@@ -22,6 +22,9 @@ public struct Member: Identifiable, Equatable, Hashable, Sendable {
     
     /// Latest local timestamp when a valid authenticated packet was received from this member.
     public var lastSeen: Date
+
+    /// Hardware measurement time, kept separate from packet/peer receipt time.
+    public var measurementTimestamp: Date?
     
     /// Latest reported geographical coordinate.
     public var coordinate: CLLocationCoordinate2D?
@@ -58,12 +61,14 @@ public struct Member: Identifiable, Equatable, Hashable, Sendable {
         heading: CLLocationDirection? = nil,
         isDirectPeer: Bool = false,
         rssi: Int8? = nil,
-        color: MemberColor? = nil
+        color: MemberColor? = nil,
+        measurementTimestamp: Date? = nil
     ) {
         let cleanId = InitialsCodec.sanitize(id)
         self.id = cleanId
         self.name = name ?? cleanId
         self.lastSeen = lastSeen
+        self.measurementTimestamp = measurementTimestamp
         self.coordinate = coordinate
         self.horizontalAccuracy = horizontalAccuracy
         self.isEmergency = isEmergency
@@ -106,6 +111,7 @@ public struct Member: Identifiable, Equatable, Hashable, Sendable {
         lhs.id == rhs.id &&
         lhs.name == rhs.name &&
         lhs.lastSeen == rhs.lastSeen &&
+        lhs.measurementTimestamp == rhs.measurementTimestamp &&
         lhs.coordinate?.latitude == rhs.coordinate?.latitude &&
         lhs.coordinate?.longitude == rhs.coordinate?.longitude &&
         lhs.horizontalAccuracy == rhs.horizontalAccuracy &&
@@ -113,7 +119,8 @@ public struct Member: Identifiable, Equatable, Hashable, Sendable {
         lhs.batteryLevel == rhs.batteryLevel &&
         lhs.heading == rhs.heading &&
         lhs.isDirectPeer == rhs.isDirectPeer &&
-        lhs.rssi == rhs.rssi
+        lhs.rssi == rhs.rssi &&
+        lhs.color == rhs.color
     }
     
     public func hash(into hasher: inout Hasher) {

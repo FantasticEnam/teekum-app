@@ -20,11 +20,6 @@ import CryptoKit
 /// - Hardware-backed Secure Enclave / iOS Keychain key persistence
 public actor CryptoService: CryptoServiceProtocol {
     
-    private let keychainService: String = "com.teekum.session"
-    
-    /// Ephemeral in-memory key cache keyed by sessionId (ensures zero disk persistence upon teardown).
-    private var inMemoryKeys: [UInt16: SymmetricKey] = [:]
-    
     /// Active replay and deduplication protection filter.
     public let replayFilter: ReplayProtectionFilter
     

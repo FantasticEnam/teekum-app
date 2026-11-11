@@ -32,7 +32,7 @@ public struct PacketReader: Sendable {
         guard remainingBytes >= 2 else { throw PacketCodecError.bufferUnderflow }
         let sub = data.subdata(in: offset..<(offset + 2))
         offset += 2
-        return sub.withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
+        return sub.withUnsafeBytes { $0.loadUnaligned(as: UInt16.self).bigEndian }
     }
     
     public mutating func readUInt24BigEndian() throws -> UInt32 {
@@ -48,14 +48,14 @@ public struct PacketReader: Sendable {
         guard remainingBytes >= 4 else { throw PacketCodecError.bufferUnderflow }
         let sub = data.subdata(in: offset..<(offset + 4))
         offset += 4
-        return sub.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        return sub.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
     }
     
     public mutating func readInt32BigEndian() throws -> Int32 {
         guard remainingBytes >= 4 else { throw PacketCodecError.bufferUnderflow }
         let sub = data.subdata(in: offset..<(offset + 4))
         offset += 4
-        return sub.withUnsafeBytes { $0.load(as: Int32.self).bigEndian }
+        return sub.withUnsafeBytes { $0.loadUnaligned(as: Int32.self).bigEndian }
     }
     
     public mutating func readBytes(count: Int) throws -> Data {

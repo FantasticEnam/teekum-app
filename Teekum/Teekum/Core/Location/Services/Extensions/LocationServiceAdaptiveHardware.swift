@@ -25,12 +25,12 @@ extension LocationService {
         guard let motionActivityManager else { return }
         guard CMMotionActivityManager.isActivityAvailable() else { return }
         
-        motionActivityManager.startActivityUpdates(to: motionQueue) { [weak self] activity in
+        // Core Motion invokes this handler on motionQueue before we hop to MainActor.
+        motionActivityManager.startActivityUpdates(to: motionQueue) { @Sendable [weak self] activity in
             guard let activity else { return }
+            let stationary = activity.stationary && !activity.walking && !activity.running
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                // User is stationary if stationary flag is true and not walking/running
-                let stationary = activity.stationary && !activity.walking && !activity.running
+                guard let self, isTracking else { return }
                 self.setStationaryState(stationary)
             }
         }

@@ -25,6 +25,7 @@ extension PeerTransportService {
     }
     
     func processReceivedData(peer: PeerConnection, content: Data?, isComplete: Bool, error: NWError?) {
+        guard activeSession != nil, connections[peer.peerId] === peer else { return }
         if let error = error {
             logEvent("Read error on \(peer.peerId): \(error.localizedDescription)", level: .warning)
             handleDisconnection(peer: peer, error: error)
@@ -61,6 +62,7 @@ extension PeerTransportService {
                     inboundFrameContinuation?.yield(inboundFrame)
                     
                     if let wirePacket = wirePacket {
+                        recordPacket(wirePacket.envelope, direction: .received, peerId: peer.peerId)
                         let inbound = InboundPacket(
                             rawPacket: wirePacket,
                             sourcePeerId: peer.peerId,

@@ -12,7 +12,7 @@ public struct CleartextEnvelope: Equatable, Sendable {
     public var type: PacketType
     public var hopLimit: UInt8
     public var hopCount: UInt8
-    public var sessionId: UInt32
+    public var sessionId: UInt16
     public var sequenceNumber: UInt32
     
     public var memberSlot: UInt8 {
@@ -28,7 +28,7 @@ public struct CleartextEnvelope: Equatable, Sendable {
         type: PacketType,
         hopLimit: UInt8 = PacketConstants.defaultHopLimit,
         hopCount: UInt8 = 0,
-        sessionId: UInt32,
+        sessionId: UInt16,
         sequenceNumber: UInt32
     ) {
         self.version = version
@@ -116,7 +116,7 @@ public struct CleartextEnvelope: Equatable, Sendable {
         let sid16 = UInt16(sid32 & 0xFFFF)
         
         let seq = data.subdata(in: (data.startIndex + 6)..<(data.startIndex + 10)).withUnsafeBytes {
-            $0.load(as: UInt32.self).bigEndian
+            $0.loadUnaligned(as: UInt32.self).bigEndian
         }
         
         return CleartextEnvelope(

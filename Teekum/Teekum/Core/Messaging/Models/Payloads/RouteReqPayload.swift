@@ -52,7 +52,7 @@ public struct RouteReqPayload: Equatable, Sendable {
         let targetBytes = [data[2], data[3]]
         let target = InitialsCodec.decode(targetBytes) ?? "UNK"
         
-        let nonce = data.subdata(in: 4..<8).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let nonce = data.subdata(in: 4..<8).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let cost = data[8]
         return RouteReqPayload(originatorInitials: orig, targetInitials: target, discoveryNonce: nonce, routeCost: cost)
     }

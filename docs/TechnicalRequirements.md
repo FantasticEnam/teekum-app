@@ -2,9 +2,7 @@
 
 **Fantasix · Last reviewed: 11 November 2026**
 
-> **Migration status:** This repository contains UI screens/local demo navigation and recently imported logic. The imported services are not connected to the app's UI/session lifecycle. Some legacy logic, supporting types or configuration may not have been copied, or may have been copied only partially. **Migration completeness and prototype parity are unverified.** File presence, comments and old pass counts are not evidence of a compiling or working integrated feature.
-
-This snapshot comes from static inspection of this repository, not a fresh build, device run or full comparison with a frozen legacy revision. Read [agent.md](agent.md) before migrating with an agent. [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.md) describes the next integration work. The root README still contains starter-era status/layout statements; use this document for current migration status until that README is refreshed separately.
+> **Current implementation:** See [Session migration](features/session-migration.md) for the connected behavior, source changes, test evidence and open protocol decisions. The inventory and G1–G12 below describe the pre-integration baseline `796f586`; they are retained as comparison history. The architecture and workflow rules still apply.
 
 ## 1. Project Overview
 
@@ -415,7 +413,7 @@ Ring distance/orientation, real member placement/color mapping, banner/detail in
 
 ## 4. Verification Plan
 
-**Review performed:** static source/configuration and documentation consistency inspection only. No build, unit test, UI test, radio run, battery measurement or legacy parity run was performed for this update. Current source has visible unresolved symbols/model mismatches; do not assume it compiles.
+**Baseline review at `796f586`:** static source/configuration and documentation consistency inspection only. No build, unit test, UI test, radio run, battery measurement or legacy parity run was performed for this update. Current source has visible unresolved symbols/model mismatches; do not assume it compiles.
 
 - `TeekumTests/PacketCodecTest.swift` is present. `project.yml` does not declare a test target or test action, and this review did not run it. Some old test declarations still use UInt16 session IDs against UInt32 APIs.
 - The user's workflow reserves UI testing for the developer. Do not create/run UI tests automatically; report manual checks needed. Do not restore previously removed test targets as an incidental migration step.
@@ -508,7 +506,7 @@ Documentation ownership:
 
 ## 7. Open Team Decisions
 
-These are static findings, not an exhaustive defect audit. None was fixed by this documentation update. Unknown legacy omissions remain possible beyond this list.
+These are the static findings at baseline `796f586`. See the migration note for implemented resolutions and decisions that remain open.
 
 | ID | Finding / decision | Source evidence and next action |
 | :--- | :--- | :--- |

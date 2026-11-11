@@ -65,14 +65,14 @@ public struct ACKPayload: Equatable, Sendable {
         guard data.count >= PacketConstants.encryptedPayloadSize else {
             throw PacketCodecError.bufferUnderflow
         }
-        let seq = data.subdata(in: 0..<4).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let seq = data.subdata(in: 0..<4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let ackedBytes = [data[4], data[5]]
         let ackedInitials = InitialsCodec.decode(ackedBytes) ?? "UNK"
         
-        let tsRaw = data.subdata(in: 6..<10).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let tsRaw = data.subdata(in: 6..<10).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let statusByte = data[10]
         let rssi = Int8(bitPattern: data[11])
-        let eventId = data.subdata(in: 12..<16).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let eventId = data.subdata(in: 12..<16).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         
         let respBytes = [data[16], data[17]]
         let respInitials = InitialsCodec.decode(respBytes) ?? "UNK"

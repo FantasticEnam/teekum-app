@@ -14,7 +14,7 @@ public struct GroupSession: Identifiable, Equatable, Sendable, Codable {
     public var id: UInt16 { sessionId }
     
     /// 16-bit session hash identifying the active festival network.
-    public let sessionId: UInt32
+    public let sessionId: UInt16
     
     /// Human-friendly name for the session (e.g., "Festival Mesh").
     public let sessionName: String
@@ -30,6 +30,8 @@ public struct GroupSession: Identifiable, Equatable, Sendable, Codable {
     
     /// Backward-compatibility alias for display name.
     public var localMemberName: String { localInitials }
+
+    public var localMemberId: MemberID { .fromInitials(localInitials) }
     
     /// True if the user initiated the session (or host role).
     public let isHost: Bool
@@ -49,11 +51,11 @@ public struct GroupSession: Identifiable, Equatable, Sendable, Codable {
         return Data(SHA256.hash(data: Data(seed.utf8)))
     }()
     
-    /// Default 24-bit session ID for the auto-mesh festival network.
-    public static let defaultSessionId: UInt32 = 0x7E3AFA
+    /// Matches the prototype's session/invite contract; the wire retains its three-byte SID field.
+    public static let defaultSessionId: UInt16 = 0x7E3A
     
     public init(
-        sessionId: UInt32 = GroupSession.defaultSessionId,
+        sessionId: UInt16 = GroupSession.defaultSessionId,
         sessionName: String = "Festival Mesh",
         symmetricKeyData: Data = GroupSession.defaultSymmetricKeyData,
         localInitials: String,
@@ -72,6 +74,12 @@ public struct GroupSession: Identifiable, Equatable, Sendable, Codable {
     }
     
     // MARK: - Serverless Share Link & QR Encoding
+
+    /// Short display fingerprint derived from the key's digest.
+    var keyFingerprint: String {
+        let prefix = SHA256.hash(data: symmetricKeyData).prefix(4)
+        return "0x" + prefix.map { String(format: "%02X", $0) }.joined()
+    }
     
     /// Generates a serverless invite URL where the 256-bit key is packed into the URL fragment (#).
     /// Using the URL fragment guarantees that if tapped on the web, the key is never transmitted
@@ -81,12 +89,17 @@ public struct GroupSession: Identifiable, Equatable, Sendable, Codable {
         components.scheme = "teekum"
         components.host = "join"
         
-        let keyBase64 = symmetricKeyData.base64EncodedString()
-        let sidHex = String(format: "%04X", sessionId)
-        let safeName = sessionName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Group"
-        
-        components.percentEncodedFragment = "key=\(keyBase64)&sid=\(sidHex)&name=\(safeName)"
-        return components.url ?? URL(string: "teekum://join")!
+        var payload = URLComponents()
+        payload.queryItems = [
+            URLQueryItem(name: "key", value: symmetricKeyData.base64EncodedString()),
+            URLQueryItem(name: "sid", value: String(format: "%04X", sessionId)),
+            URLQueryItem(name: "name", value: sessionName)
+        ]
+        components.percentEncodedFragment = payload.percentEncodedQuery
+        guard let url = components.url else {
+            preconditionFailure("Unable to encode a TeeKum invite URL.")
+        }
+        return url
     }
     
     /// Extracts a `teekum://join...` URL from any arbitrary string (e.g. copied share message, email, or chat).

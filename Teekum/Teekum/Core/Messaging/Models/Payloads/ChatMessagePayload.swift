@@ -84,7 +84,7 @@ public struct ChatMessagePayload: Equatable, Sendable {
         let initials = InitialsCodec.decode(initialBytes) ?? "UNK"
         
         let tsRaw = data.subdata(in: (start + 2)..<(start + 6)).withUnsafeBytes {
-            $0.load(as: UInt32.self).bigEndian
+            $0.loadUnaligned(as: UInt32.self).bigEndian
         }
         let date = Date(timeIntervalSince1970: TimeInterval(tsRaw))
         

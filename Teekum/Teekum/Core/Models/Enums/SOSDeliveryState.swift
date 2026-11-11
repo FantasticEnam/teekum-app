@@ -17,7 +17,7 @@ import CoreLocation
 /// - RELAY_ACK
 /// - DELIVERED_TO_FRIEND
 /// - SEARCHING_PEERS
-public enum SOSDeliveryState: Equatable, Sendable {
+public enum SOSDeliveryState: Equatable, Hashable, Codable, Sendable {
     case idle
     case countdown(remainingSeconds: Double)
     case localSending

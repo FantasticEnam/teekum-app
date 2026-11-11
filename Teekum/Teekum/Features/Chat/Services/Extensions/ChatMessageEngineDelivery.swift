@@ -20,6 +20,7 @@ extension ChatMessageEngine {
         senderInitials: String,
         receivedRssi: Int8
     ) async throws {
+        let generation = sessionGeneration
         guard let session = sessionProvider?() else { return }
         let now = clock.now()
         
@@ -34,8 +35,8 @@ extension ChatMessageEngine {
         )
         let payloadData = ackPayload.serialize()
         
-        let ackSeq = (UInt32(session.memberSlot) << 24) | (monotonicCounter & 0x00FFFFFF)
-        monotonicCounter &+= 1
+        let ackSeq = try await nextSequenceNumber(for: session)
+        guard generation == sessionGeneration else { throw ChatEngineError.noActiveSession }
         
         let envelope = CleartextEnvelope(
             version: PacketConstants.protocolVersion,
@@ -52,6 +53,7 @@ extension ChatMessageEngine {
             envelope: envelope,
             using: key
         )
+        guard generation == sessionGeneration else { throw ChatEngineError.noActiveSession }
         let rawAck = RawWirePacket(
             envelope: envelope,
             ciphertext: ciphertext,
@@ -69,6 +71,7 @@ extension ChatMessageEngine {
         senderInitials: String,
         receivedRssi: Int8
     ) async throws {
+        let generation = sessionGeneration
         guard let session = sessionProvider?() else { return }
         let now = clock.now()
         
@@ -83,8 +86,8 @@ extension ChatMessageEngine {
         )
         let payloadData = ackPayload.serialize()
         
-        let ackSeq = (UInt32(session.memberSlot) << 24) | (monotonicCounter & 0x00FFFFFF)
-        monotonicCounter &+= 1
+        let ackSeq = try await nextSequenceNumber(for: session)
+        guard generation == sessionGeneration else { throw ChatEngineError.noActiveSession }
         
         let envelope = CleartextEnvelope(
             version: PacketConstants.protocolVersion,
@@ -101,6 +104,7 @@ extension ChatMessageEngine {
             envelope: envelope,
             using: key
         )
+        guard generation == sessionGeneration else { throw ChatEngineError.noActiveSession }
         let rawAck = RawWirePacket(
             envelope: envelope,
             ciphertext: ciphertext,
@@ -116,6 +120,7 @@ extension ChatMessageEngine {
     /// - Tracks ACK and delivery state separately for each intended recipient.
     /// - Never treats a relay ACK (`0x02`) as final recipient delivery (`0x01`).
     public func processDeliveryACK(rawPacket: RawWirePacket, fromPeerId: String) async -> Bool {
+        let generation = sessionGeneration
         guard rawPacket.envelope.type == .ack else { return false }
         guard let session = sessionProvider?(), rawPacket.envelope.sessionId == session.sessionId else {
             return false
@@ -128,6 +133,7 @@ extension ChatMessageEngine {
             return false
         }
         
+        guard generation == sessionGeneration else { return false }
         guard let ack = try? ACKPayload.deserialize(from: decrypted) else {
             return false
         }
@@ -258,11 +264,15 @@ extension ChatMessageEngine {
     }
     
     /// Clears all in-memory chat history and in-flight tracking on group session teardown.
-    public func clearHistory() {
+    public func clearHistory() async {
+        sessionGeneration = UUID()
+        onMessageUpdated = nil
+        lastSentTimestamp = .distantPast
         retrySupervisorTask?.cancel()
         retrySupervisorTask = nil
         inMemoryMessages.removeAll()
         inFlightMessages.removeAll()
         seenChatSequences.removeAll()
+        await seenPacketCache.removeAll()
     }
 }

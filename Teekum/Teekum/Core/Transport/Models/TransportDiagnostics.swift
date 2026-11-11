@@ -9,10 +9,25 @@ import Foundation
 
 /// Live diagnostic snapshot of peer-to-peer radio telemetry for on-device HUD testing.
 nonisolated public struct TransportDiagnostics: Sendable {
+    /// A radio observation containing only cleartext header and link metadata.
+    public struct PacketEvent: Identifiable, Sendable {
+        public enum Direction: Equatable, Sendable {
+            case received
+            case dispatched
+        }
+
+        public let id = UUID()
+        public let timestamp = Date.now
+        public let envelope: CleartextEnvelope
+        public let direction: Direction
+        public let peerId: String
+        public let isOutsideGroup: Bool
+    }
+
     public let localPeerId: String
     public let serviceType: String
     public let sessionName: String
-    public let sessionId: UInt32
+    public let sessionId: UInt16
     public let state: TransportState
     public let activeDirectPeers: [PeerInfo]
     public let packetsSent: Int
@@ -21,12 +36,13 @@ nonisolated public struct TransportDiagnostics: Sendable {
     public let sendErrors: Int
     public let lastError: String?
     public let recentEvents: [DiagnosticEvent]
+    public let recentPackets: [PacketEvent]
     
     public init(
         localPeerId: String,
         serviceType: String,
         sessionName: String,
-        sessionId: UInt32,
+        sessionId: UInt16,
         state: TransportState,
         activeDirectPeers: [PeerInfo],
         packetsSent: Int,
@@ -34,7 +50,8 @@ nonisolated public struct TransportDiagnostics: Sendable {
         obsoletePingsCoalesced: Int,
         sendErrors: Int,
         lastError: String?,
-        recentEvents: [DiagnosticEvent]
+        recentEvents: [DiagnosticEvent],
+        recentPackets: [PacketEvent] = []
     ) {
         self.localPeerId = localPeerId
         self.serviceType = serviceType
@@ -48,5 +65,6 @@ nonisolated public struct TransportDiagnostics: Sendable {
         self.sendErrors = sendErrors
         self.lastError = lastError
         self.recentEvents = recentEvents
+        self.recentPackets = recentPackets
     }
 }

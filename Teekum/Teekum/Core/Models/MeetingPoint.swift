@@ -21,6 +21,13 @@ public struct MeetingPoint: Identifiable, Equatable, Hashable, Codable, Sendable
     public var landmarkId: UInt32?
     public var attendance: [MemberID: MeetingAttendance]
     public let createdAt: Date
+    public var isRightNow: Bool
+    public var anchorToProposerGPS: Bool
+    public var arrivalRadiusMeters: Double
+
+    public var meetupTime: Date { targetTime ?? createdAt }
+    public var isExpired: Bool { Date.now.timeIntervalSince(meetupTime) > 3600 }
+    public var formattedTitle: String { "\(proposerInitials)'s Rendezvous" }
 
     public var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -35,7 +42,10 @@ public struct MeetingPoint: Identifiable, Equatable, Hashable, Codable, Sendable
         proposerInitials: String,
         landmarkId: UInt32? = nil,
         attendance: [MemberID: MeetingAttendance] = [:],
-        createdAt: Date = .now
+        createdAt: Date = .now,
+        isRightNow: Bool = false,
+        anchorToProposerGPS: Bool = false,
+        arrivalRadiusMeters: Double = 25
     ) {
         let cleanInitials = MemberID.sanitizeInitials(proposerInitials)
         let resolvedProposerId = proposerId ?? MemberID.fromInitials(cleanInitials)
@@ -49,5 +59,8 @@ public struct MeetingPoint: Identifiable, Equatable, Hashable, Codable, Sendable
         self.landmarkId = landmarkId
         self.attendance = attendance
         self.createdAt = createdAt
+        self.isRightNow = isRightNow
+        self.anchorToProposerGPS = anchorToProposerGPS
+        self.arrivalRadiusMeters = min(100, max(5, arrivalRadiusMeters))
     }
 }

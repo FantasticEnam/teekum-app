@@ -121,4 +121,19 @@ extension LocationService {
         
         stopMotionTracking()
     }
+
+    public func clearSessionMeasurements() {
+        stopTracking()
+        currentLocation = nil
+        currentHeading = nil
+        isGPSAvailable = false
+        onHeadingUpdate = nil
+        hasDistantPeers = false
+        hasStalePeers = false
+        hasDistantPeersProvider = nil
+        hasStalePeersProvider = nil
+        isTacticalRadarActive = false
+        permissionContinuation?.resume(returning: false)
+        permissionContinuation = nil
+    }
 }

@@ -31,6 +31,8 @@ public final class LocationPublisher {
     private let sessionProvider: @Sendable () -> GroupSession?
     public let cryptoService: CryptoServiceProtocol
     public let transport: PeerTransport
+    private let sequenceAllocator: PacketSequenceAllocator?
+    private var generation = UUID()
     
     // MARK: - State Properties
     
@@ -55,12 +57,14 @@ public final class LocationPublisher {
         locationService: LocationServiceProtocol,
         sessionProvider: @escaping @Sendable () -> GroupSession?,
         cryptoService: CryptoServiceProtocol,
-        transport: PeerTransport
+        transport: PeerTransport,
+        sequenceAllocator: PacketSequenceAllocator? = nil
     ) {
         self.locationService = locationService
         self.sessionProvider = sessionProvider
         self.cryptoService = cryptoService
         self.transport = transport
+        self.sequenceAllocator = sequenceAllocator
     }
     
     // MARK: - Lifecycle Controls
@@ -68,20 +72,16 @@ public final class LocationPublisher {
     /// Starts observing the location service and broadcasting pings when Live Sharing is active.
     public func start() {
         guard !isRunning else { return }
+        generation = UUID()
         isRunning = true
-        
-        // If an initial location is already known, broadcast it immediately
-        if let initialLoc = locationService.currentLocation, locationService.isLiveSharingEnabled {
-            Task { @MainActor [weak self] in
-                guard let self, self.isRunning else { return }
-                await self.handleLocationPingReady(location: initialLoc)
-            }
-        }
         
         listeningTask?.cancel()
         let pingsStream = locationService.publishedPings
         listeningTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            if let location = locationService.currentLocation, locationService.isLiveSharingEnabled {
+                await handleLocationPingReady(location: location)
+            }
             for await location in pingsStream {
                 guard !Task.isCancelled, self.isRunning else { break }
                 await self.handleLocationPingReady(location: location)
@@ -91,6 +91,7 @@ public final class LocationPublisher {
     
     /// Stops observing and broadcasting ordinary location pings.
     public func stop() {
+        generation = UUID()
         isRunning = false
         listeningTask?.cancel()
         listeningTask = nil
@@ -125,9 +126,11 @@ public final class LocationPublisher {
         
         let payloadData = payload.serialize()
         
-        let memberSlot = session.memberSlot
-        let seq = CleartextEnvelope.makeSequenceNumber(memberSlot: memberSlot, counter: monotonicCounter)
-        monotonicCounter &+= 1
+        let current = generation
+        let seq: UInt32
+        do { seq = try await nextSequence(for: session) }
+        catch { return }
+        guard generation == current, sessionProvider() == session, !Task.isCancelled else { return }
         
         let envelope = CleartextEnvelope(
             version: PacketConstants.protocolVersion,
@@ -143,7 +146,7 @@ public final class LocationPublisher {
             let sealed = try await cryptoService.seal(payload: payloadData, envelope: envelope, using: key)
             let wirePacket = RawWirePacket(envelope: envelope, ciphertext: sealed.ciphertext, authTag: sealed.authTag)
             let wireData = try wirePacket.toWireData()
-            
+            guard generation == current, sessionProvider() == session, !Task.isCancelled else { return }
             try await transport.broadcastPacket(wireData)
             publishedPingsCount += 1
         } catch {
@@ -198,9 +201,9 @@ public final class LocationPublisher {
         
         let payloadData = sosPayload.serialize()
         
-        let memberSlot = session.memberSlot
-        let seq = CleartextEnvelope.makeSequenceNumber(memberSlot: memberSlot, counter: monotonicCounter)
-        monotonicCounter &+= 1
+        let current = generation
+        let seq = try await nextSequence(for: session)
+        guard generation == current, sessionProvider() == session, !Task.isCancelled else { throw CancellationError() }
         
         let envelope = CleartextEnvelope(
             version: PacketConstants.protocolVersion,
@@ -215,8 +218,15 @@ public final class LocationPublisher {
         let sealed = try await cryptoService.seal(payload: payloadData, envelope: envelope, using: key)
         let wirePacket = RawWirePacket(envelope: envelope, ciphertext: sealed.ciphertext, authTag: sealed.authTag)
         let wireData = try wirePacket.toWireData()
-        
+        guard generation == current, sessionProvider() == session, !Task.isCancelled else { throw CancellationError() }
         try await transport.broadcastPacket(wireData)
         dispatchedSOSCount += 1
+    }
+
+    private func nextSequence(for session: GroupSession) async throws -> UInt32 {
+        if let sequenceAllocator { return try await sequenceAllocator.next(for: session) }
+        let sequence = CleartextEnvelope.makeSequenceNumber(memberSlot: session.memberSlot, counter: monotonicCounter)
+        monotonicCounter &+= 1
+        return sequence
     }
 }

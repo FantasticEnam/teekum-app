@@ -14,7 +14,7 @@ extension LocationService {
     
     public nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor [weak self] in
-            guard let self else { return }
+            guard let self, self.isTracking else { return }
             for location in locations {
                 self.applyLocationMeasurement(location)
             }
@@ -22,10 +22,10 @@ extension LocationService {
     }
     
     public nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        guard newHeading.headingAccuracy >= 0 else { return }
+        let heading = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
         Task { @MainActor [weak self] in
-            guard let self else { return }
-            guard newHeading.headingAccuracy >= 0 else { return }
-            let heading = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
+            guard let self, self.isTracking else { return }
             self.currentHeading = heading
             self.onHeadingUpdate?(heading)
         }

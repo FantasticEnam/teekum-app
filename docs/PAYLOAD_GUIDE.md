@@ -1,8 +1,8 @@
-# TeeKum — Imported V3 Payload and Encoding Guide
+# TeeKum — V3 Payload and Encoding Guide
 
 **Last reviewed: 11 November 2026 · Source-observed layouts, not verified interoperability**
 
-> UI/local navigation and imported logic are not connected. Legacy logic/dependencies may be missing or partially migrated; completeness and parity remain unverified. This guide describes current serializers, **not** a claim that the app builds, exchanges packets or has an accepted final protocol. Resolve the SID/model/key/counter blockers in [TechnicalRequirements Section 7](TechnicalRequirements.md#7-open-team-decisions) before integration.
+> The V3 payload layout follows `f4c6393`. The [session migration note](features/session-migration.md) lists the shared XCTest cases and device checks still needed.
 
 Use [PROTOCOL_SPECIFICATION.md](PROTOCOL_SPECIFICATION.md) for authentication/nonce invariants, [NETWORKING.md](NETWORKING.md) for transport/wiring and [agent.md](agent.md) for migration evidence.
 
@@ -42,12 +42,12 @@ Source: `Core/Messaging/Models/CleartextEnvelope.swift` and `Core/Messaging/Serv
 | 0 | 1 | High nibble version 3; low nibble PacketType. |
 | 1 | 1 | hopLimit, separate UInt8. |
 | 2 | 1 | hopCount, separate UInt8. |
-| 3..5 | 3 | Low 24 bits of sessionId, big-endian; in-memory property is UInt32. |
+| 3..5 | 3 | UInt16 sessionId in three bytes, big-endian; encoders write the first byte as zero. |
 | 6..9 | 4 | sequenceNumber, big-endian UInt32. |
 | 10..39 | 30 | Ciphertext. |
 | 40..55 | 16 | Poly1305 authentication tag. |
 
-**Known incompatibility:** Both decode functions read three SID bytes and then narrow the result to UInt16 before constructing the envelope. GroupSession.id and several invite/replay APIs also retain UInt16 contracts. Therefore high-SID roundtrips and reconstructed authentication inputs are not correct by assumption. Fix and verify all affected paths together; do not “correct” the docs to a 16-bit wire field to hide the source conflict.
+Both decode paths return the prototype UInt16 SID. Noncanonical upper bytes are narrowed as in the prototype; this is not support for 24-bit session IDs.
 
 The initializer clamps hopLimit to 1...PacketConstants.maxHopLimit (default maximum 15), and hopCount to the limit. Decoders check a positive limit and count ≤ limit, but do not independently reject every configured maximum violation before construction. Separate bytes do not mean the accepted app budget is 255 hops.
 
@@ -64,7 +64,7 @@ The initializer clamps hopLimit to 1...PacketConstants.maxHopLimit (default maxi
 
 ## 3. Field Encoding
 
-- Multi-byte numeric fields use big-endian encoding. UInt24 session serialization uses the low three bytes of UInt32.
+- Multi-byte numeric fields use big-endian encoding. The three-byte SID field retains a zero upper byte for the UInt16 session contract.
 - Coordinate integers are rounded signed Int32 values of degrees × 1,000,000. This is about 0.11 m latitude quantization, **not GPS accuracy**; longitude spacing depends on latitude. Validate finite/range-safe inputs before conversion.
 - Timestamp fields are UInt32 Unix seconds. Do not refresh an old measurement timestamp when a packet is received. Existing direct conversions require range review; clock-skew/expiry rules are not uniformly enforced by serialization.
 - Accuracy is a one-byte meter value. Battery is capped at 100 by several constructors/serializers. Do not invent an unknown-value encoding without reviewing both sides.
@@ -126,7 +126,7 @@ SOSType currently declares general=0, medical=1, separated=2, security=3 and ina
 | 25 | flags: bit 0 isRightNow; bit 1 anchorToProposerGPS |
 | 26..29 | 4 zero reserved bytes |
 
-There is **no landmarkId wire field** in this imported layout. MeetingAttendance in the UI/domain is distinct from this AttendanceStatus wire enum. Resolve conversion, ordering, cancellation, expiry and conflicts before connecting the local MapPoint flow. The enum source filename is currently `Core/Models/Enums/AttandanceStatus.swift`.
+There is **no landmarkId wire field** in this imported layout. MeetingAttendance in the UI/domain is distinct from this AttendanceStatus wire enum. MeetingPointService maps the wire enum to UI attendance; reconnect and simultaneous proposals still need device checks. The enum source filename is currently `Core/Models/Enums/AttandanceStatus.swift`.
 
 ### 4.4 RouteReqPayload / RouteRespPayload — 0x04 / 0x05
 
@@ -171,23 +171,23 @@ The limit is **bytes, not characters**. serialize() rejects overlong text; seria
 
 The strict chat decoder additionally requires exactly 30 bytes and zero reserved/unused text padding. The ordinary decoder checks minimum size, length and UTF-8 but does not establish all strict padding rules. Most other payload decoders accept at least 30 bytes and use defaults for some unknown enums/initials; they are not uniformly strict parsers.
 
-## 5. Illustrative Envelope Calculation
+## 5. Shared XCTest Envelope Vector
 
-This is a manually specified serializer example, **not an executed Swift test or complete authenticated packet**:
+`ParityContractTests` checks the following vector on the prototype and destination. This is an envelope and nonce, not a complete encrypted packet:
 
 ```text
-version=3, type=locationPing, hopLimit=8, hopCount=0
-sessionId=0x123456, memberSlot=7, counter=42
+version=3, type=locationPing, hopLimit=8, hopCount=2
+sessionId=0x1234, memberSlot=7, counter=42
 sequenceNumber=(7 << 24) | 42 = 0x0700002A
 
 10-byte serialized envelope:
-31 08 00 12 34 56 07 00 00 2A
+31 08 02 00 12 34 07 00 00 2A
 
 12-byte nonce constructed from that envelope:
-12 34 56 07 00 00 2A 31 54 4B 4D 33
+00 12 34 07 00 00 2A 31 54 4B 4D 33
 ```
 
-The high SID byte intentionally exposes the current narrowing problem: existing decoders reduce the session ID to 0x3456 rather than preserving 0x123456. Do not copy this into a passing golden test until the source has been fixed and the actual encoder/decoder/authentication path verified.
+Both envelope decode paths round-trip the UInt16 SID; AAD masks hop count without changing the other canonical bytes.
 
 A valid encrypted fixture must declare test-only key/input data and use the actual CryptoKit implementation to produce ciphertext/tag. No fabricated authentication tags or copied historical pass counts belong in acceptance evidence.
 
@@ -196,5 +196,5 @@ A valid encrypted fixture must declare test-only key/input data and use the actu
 1. Compare with the frozen legacy revision; record unknown/missing payload helpers and behaviors. The current source inventory cannot prove full migration.
 2. Resolve SID width, unique identity/counter/key lifecycle and all consumers together. Do not silently enable the old 54-byte proposal or reuse reserved bytes without compatibility review.
 3. Validate untrusted bounds, timestamps, enum/initials decoding, padding and UTF-8 at the agreed boundary before mutating state. Serialization helpers are not a complete security pipeline.
-4. Verify actual roundtrips across both existing codec/envelope paths, high SID values, boundary coordinates, wrong sizes, all packet types and authenticated tampering. UWB is currently an enum without a complete payload flow; do not claim eight working feature payloads.
-5. Record tests actually run at the current revision. PacketCodecTest.swift is present but project.yml has no test target/action; no tests were run for this docs update. UI testing remains developer-managed.
+4. Verify actual roundtrips across both existing codec/envelope paths, SID boundary values, boundary coordinates, wrong sizes, all packet types and authenticated tampering. UWB is currently an enum without a complete payload flow; do not claim eight working feature payloads.
+5. Record tests actually run at the current revision. Use the focused XCTest and optional parity targets. UI testing remains developer-managed.

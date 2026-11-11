@@ -1,8 +1,8 @@
 //
 //  RelayPolicyManager.swift
-//  Teekum
+//  TeeKum Prototype
 //
-//  Created by Nicho on 06/11/26.
+//  Created by Nicho on 29/10/26.
 //
 
 import Foundation
@@ -79,7 +79,7 @@ public actor RelayPolicyManager: RelayPolicyManaging, RelayDiagnosticsProviding 
         self.isLowPowerModeActive = initialLowPowerMode
         
         var continuation: AsyncStream<RelayPolicyState>.Continuation?
-        self.stateUpdates = AsyncStream { continuation = $0 }
+        self.stateUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation = $0 }
         self.stateContinuation = continuation
         
         // Restore persisted mode or use provided default / fallback to disabled
@@ -124,6 +124,22 @@ public actor RelayPolicyManager: RelayPolicyManaging, RelayDiagnosticsProviding 
         )
     }
     
+    /// Pairing persists consent separately; refresh it before starting session discovery.
+    /// Preserve the original timed expiry instead of granting another 30 minutes.
+    public func synchronizePersistedParticipation() async {
+        if let raw = userDefaults.string(forKey: modeStorageKey),
+           let savedMode = RelayParticipationMode(rawValue: raw) {
+            mode = savedMode
+            let expiry = userDefaults.double(forKey: expiryStorageKey)
+            timedExpiryDate = savedMode == .timed30Minutes && expiry > 0
+                ? Date(timeIntervalSince1970: expiry) : nil
+        }
+        let permitted = currentState().isPermitted(at: clock.now())
+        if !permitted { outbox?.clearRelayQueue() }
+        await transport?.setRelayParticipation(enabled: permitted)
+        emitStateUpdate()
+    }
+
     /// Updates the user's chosen participation mode and persists to disk.
     public func setParticipationMode(_ newMode: RelayParticipationMode) async {
         let now = clock.now()
@@ -269,7 +285,6 @@ public actor RelayPolicyManager: RelayPolicyManaging, RelayDiagnosticsProviding 
     
     /// Captures a live snapshot of relay telemetry (zero location retention).
     public func snapshot() async -> RelayTelemetry {
-        let now = clock.now()
         let state = currentState()
         let isSurvival = (state.batteryLevel < 0.20) || state.isLowPowerModeActive
         let activeNeighbors = await transport?.activeNeighbors().count ?? 0

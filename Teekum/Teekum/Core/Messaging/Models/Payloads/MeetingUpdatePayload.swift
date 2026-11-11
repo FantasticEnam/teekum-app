@@ -109,13 +109,13 @@ public struct MeetingUpdatePayload: Equatable, Sendable {
         guard data.count >= PacketConstants.encryptedPayloadSize else {
             throw PacketCodecError.bufferUnderflow
         }
-        let latRaw = data.subdata(in: 0..<4).withUnsafeBytes { $0.load(as: Int32.self).bigEndian }
-        let lonRaw = data.subdata(in: 4..<8).withUnsafeBytes { $0.load(as: Int32.self).bigEndian }
-        let meetupTsRaw = data.subdata(in: 8..<12).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
-        let createdTsRaw = data.subdata(in: 12..<16).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let latRaw = data.subdata(in: 0..<4).withUnsafeBytes { $0.loadUnaligned(as: Int32.self).bigEndian }
+        let lonRaw = data.subdata(in: 4..<8).withUnsafeBytes { $0.loadUnaligned(as: Int32.self).bigEndian }
+        let meetupTsRaw = data.subdata(in: 8..<12).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
+        let createdTsRaw = data.subdata(in: 12..<16).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         let actionByte = data[16]
         let attendanceByte = data[17]
-        let mpId = data.subdata(in: 18..<22).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        let mpId = data.subdata(in: 18..<22).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
         
         let initialBytes = [data[22], data[23]]
         let initials = InitialsCodec.decode(initialBytes) ?? "UNK"

@@ -34,6 +34,7 @@ extension RouteDiscoveryService {
     
     /// Teardown: cancels in-flight discoveries and purges session routes.
     public func teardown(sessionId: UInt32? = nil) async {
+        sessionGeneration = UUID()
         let noncesToCancel: [UInt32]
         if let sid = sessionId {
             noncesToCancel = inFlightDiscoveries.values.filter { $0.sessionId == sid }.map(\.discoveryNonce)
@@ -46,6 +47,7 @@ extension RouteDiscoveryService {
         }
         
         for nonce in noncesToCancel {
+            discoveryTimeoutTasks.removeValue(forKey: nonce)?.cancel()
             if let inFlight = inFlightDiscoveries.removeValue(forKey: nonce) {
                 let targetKey = "\(inFlight.sessionId):\(inFlight.targetInitials)"
                 inFlightByTarget.removeValue(forKey: targetKey)
@@ -54,6 +56,14 @@ extension RouteDiscoveryService {
                     cont.resume(throwing: RouteDiscoveryFailure.sessionTerminated)
                 }
             }
+        }
+        if let sid = sessionId {
+            sequenceCounters.removeValue(forKey: sid)
+            targetCooldowns = targetCooldowns.filter { !$0.key.hasPrefix("\(sid):") }
+        } else {
+            sequenceCounters.removeAll()
+            targetCooldowns.removeAll()
+            seenRREQs.removeAll()
         }
     }
     

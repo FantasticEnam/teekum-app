@@ -9,17 +9,19 @@ import Foundation
 import CoreLocation
 import Observation
 
-/// One MainActor observable session-state owner; holds no sockets or cryptographic keys.
+/// Accepted session state shared by feature ViewModels; owns no background work.
 @MainActor
 @Observable
 public final class SessionStore {
     /// Active group session; nil when unpaired (AppRootView shows Pairing).
     public var activeSession: GroupSession?
+    public var pendingInvite: GroupSessionInvite?
+    public var pendingDeepLink: URL?
 
     /// Accepted peer members in the current group session.
     public var members: [Member]
 
-    /// Local user's current activity status (piggybacked on next normal location ping).
+    /// Local presentation state; status presets travel through chat, not location pings.
     public var localStatus: Status
 
     /// Optional target reference ID when `localStatus == .goingTo`.
@@ -57,13 +59,16 @@ public final class SessionStore {
     public func upsertMember(_ incoming: Member) {
         if let index = members.firstIndex(where: { $0.id == incoming.id }) {
             let existing = members[index]
-            if let existingSample = existing.latestLocation,
-               let incomingSample = incoming.latestLocation,
-               incomingSample.timestamp < existingSample.timestamp {
-                // Preserve newer hardware measurement timestamp (anti-stale overwrite)
-                return
+            var accepted = incoming
+            if let existingTime = existing.measurementTimestamp,
+               incoming.measurementTimestamp.map({ $0 < existingTime }) ?? true {
+                accepted.coordinate = existing.coordinate
+                accepted.horizontalAccuracy = existing.horizontalAccuracy
+                accepted.measurementTimestamp = existingTime
+                accepted.heading = existing.heading
             }
-            members[index] = incoming
+            accepted.lastSeen = max(existing.lastSeen, incoming.lastSeen)
+            members[index] = accepted
         } else {
             members.append(incoming)
         }
@@ -72,6 +77,8 @@ public final class SessionStore {
     /// Resets all in-memory session state on leave or expiry.
     public func resetSessionState() {
         activeSession = nil
+        pendingInvite = nil
+        pendingDeepLink = nil
         members.removeAll()
         localStatus = .available
         localTargetRefId = nil
@@ -94,53 +101,9 @@ extension SessionStore {
             isHost: true
         )
 
-        let adiat = Member(
-            initials: "ADI",
-            displayName: "Adiat",
-            latestLocation: LocationSample(
-                latitude: baseCoord.latitude + 0.0004,
-                longitude: baseCoord.longitude + 0.0003,
-                horizontalAccuracy: 6.0,
-                timestamp: .now.addingTimeInterval(-8), // Live (8s ago)
-                heading: 90
-            ),
-            status: .gettingDrinks,
-            batteryPercentage: 84,
-            isDirectPeer: true,
-            rssi: -62
-        )
-
-        let nicho = Member(
-            initials: "NIC",
-            displayName: "Nicho",
-            latestLocation: LocationSample(
-                latitude: baseCoord.latitude - 0.0005,
-                longitude: baseCoord.longitude + 0.0006,
-                horizontalAccuracy: 12.0,
-                timestamp: .now.addingTimeInterval(-95), // Stale (1m 35s ago)
-                heading: 180
-            ),
-            status: .omw,
-            batteryPercentage: 65,
-            isDirectPeer: true,
-            rssi: -74
-        )
-
-        let hasan = Member(
-            initials: "HAS",
-            displayName: "Hasan",
-            latestLocation: LocationSample(
-                latitude: baseCoord.latitude + 0.0008,
-                longitude: baseCoord.longitude - 0.0004,
-                horizontalAccuracy: 25.0,
-                timestamp: .now.addingTimeInterval(-360), // Expired (6m ago)
-                heading: 270
-            ),
-            status: .exploring,
-            batteryPercentage: 42,
-            isDirectPeer: false,
-            rssi: nil
-        )
+        let adiat = Member(id: "ADI", name: "Adiat", coordinate: .init(latitude: baseCoord.latitude + 0.0004, longitude: baseCoord.longitude + 0.0003), horizontalAccuracy: 6, batteryLevel: 0.84, heading: 90, isDirectPeer: true, rssi: -62, measurementTimestamp: .now.addingTimeInterval(-8))
+        let nicho = Member(id: "NIC", name: "Nicho", coordinate: .init(latitude: baseCoord.latitude - 0.0005, longitude: baseCoord.longitude + 0.0006), horizontalAccuracy: 12, batteryLevel: 0.65, heading: 180, isDirectPeer: true, rssi: -74, measurementTimestamp: .now.addingTimeInterval(-95))
+        let hasan = Member(id: "HAS", name: "Hasan", coordinate: .init(latitude: baseCoord.latitude + 0.0008, longitude: baseCoord.longitude - 0.0004), horizontalAccuracy: 25, batteryLevel: 0.42, heading: 270, measurementTimestamp: .now.addingTimeInterval(-360))
 
         var meeting = MeetingPoint(
             name: "Main Stage Sound Booth",
@@ -152,9 +115,9 @@ extension SessionStore {
             proposerInitials: "ADI",
             landmarkId: 1
         )
-        meeting.attendance[adiat.id] = .accepted
-        meeting.attendance[nicho.id] = .accepted
-        meeting.attendance[hasan.id] = .pending
+        meeting.attendance[.fromInitials(adiat.id)] = .accepted
+        meeting.attendance[.fromInitials(nicho.id)] = .accepted
+        meeting.attendance[.fromInitials(hasan.id)] = .pending
 
         return SessionStore(
             activeSession: session,

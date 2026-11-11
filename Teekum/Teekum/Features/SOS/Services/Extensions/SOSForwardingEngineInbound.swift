@@ -23,6 +23,8 @@ extension SOSForwardingEngine {
         }
         
         let envelope = rawPacket.envelope
+        let generation = sessionGeneration
+        guard envelope.type == .sos else { throw TransportError.malformedPacket }
         
         // 1. Session Isolation
         guard envelope.sessionId == session.sessionId else {
@@ -44,6 +46,8 @@ extension SOSForwardingEngine {
             throw TransportError.securityVerificationFailed
         }
         
+        guard generation == sessionGeneration else { return }
+
         // 3. Deserialize Emergency Payload
         guard let payload = try? SOSPayload.deserialize(from: decrypted) else {
             throw TransportError.malformedPacket
@@ -52,12 +56,7 @@ extension SOSForwardingEngine {
         // 4. Do not sound alert for our own packets
         guard payload.senderInitials != session.localInitials else { return }
         
-        // 5. Freshness & Clock Skew Verification (<= 300 seconds)
-        let skew = abs(clock.now().timeIntervalSince(payload.timestamp))
-        guard skew <= 300.0 else {
-            throw TransportError.securityVerificationFailed
-        }
-        
+        // GPS measurement age is not the time of the emergency; preserve legacy no-fix SOS reception.
         let eventId = payload.sosEventId
         
         // 6. Duplicate Suppression Check

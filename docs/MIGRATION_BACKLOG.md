@@ -2,7 +2,7 @@
 
 **Last reviewed: 11 November 2026 · Candidate work, not GitHub status synchronization**
 
-> UI/local navigation exists; logic has recently been imported and is not connected to it. Some old logic/dependencies may be missing or only partially migrated. **Full source parity and integrated behavior are unverified.** Source present ≠ adapted ≠ connected ≠ verified. Use the evidence states in [agent.md](agent.md#4-documentation-and-handoff).
+> This backlog retains the original `796f586` import snapshot and candidate issues. Read [Session migration](features/session-migration.md) for current connection and verification evidence. This document does not mark GitHub work Done. Source present ≠ adapted ≠ connected ≠ verified.
 
 Do not restart UI slicing from zero, mark imported engines Done, or recreate existing GitHub issues. Review current source, map existing issues under the parents below and update acceptance criteria. Owners A–D are responsibility slots; confirm actual assignees/reviewers.
 

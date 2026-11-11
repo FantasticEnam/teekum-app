@@ -31,24 +31,43 @@ extension SOSForwardingEngine {
     }
     
     /// Executes a single bounded retry attempt. Publicly callable for synchronous unit tests.
-    public func executeRetryAttempt(payload: SOSPayload, session: GroupSession) async {
+    public func executeRetryAttempt(payload originalPayload: SOSPayload, session: GroupSession) async {
+        let generation = sessionGeneration
+        let outgoing = outgoingGeneration
         let isDelivered = currentDeliveryState.isDelivered
-        guard !isDelivered else { return }
+        guard !isDelivered, activeSOSEventId == originalPayload.sosEventId else { return }
         
         if retryCount < maxRetries {
             retryCount += 1
             
             let neighbors = await transport.activeNeighbors()
-            if neighbors.isEmpty {
+            guard generation == sessionGeneration, outgoing == outgoingGeneration else { return }
+            if neighbors.isEmpty && !currentDeliveryState.isRelayed {
                 updateDeliveryState(.searchingPeers)
                 self.currentRouteChoice = .none
             } else if !currentDeliveryState.isRelayed {
                 updateDeliveryState(.localSending)
             }
+
+            var payload = originalPayload
+            if let measurementProvider {
+                let (location, battery) = await measurementProvider()
+                guard generation == sessionGeneration, outgoing == outgoingGeneration, activeSOSEventId == payload.sosEventId else { return }
+                payload = SOSPayload(coordinate: location?.coordinate ?? .init(latitude: 0, longitude: 0),
+                    timestamp: location?.timestamp ?? Date(timeIntervalSince1970: 0), accuracy: location?.rawAccuracyByte ?? 255,
+                    sosEventId: payload.sosEventId, senderInitials: session.localInitials, emergencyType: payload.emergencyType,
+                    batteryLevel: battery.asBatteryPercentage, colorCode: session.localColorCode)
+            }
+            lastDispatchedPayload = payload
             
-            let seq = CleartextEnvelope.makeSequenceNumber(memberSlot: session.memberSlot, counter: monotonicCounter)
-            monotonicCounter &+= 1
+            let seq: UInt32
+            do { seq = try await nextSequenceNumber(for: session) } catch {
+                cancelRetries()
+                updateDeliveryState(.failed(reason: error.localizedDescription))
+                return
+            }
             
+            guard generation == sessionGeneration, outgoing == outgoingGeneration else { return }
             let envelope = CleartextEnvelope(
                 version: PacketConstants.protocolVersion,
                 type: .sos,
@@ -59,11 +78,13 @@ extension SOSForwardingEngine {
             )
             
             let key = SymmetricKey(data: session.symmetricKeyData)
-            try? await broadcastEmergencySOS(payload: payload, envelope: envelope, symmetricKey: key)
+            do { try await broadcastEmergencySOS(payload: payload, envelope: envelope, symmetricKey: key) }
+            catch { await recordSendFailure(error, generation: generation, outgoing: outgoing) }
         } else {
             // Retries exhausted without confirmation
             cancelRetries()
             let neighbors = await transport.activeNeighbors()
+            guard generation == sessionGeneration, outgoing == outgoingGeneration else { return }
             if currentDeliveryState.isRelayed {
                 // Intermediary acknowledged, but recipient friend never confirmed
                 // Keep relayed state honestly showing it was relayed but unconfirmed by friend
@@ -83,5 +104,11 @@ extension SOSForwardingEngine {
     public func cancelRetries() {
         retryTask?.cancel()
         retryTask = nil
+    }
+
+    func recordSendFailure(_ error: Error, generation: UUID, outgoing: UUID) async {
+        let neighbors = await transport.activeNeighbors()
+        guard generation == sessionGeneration, outgoing == outgoingGeneration else { return }
+        updateDeliveryState(neighbors.isEmpty ? .searchingPeers : .failed(reason: error.localizedDescription))
     }
 }

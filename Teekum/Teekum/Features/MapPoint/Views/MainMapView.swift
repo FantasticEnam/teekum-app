@@ -12,8 +12,8 @@ public struct MainMapView: View {
     @State private var viewModel: MapPointViewModel
     @Environment(\.dismiss) private var dismiss
 
-    public init(sessionStore: SessionStore) {
-        _viewModel = State(initialValue: MapPointViewModel(sessionStore: sessionStore))
+    public init(sessionStore: SessionStore, meetingService: MeetingPointService? = nil) {
+        _viewModel = State(initialValue: MapPointViewModel(sessionStore: sessionStore, meetingService: meetingService))
     }
     
     public var body: some View {
@@ -40,6 +40,13 @@ public struct MainMapView: View {
                     Spacer()
                 }
                 Spacer()
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .font(.footnote)
+                        .padding()
+                        .background(.black.opacity(0.8), in: .rect(cornerRadius: 12))
+                        .padding()
+                }
             }
             
         }
@@ -54,10 +61,14 @@ public struct MainMapView: View {
                 viewModel.cancelSetMeetingPoint()
             }
             Button("Continue") {
-                viewModel.confirmSetMeetingPoint()
+                viewModel.isShowingTimeOptions = true
             }
         } message: {
             Text("Has Everyone Joined? Friends who haven't joined the group won't be able to see your meeting point.")
+        }
+        .sheet(isPresented: $viewModel.isShowingTimeOptions, onDismiss: viewModel.cancelSetMeetingPoint) {
+            MeetingTimeOptionsView(viewModel: viewModel)
+                .presentationDetents([.medium, .large])
         }
         
         // 2. Alert Creator: Stop Meeting Point

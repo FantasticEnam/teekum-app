@@ -20,6 +20,7 @@ extension SOSForwardingEngine {
         for originalPacket: RawWirePacket,
         status: ACKStatus
     ) async throws {
+        let generation = sessionGeneration
         guard let session = sessionProvider?() else {
             throw TransportError.sessionInvalid
         }
@@ -34,6 +35,7 @@ extension SOSForwardingEngine {
             using: key
         )
         
+        guard generation == sessionGeneration else { throw TransportError.sessionInvalid }
         guard let sosPayload = try? SOSPayload.deserialize(from: decrypted) else {
             throw TransportError.malformedPacket
         }
@@ -49,8 +51,8 @@ extension SOSForwardingEngine {
         )
         let payloadData = ackPayload.serialize()
         
-        let seq = CleartextEnvelope.makeSequenceNumber(memberSlot: session.memberSlot, counter: monotonicCounter)
-        monotonicCounter &+= 1
+        let seq = try await nextSequenceNumber(for: session)
+        guard generation == sessionGeneration else { throw TransportError.sessionInvalid }
         
         let ackEnvelope = CleartextEnvelope(
             version: PacketConstants.protocolVersion,
@@ -62,6 +64,7 @@ extension SOSForwardingEngine {
         )
         
         let sealed = try await cryptoService.seal(payload: payloadData, envelope: ackEnvelope, using: key)
+        guard generation == sessionGeneration else { throw TransportError.sessionInvalid }
         let wirePacket = RawWirePacket(envelope: ackEnvelope, ciphertext: sealed.ciphertext, authTag: sealed.authTag)
         let wireData = try wirePacket.toWireData()
         
@@ -69,6 +72,7 @@ extension SOSForwardingEngine {
         if let routingTable = routingTable,
            let route = await routingTable.findRoute(to: sosPayload.senderInitials),
            route.isFresh {
+            guard generation == sessionGeneration else { throw TransportError.sessionInvalid }
             // Send unicast along known multi-hop route
             _ = try await transport.sendFrame(wireData, to: route.nextHopPeerId)
         } else {
@@ -89,7 +93,8 @@ extension SOSForwardingEngine {
         guard let session = sessionProvider?() else { return }
         
         let envelope = rawPacket.envelope
-        guard envelope.sessionId == session.sessionId else { return }
+        let generation = sessionGeneration
+        guard envelope.type == .ack, envelope.sessionId == session.sessionId else { return }
         
         let key = SymmetricKey(data: session.symmetricKeyData)
         guard let decrypted = try? await cryptoService.open(
@@ -102,13 +107,12 @@ extension SOSForwardingEngine {
             return
         }
         
-        guard let payload = try? ACKPayload.deserialize(from: decrypted) else { return }
+        guard generation == sessionGeneration,
+              let payload = try? ACKPayload.deserialize(from: decrypted) else { return }
         
         // Verify this ACK confirms our local member and matches active SOS event
         guard payload.ackedSenderInitials == session.localInitials else { return }
-        if let activeId = activeSOSEventId, payload.originalEventId != activeId {
-            return
-        }
+        guard let activeId = activeSOSEventId, payload.originalEventId == activeId else { return }
         
         totalAcksReceivedCount += 1
         

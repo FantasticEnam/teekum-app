@@ -17,27 +17,21 @@ nonisolated public enum PacketConstants {
     public static var protocolVersion: UInt8 { TeeKumConfiguration.Network.protocolVersion }
     public static var defaultHopLimit: UInt8 {
         get { TeeKumConfiguration.Network.defaultHopLimit }
-        set { TeeKumConfiguration.Network.defaultHopLimit = newValue }
     }
     public static var chatHopLimit: UInt8 {
         get { TeeKumConfiguration.Network.chatHopLimit }
-        set { TeeKumConfiguration.Network.chatHopLimit = newValue }
     }
     public static var uwbHopLimit: UInt8 {
         get { TeeKumConfiguration.Network.uwbHopLimit }
-        set { TeeKumConfiguration.Network.uwbHopLimit = newValue }
     }
     public static var maxHopLimit: UInt8 {
         get { TeeKumConfiguration.Network.maxHopLimit }
-        set { TeeKumConfiguration.Network.maxHopLimit = newValue }
     }
     public static var meetingPointHopLimit: UInt8 {
         get { TeeKumConfiguration.Network.meetingPointHopLimit }
-        set { TeeKumConfiguration.Network.meetingPointHopLimit = newValue }
     }
     public static var sosHopLimit: UInt8 {
         get { TeeKumConfiguration.Network.sosHopLimit }
-        set { TeeKumConfiguration.Network.sosHopLimit = newValue }
     }
     
     /// Validates whether a given data buffer size matches the strictly fixed 56-byte wire format.

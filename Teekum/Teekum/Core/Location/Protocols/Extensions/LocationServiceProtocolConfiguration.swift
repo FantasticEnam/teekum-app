@@ -6,8 +6,9 @@
 //
 
 import Foundation
+import CoreLocation
 
-extension LocationServiceProvider {
+extension LocationServiceProtocol {
     public var onHeadingUpdate: ((CLLocationDirection) -> Void)? {
         get { nil }
         set {}

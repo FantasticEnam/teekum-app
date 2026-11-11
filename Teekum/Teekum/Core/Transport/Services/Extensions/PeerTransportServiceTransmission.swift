@@ -22,6 +22,13 @@ extension PeerTransportService {
         guard data.count == PacketConstants.wirePacketSize else {
             throw TransportError.invalidPacketSize
         }
+        if blePeers.contains(peerId) {
+            rememberForCarry(data)
+            try outbox.enqueue(data: data, destinationPeerId: peerId, isRelay: false)
+            triggerOutboxFlush()
+            let packet = try RawWirePacket.fromWireData(data)
+            return SendOutcome(destinationPeerId: peerId, packetType: packet.envelope.type, isSuccess: true)
+        }
         guard let peer = connections[peerId], peer.isReady else {
             let err = TransportError.peerNotFound(peerId)
             let byte0 = data[data.startIndex]
@@ -31,6 +38,7 @@ extension PeerTransportService {
             throw err
         }
         
+        rememberForCarry(data)
         let item = try outbox.enqueue(data: data, destinationPeerId: peerId, isRelay: false)
         triggerOutboxFlush()
         
@@ -71,7 +79,7 @@ extension PeerTransportService {
             throw PacketCodecError.hopCountExceededLimit(count: hopCount, limit: hopLimit)
         }
         
-        guard let peer = connections[nextHopPeerId], peer.isReady else {
+        guard blePeers.contains(nextHopPeerId) || connections[nextHopPeerId]?.isReady == true else {
             let err = TransportError.peerNotFound(nextHopPeerId)
             let pType = PacketType(rawValue: byte0 & 0x0F) ?? .locationPing
             let failedOutcome = SendOutcome(destinationPeerId: nextHopPeerId, packetType: pType, isSuccess: false, error: err)
@@ -87,9 +95,10 @@ extension PeerTransportService {
                 throw TransportError.rateLimitExceeded("Urgent SOS forwarding budget exceeded")
             }
         } else {
-            let allowed = await rateLimiter.consumeOrdinaryToken()
+            let allowed = packetType == .chatMessage || packetType == .ack
+                ? await rateLimiter.consumeOrdinaryToken() : await rateLimiter.consumeTelemetryToken()
             guard allowed else {
-                throw TransportError.rateLimitExceeded("Ordinary relay budget exceeded (2 pkts/sec)")
+                throw TransportError.rateLimitExceeded("Ordinary relay budget exhausted")
             }
         }
         
@@ -97,6 +106,7 @@ extension PeerTransportService {
         var mutatedData = data
         mutatedData[mutatedData.startIndex + 2] = hopCount + 1
         
+        rememberForCarry(mutatedData)
         let item = try outbox.enqueue(data: mutatedData, destinationPeerId: nextHopPeerId, isRelay: true)
         triggerOutboxFlush()
         
@@ -115,6 +125,7 @@ extension PeerTransportService {
             throw TransportError.invalidPacketSize
         }
         
+        rememberForCarry(data)
         try outbox.enqueue(data: data, destinationPeerId: nil, isRelay: false)
         triggerOutboxFlush()
     }
@@ -142,11 +153,18 @@ extension PeerTransportService {
         isRelayEnabled = enabled
         if !enabled {
             outbox.clearRelayQueue()
+            carryStore.removeForeign()
             logEvent("Mesh relay participation disabled. Purged relay outbox.", level: .info)
         } else {
             logEvent("Mesh relay participation enabled.", level: .info)
         }
         
+        // Results may have arrived while relay was disabled. NWBrowser need not emit
+        // another change when only our local preference changes.
+        if enabled, activeSession != nil {
+            handleBrowseResults(latestBrowseResults, changes: [])
+        }
+
         // Update Bonjour TXT record dynamically with relay flag
         if let session = activeSession, let currentListener = listener {
             var txtDict: [String: Data] = [:]
@@ -174,18 +192,24 @@ extension PeerTransportService {
         guard !isFlushingOutbox else { return }
         isFlushingOutbox = true
         
-        Task { [weak self] in
+        outboxFlushTask = Task { [weak self] in
             await self?.drainOutbox()
         }
     }
     
-    func drainOutbox() {
-        while let item = outbox.dequeue() {
+    func drainOutbox() async {
+        let generation = radioGeneration
+        while generation == radioGeneration, let item = outbox.dequeue() {
+            guard !item.isRelay || isRelayEnabled else { continue }
             let readyPeers = connections.values.filter { $0.isReady }
             
             if let targetId = item.destinationPeerId {
                 // Send to specific target peer
-                if let peer = connections[targetId], peer.isReady {
+                if blePeers.contains(targetId) {
+                    await bleLink?.send(item.packetData, to: targetId)
+                    guard generation == radioGeneration else { break }
+                    carryStore.markAttempt(item.packetData, to: targetId)
+                } else if let peer = connections[targetId], peer.isReady {
                     sendData(item.packetData, on: peer, outboxItem: item)
                 } else {
                     logEvent("Target peer \(targetId) unavailable for packet \(item.packetType).", level: .warning)
@@ -207,7 +231,10 @@ extension PeerTransportService {
                 }
             } else {
                 // Broadcast to all active direct peers
-                if readyPeers.isEmpty {
+                await bleLink?.send(item.packetData, to: nil)
+                guard generation == radioGeneration else { break }
+                for peer in blePeers { carryStore.markAttempt(item.packetData, to: peer) }
+                if readyPeers.isEmpty && blePeers.isEmpty {
                     logEvent("No direct peers available to broadcast \(item.packetType).", level: .warning)
                 } else {
                     for peer in readyPeers {
@@ -217,13 +244,17 @@ extension PeerTransportService {
             }
         }
         
-        isFlushingOutbox = false
+        if generation == radioGeneration { isFlushingOutbox = false }
     }
     
     func sendData(_ data: Data, on peer: PeerConnection, outboxItem: OutboxItem) {
+        let peerId = peer.peerId
+        carryStore.markAttempt(data, to: peerId)
+        let generation = radioGeneration
         peer.connection.send(content: data, completion: .contentProcessed { [weak self, weak peer] error in
             guard let self = self else { return }
             Task {
+                guard await self.isCurrentGeneration(generation) else { return }
                 if let error = error {
                     if let p = peer {
                         await self.neighborTable.recordTransmissionOutcome(peerId: p.peerId, success: false)
@@ -242,7 +273,8 @@ extension PeerTransportService {
                     if let p = peer {
                         await self.neighborTable.recordTransmissionOutcome(peerId: p.peerId, success: true)
                     }
-                    await self.recordSendSuccess(packetType: outboxItem.packetType)
+                    let envelope = try? CleartextEnvelope.deserialize(from: data)
+                    await self.recordSendSuccess(envelope, to: peerId, generation: generation)
                     
                     let outcome = SendOutcome(
                         id: outboxItem.id,
@@ -260,8 +292,12 @@ extension PeerTransportService {
         sendOutcomeContinuation?.yield(outcome)
     }
     
-    func recordSendSuccess(packetType: PacketType) {
+    func recordSendSuccess(_ envelope: CleartextEnvelope?, to peerId: String, generation: UUID) {
+        guard isCurrentGeneration(generation) else { return }
         packetsSentCount += 1
+        if let envelope {
+            recordPacket(envelope, direction: .dispatched, peerId: peerId)
+        }
     }
     
     func handleSendError(_ error: NWError, on peer: PeerConnection?, outboxItem: OutboxItem) {
@@ -269,13 +305,18 @@ extension PeerTransportService {
         lastErrorMessage = error.localizedDescription
         logEvent("Transmission error for \(outboxItem.packetType): \(error.localizedDescription)", level: .warning)
         
+        // Do not resurrect a foreign retry after the user/power policy stopped relaying.
+        guard !outboxItem.isRelay || isRelayEnabled else { return }
         // If retries remain (urgent SOS/ACK or distant relay), requeue with configurable backoff
         if outbox.requeueForRetry(outboxItem) {
             let attempt = outboxItem.attemptCount + 1
             logEvent("Re-queuing \(outboxItem.isRelay ? "stranger relay" : "urgent") packet \(outboxItem.packetType) (attempt \(attempt)/\(outboxItem.maxRetries + 1)).", level: .info)
             let delay = MeshTimingConfiguration.default.distantLinkRetryDelay
-            Task { [weak self] in
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            let generation = radioGeneration
+            outboxRetryTask?.cancel()
+            outboxRetryTask = Task { [weak self] in
+                do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+                guard await self?.isCurrentGeneration(generation) == true else { return }
                 await self?.triggerOutboxFlush()
             }
         } else {

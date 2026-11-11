@@ -19,9 +19,6 @@ public protocol ChatMessagingService: Actor {
     /// Returns active ephemeral in-memory message history (max 50 messages).
     func activeMessages() async -> [ChatMessage]
     
-    /// Asynchronous stream yielding updated or newly delivered messages for UI observation.
-    nonisolated var messageUpdates: AsyncStream<ChatMessage> { get }
-    
     /// Direct callback hook for reactive message updates.
     func setOnMessageUpdated(_ handler: (@Sendable (ChatMessage) -> Void)?) async
     

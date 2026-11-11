@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Network
 
 public actor PeerTransportService: PeerTransport, MeshTransport {
     
@@ -24,11 +25,24 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
     var connections: [String: PeerConnection] = [:]
     
     /// Endpoints currently visible in NWBrowser results keyed by peer ID.
+    var latestBrowseResults: Set<NWBrowser.Result> = []
     var discoveredEndpoints: [String: (endpoint: NWEndpoint, displayName: String?, isGroup: Bool)] = [:]
     
     /// Dual-lane prioritized outbox with stranger relay ring buffer.
     let outbox = PriorityOutboxQueue()
     var isFlushingOutbox: Bool = false
+    var carryStore = CarryMessageStore()
+    var carryTask: Task<Void, Never>?
+    var carryPowerPermitted = true
+    var bleLink: BLEPeerLink?
+    var blePeers: [String] = []
+    var radioGeneration = UUID()
+    var listenerRecoveryTask: Task<Void, Never>?
+    var browserRecoveryTask: Task<Void, Never>?
+    var fallbackTasks: [String: Task<Void, Never>] = [:]
+    var reconnectTasks: [String: Task<Void, Never>] = [:]
+    var outboxRetryTask: Task<Void, Never>?
+    var outboxFlushTask: Task<Void, Never>?
     
     /// Neighbor management registry.
     public let neighborTable: NeighborTable
@@ -71,6 +85,7 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
     var lastErrorMessage: String?
     var diagnosticEvents: [DiagnosticEvent] = []
     let maxDiagnosticEvents: Int = 50
+    var packetEvents: [TransportDiagnostics.PacketEvent] = []
     
     // MARK: - Initialization
     
@@ -91,42 +106,42 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
         self.inboundContinuation = localInbound
         
         var localInboundFrame: AsyncStream<InboundFrame>.Continuation?
-        let inFrameStream = AsyncStream<InboundFrame> { continuation in
+        let inFrameStream = AsyncStream<InboundFrame>(bufferingPolicy: .bufferingNewest(128)) { continuation in
             localInboundFrame = continuation
         }
         self.inboundFrames = inFrameStream
         self.inboundFrameContinuation = localInboundFrame
         
         var localOutcomes: AsyncStream<SendOutcome>.Continuation?
-        let outcomeStream = AsyncStream<SendOutcome> { continuation in
+        let outcomeStream = AsyncStream<SendOutcome>(bufferingPolicy: .bufferingNewest(128)) { continuation in
             localOutcomes = continuation
         }
         self.sendOutcomes = outcomeStream
         self.sendOutcomeContinuation = localOutcomes
         
         var localNeighborEvents: AsyncStream<NeighborEvent>.Continuation?
-        let nEventStream = AsyncStream<NeighborEvent> { continuation in
+        let nEventStream = AsyncStream<NeighborEvent>(bufferingPolicy: .bufferingNewest(128)) { continuation in
             localNeighborEvents = continuation
         }
         self.neighborEvents = nEventStream
         self.neighborEventContinuation = localNeighborEvents
         
         var localPeerUpdates: AsyncStream<[PeerInfo]>.Continuation?
-        let peerStream = AsyncStream<[PeerInfo]> { continuation in
+        let peerStream = AsyncStream<[PeerInfo]>(bufferingPolicy: .bufferingNewest(1)) { continuation in
             localPeerUpdates = continuation
         }
         self.peerUpdates = peerStream
         self.peerUpdatesContinuation = localPeerUpdates
         
         var localStateUpdates: AsyncStream<TransportState>.Continuation?
-        let stateStream = AsyncStream<TransportState> { continuation in
+        let stateStream = AsyncStream<TransportState>(bufferingPolicy: .bufferingNewest(1)) { continuation in
             localStateUpdates = continuation
         }
         self.stateUpdates = stateStream
         self.stateUpdatesContinuation = localStateUpdates
         
         var localErrors: AsyncStream<TransportError>.Continuation?
-        let errStream = AsyncStream<TransportError> { continuation in
+        let errStream = AsyncStream<TransportError>(bufferingPolicy: .bufferingNewest(16)) { continuation in
             localErrors = continuation
         }
         self.transportErrors = errStream
@@ -142,37 +157,37 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
         self.inboundContinuation = localInbound
         
         var localInboundFrame: AsyncStream<InboundFrame>.Continuation?
-        self.inboundFrames = AsyncStream { continuation in
+        self.inboundFrames = AsyncStream(bufferingPolicy: .bufferingNewest(128)) { continuation in
             localInboundFrame = continuation
         }
         self.inboundFrameContinuation = localInboundFrame
         
         var localOutcomes: AsyncStream<SendOutcome>.Continuation?
-        self.sendOutcomes = AsyncStream { continuation in
+        self.sendOutcomes = AsyncStream(bufferingPolicy: .bufferingNewest(128)) { continuation in
             localOutcomes = continuation
         }
         self.sendOutcomeContinuation = localOutcomes
         
         var localNeighborEvents: AsyncStream<NeighborEvent>.Continuation?
-        self.neighborEvents = AsyncStream { continuation in
+        self.neighborEvents = AsyncStream(bufferingPolicy: .bufferingNewest(128)) { continuation in
             localNeighborEvents = continuation
         }
         self.neighborEventContinuation = localNeighborEvents
         
         var localPeerUpdates: AsyncStream<[PeerInfo]>.Continuation?
-        self.peerUpdates = AsyncStream { continuation in
+        self.peerUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             localPeerUpdates = continuation
         }
         self.peerUpdatesContinuation = localPeerUpdates
         
         var localStateUpdates: AsyncStream<TransportState>.Continuation?
-        self.stateUpdates = AsyncStream { continuation in
+        self.stateUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             localStateUpdates = continuation
         }
         self.stateUpdatesContinuation = localStateUpdates
         
         var localErrors: AsyncStream<TransportError>.Continuation?
-        self.transportErrors = AsyncStream { continuation in
+        self.transportErrors = AsyncStream(bufferingPolicy: .bufferingNewest(16)) { continuation in
             localErrors = continuation
         }
         self.transportErrorsContinuation = localErrors
@@ -189,6 +204,31 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
         self.serviceType = serviceType
         self.isUDP = serviceType.contains("udp")
         self.localPeerId = session.localInitials
+        let generation = radioGeneration
+        let link = await BLEPeerLink(
+            receive: { [weak self] data, peer in Task { await self?.receiveBLE(data, from: peer, generation: generation) } },
+            dispatched: { [weak self] envelope, peer in
+                Task { await self?.recordSendSuccess(envelope, to: peer, generation: generation) }
+            },
+            peersChanged: { [weak self] peers in Task { await self?.updateBLEPeers(peers, generation: generation) } },
+            report: { [weak self] message in Task { await self?.logEvent(message, level: .info) } }
+        )
+        guard isCurrentGeneration(generation) else {
+            await link.stop()
+            throw TransportError.notStarted
+        }
+        bleLink = link
+        await link.start()
+        guard isCurrentGeneration(generation) else {
+            await link.stop()
+            throw TransportError.notStarted
+        }
+        carryTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(500)) } catch { break }
+                await self?.replayCarriedMessage()
+            }
+        }
         
         logEvent("Starting radio transport (Initials: \(localPeerId), Service: \(serviceType), Mode: \(isUDP ? "UDP" : "TCP")).", level: .info)
         updateState(.starting)
@@ -211,6 +251,29 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
     public func stop() async {
         logEvent("Stopping radio transport and releasing sockets.", level: .info)
         
+        radioGeneration = UUID()
+        let generation = radioGeneration
+        activeSession = nil
+        packetEvents.removeAll()
+        listenerRecoveryTask?.cancel()
+        listenerRecoveryTask = nil
+        browserRecoveryTask?.cancel()
+        browserRecoveryTask = nil
+        for task in fallbackTasks.values { task.cancel() }
+        fallbackTasks.removeAll()
+        for task in reconnectTasks.values { task.cancel() }
+        reconnectTasks.removeAll()
+        outboxRetryTask?.cancel()
+        outboxRetryTask = nil
+        outboxFlushTask?.cancel()
+        outboxFlushTask = nil
+        isFlushingOutbox = false
+        let oldBLE = bleLink
+        bleLink = nil
+        blePeers.removeAll()
+        carryTask?.cancel()
+        carryTask = nil
+        carryStore.removeAll()
         browser?.cancel()
         browser = nil
         
@@ -222,17 +285,29 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
         }
         connections.removeAll()
         discoveredEndpoints.removeAll()
+        latestBrowseResults.removeAll()
         outbox.clear()
         
-        for neighbor in await neighborTable.activeNeighbors() {
-            await neighborTable.removeNeighbor(peerId: neighbor.id)
-        }
-        
-        activeSession = nil
         updateState(.stopped)
         emitPeerUpdates()
+        inboundContinuation?.finish()
+        inboundFrameContinuation?.finish()
+        sendOutcomeContinuation?.finish()
+        neighborEventContinuation?.finish()
+        peerUpdatesContinuation?.finish()
+        stateUpdatesContinuation?.finish()
+        transportErrorsContinuation?.finish()
+        for neighbor in await neighborTable.activeNeighbors() {
+            guard generation == radioGeneration else { break }
+            await neighborTable.removeNeighbor(peerId: neighbor.id)
+        }
+        await oldBLE?.stop()
     }
     
+    func isCurrentGeneration(_ generation: UUID) -> Bool {
+        generation == radioGeneration && activeSession != nil
+    }
+
     // MARK: - State Management & Helpers
     
     func updateState(_ newState: TransportState) {
@@ -242,7 +317,7 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
     }
     
     func refreshConnectionState() {
-        let count = connections.values.filter { $0.isReady }.count
+        let count = connections.values.filter { $0.isReady }.count + blePeers.count
         if count > 0 {
             updateState(.connected(peerCount: count))
         } else if currentState != .stopped && activeSession != nil {
@@ -261,7 +336,7 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
                 lastSeen: peer.lastSeen
             )
         }
-        peerUpdatesContinuation?.yield(peerList)
+        peerUpdatesContinuation?.yield(peerList + blePeers.map { PeerInfo(id: $0, displayName: "Bluetooth peer", isGroupMember: false) })
     }
     
     func logEvent(_ message: String, level: DiagnosticEvent.EventLevel) {
