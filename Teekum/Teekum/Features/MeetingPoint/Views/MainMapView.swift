@@ -94,17 +94,6 @@ public struct MainMapView: View {
             Text("There's a meeting point selected by \(proposer). Would you like to join?")
         }
         
-        // 4. Alert Dicegat: Locked (Sudah dibersihkan, hanya 1 alert)
-        .alert("Cannot Set Meeting Point", isPresented: $viewModel.isShowingLockedAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            if let proposer = viewModel.activeMapPoint?.proposerInitials, viewModel.isLockedByOther {
-                Text("There's already an active meeting point set by \(proposer). You cannot set a new one until it is stopped.")
-            } else {
-                Text("A meeting point is already active. Please stop the current one before setting a new location.")
-            }
-        }
-        
     }
     
 }

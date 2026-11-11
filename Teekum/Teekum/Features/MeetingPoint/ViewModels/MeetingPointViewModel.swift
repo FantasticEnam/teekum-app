@@ -22,7 +22,7 @@ public final class MeetingPointViewModel {
     // State Native Alert
     public var isShowingSetAlert: Bool = false
     public var isShowingStopAlert: Bool = false
-    public var isShowingLockedAlert: Bool = false
+    public var isShowingLockedAlert: Bool = false //
     public var isShowingRSVPAlert: Bool = false
     public var isShowingTimeOptions = false
     public var timePreset: MeetingTimePreset = .rightNow
@@ -49,10 +49,6 @@ public final class MeetingPointViewModel {
         return active.proposerId == memberID
     }
     
-    
-    public var isLockedByOther: Bool {
-        hasActiveMapPoint && !isCurrentUserProposer
-    }
 
     public func requestLocationPermission() {
         if locationManager == nil { locationManager = CLLocationManager() }
@@ -66,10 +62,6 @@ public final class MeetingPointViewModel {
         guard sessionStore.hasActiveSession,
               CLLocationCoordinate2DIsValid(coordinate) else { return }
         meetingService.checkExpiration()
-        if isLockedByOther {
-            self.isShowingLockedAlert = true
-            return
-        }
         
         // Simpan titik sementara & alert konfirmasi
         self.candidateCoordinate = coordinate
@@ -79,12 +71,8 @@ public final class MeetingPointViewModel {
     // 2. konfirmasi
     public func confirmSetMeetingPoint() {
         defer { cancelSetMeetingPoint() }
-        guard let session = sessionStore.activeSession,
+        guard sessionStore.hasActiveSession,
               let coord = candidateCoordinate else { return }
-        guard meetingService.canSetMeetingPoint(by: session.localInitials) else {
-            isShowingLockedAlert = true
-            return
-        }
 
         meetingService.proposeMeetingPoint(coordinate: coord,
             meetupTime: isCustomTime ? customTime : timePreset.targetDate(),
