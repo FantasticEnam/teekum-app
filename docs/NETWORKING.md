@@ -32,7 +32,7 @@ Leave/rejoin stops the router, cancels the session task and probes, stops publis
 
 `Core/Mesh/Routing/RouteDiscoveryService.swift` handles authenticated requests, responses and route invalidation. Its extensions sit in the same folder. The maintenance loop triggers the legacy stale-member cadence and staggered route probes; target arrival can burst location pings. Keep route discovery, request timeouts and late callback cancellation within the session lifetime.
 
-V3 has no leave packet. Orbit hides a member from its radar and friend list after 90 seconds without contact, unless the member still has a ready group link or an active SOS. Fresh location traffic can make the member visible again. Routing and chat still use the session roster.
+V3 has no leave packet. Orbit hides a member from its radar and friend list after 90 seconds without contact, unless the member still has a ready group link or an active SOS. A reconnect attempt counts as contact once the link is ready. Fresh location traffic can also make the member visible again. Routing and chat still use the session roster.
 
 When a member becomes unreachable, the receiving device shows a **Lost contact** notification and records the member's initials and detection time under **Group settings → Group activity**. Each device detects the loss from its own radio state. The log keeps the latest 100 losses for the active session. Recovery lets a later loss generate a new entry, and leaving clears the log.
 

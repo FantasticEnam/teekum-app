@@ -14,6 +14,7 @@ struct OrbitSceneView: View {
         case meetingPoint(MeetingPoint.ID)
     }
 
+    let userColor: Color
     var bloomRotation: Angle = .zero
     var members: [Member] = []
     var meetingPoint: MeetingPoint?
@@ -73,7 +74,7 @@ struct OrbitSceneView: View {
                         rotation: bloomRotation
                     )
                     
-                    OrbitUserMarkerView(heading: .degrees(0))
+                    OrbitUserMarkerView(color: userColor, heading: .degrees(0))
                         .allowsHitTesting(false)
 
                     if let location {
@@ -170,7 +171,7 @@ struct OrbitSceneView: View {
 
 #Preview {
     let store = SessionStore.preview
-    OrbitSceneView(members: store.members, meetingPoint: store.activeMeetingPoint,
+    OrbitSceneView(userColor: .yellowProfile, members: store.members, meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
         selectedTarget: .member("ADI"))
 }

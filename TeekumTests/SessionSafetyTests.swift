@@ -6,6 +6,7 @@
 //
 
 import CryptoKit
+import Observation
 import Security
 import XCTest
 @testable import Teekum
@@ -146,6 +147,45 @@ final class SessionSafetyTests: XCTestCase {
         XCTAssertEqual(store.memberContactLog, losses + laterLosses)
         store.resetSessionState()
         XCTAssertTrue(store.memberContactLog.isEmpty)
+    }
+
+    @MainActor
+    func testFriendListUpdatesWhenAReconnectHasNotReachedReady() {
+        let lastContact = Date(timeIntervalSince1970: 1_800_000_000)
+        let timing = MeshTimingConfiguration.default
+        let now = lastContact.addingTimeInterval(timing.stalePeerThreshold + timing.staleRecoveryTimeout + 1)
+        let store = SessionStore(members: [Member(id: "BOB", lastSeen: lastContact, isDirectPeer: true)])
+        let friends = FriendListViewModel(sessionStore: store)
+        let pending = PeerInfo(id: "BOB", displayName: "Bob", isDirectLink: false, lastSeen: now)
+        store.applyPeerSnapshot([pending], connected: [])
+        XCTAssertEqual(store.members.first?.lastSeen, lastContact)
+
+        let refresh = XCTestExpectation(description: "Friend list observes the shared roster")
+        withObservationTracking {
+            XCTAssertEqual(friends.filteredMembers.map(\.id), ["BOB"])
+        } onChange: {
+            refresh.fulfill()
+        }
+
+        XCTAssertEqual(store.refreshMemberVisibility(now: now, peers: [pending]).map(\.initials), ["BOB"])
+        XCTAssertEqual(XCTWaiter.wait(for: [refresh], timeout: 0), .completed)
+        XCTAssertTrue(friends.filteredMembers.isEmpty)
+
+        let ready = PeerInfo(id: "BOB", displayName: "Bob", lastSeen: now)
+        store.applyPeerSnapshot([ready], connected: ["BOB"])
+        XCTAssertTrue(store.refreshMemberVisibility(now: now, peers: [ready]).isEmpty)
+        XCTAssertEqual(friends.filteredMembers.map(\.id), ["BOB"])
+    }
+
+    @MainActor
+    func testOrbitUsesTheSelectedLocalProfileColor() {
+        let session = GroupSession(localInitials: "DAF", localColorCode: PairingProfileColor.yellow.wireColorCode)
+        let store = SessionStore(activeSession: session)
+        let orbit = OrbitMapViewModel(sessionStore: store)
+        XCTAssertEqual(orbit.localProfileColor, .yellow)
+
+        store.activeSession?.localColorCode = PairingProfileColor.blue.wireColorCode
+        XCTAssertEqual(orbit.localProfileColor, .darkSkyBlue)
     }
 
     func testOrbitProjectionUsesCompassHeadingAndClampsDistantMembers() {
