@@ -105,10 +105,11 @@ final class SessionSafetyTests: XCTestCase {
     }
 
     @MainActor
-    func testOrbitHidesUnreachableMemberAfterRecoveryAndShowsTheirNextRelayPing() {
+    func testContactLossHidesMarkerAndLogsOnceUntilMemberReturns() {
         let lastContact = Date(timeIntervalSince1970: 1_800_000_000)
         let timing = MeshTimingConfiguration.default
-        let recoveryEnds = lastContact.addingTimeInterval(timing.stalePeerThreshold + timing.staleRecoveryTimeout)
+        let recoveryWindow = timing.stalePeerThreshold + timing.staleRecoveryTimeout
+        let recoveryEnds = lastContact.addingTimeInterval(recoveryWindow)
         let peers = [
             PeerInfo(id: "ANI", displayName: "Ani"),
             PeerInfo(id: "BOB", displayName: "Outside group", isGroupMember: false)
@@ -120,21 +121,31 @@ final class SessionSafetyTests: XCTestCase {
         ])
         store.applyPeerSnapshot(peers, connected: ["ANI", "BOB"])
 
-        store.refreshMemberVisibility(now: recoveryEnds, peers: peers)
+        XCTAssertTrue(store.refreshMemberVisibility(now: recoveryEnds, peers: peers).isEmpty)
         XCTAssertEqual(store.visibleMembers.map(\.id), ["BOB", "ANI", "CAL"])
 
         let nextReceipt = recoveryEnds.addingTimeInterval(1)
-        store.refreshMemberVisibility(now: nextReceipt, peers: peers)
+        let losses = store.refreshMemberVisibility(now: nextReceipt, peers: peers)
+        XCTAssertEqual(losses.map(\.initials), ["BOB", "CAL"])
+        XCTAssertEqual(losses.first?.timestamp, nextReceipt)
         XCTAssertEqual(store.visibleMembers.map(\.id), ["ANI", "CAL"])
         XCTAssertEqual(store.members.map(\.id), ["BOB", "ANI", "CAL"])
+        XCTAssertTrue(store.refreshMemberVisibility(now: nextReceipt.addingTimeInterval(1), peers: peers).isEmpty)
+        XCTAssertEqual(store.memberContactLog, losses)
 
         let packet = RawWirePacket(envelope: .init(type: .locationPing, hopCount: 1, sessionId: 0x1234, sequenceNumber: 1),
             ciphertext: Data(), authTag: Data())
         store.applyLocationPing(LocationPingPayload(coordinate: .init(latitude: 1, longitude: 2),
             timestamp: lastContact, accuracy: 5, senderInitials: "BOB", batteryLevel: 84),
             inbound: InboundPacket(rawPacket: packet, sourcePeerId: "ANI", receivedAt: nextReceipt))
-        store.refreshMemberVisibility(now: nextReceipt, peers: peers)
+        XCTAssertTrue(store.refreshMemberVisibility(now: nextReceipt, peers: peers).isEmpty)
         XCTAssertEqual(store.visibleMembers.map(\.id), ["BOB", "ANI", "CAL"])
+
+        let laterLosses = store.refreshMemberVisibility(now: nextReceipt.addingTimeInterval(recoveryWindow + 1), peers: peers)
+        XCTAssertEqual(laterLosses.map(\.initials), ["BOB"])
+        XCTAssertEqual(store.memberContactLog, losses + laterLosses)
+        store.resetSessionState()
+        XCTAssertTrue(store.memberContactLog.isEmpty)
     }
 
     func testOrbitProjectionUsesCompassHeadingAndClampsDistantMembers() {
