@@ -35,7 +35,7 @@ final class SessionSafetyTests: XCTestCase {
         defer { removeKeychainItems(service: service) }
         let session = GroupSession(sessionId: 0x1234, symmetricKeyData: Data(repeating: 0x42, count: 32), localInitials: "ALX")
         var identity = session.symmetricKeyData
-        identity.append(contentsOf: [0x12, 0x34, session.memberSlot])
+        identity.append(contentsOf: [0x00, 0x12, 0x34, session.memberSlot])
         let account = SHA256.hash(data: identity).map { String(format: "%02x", $0) }.joined()
         let status = SecItemAdd([
             kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: account,
@@ -48,13 +48,34 @@ final class SessionSafetyTests: XCTestCase {
         } catch PacketSequenceError.exhausted { }
     }
 
+    func testSharedSequenceSupports24BitSessionIdsAndIsolatesUpperByte() async throws {
+        let service = "sequence-test-\(UUID())"
+        defer { removeKeychainItems(service: service) }
+        let key = Data(repeating: 0x42, count: 32)
+        let sessionA = GroupSession(sessionId: 0xAB1234, symmetricKeyData: key, localInitials: "ALX")
+        let sessionB = GroupSession(sessionId: 0xCD1234, symmetricKeyData: key, localInitials: "ALX")
+        let defaultMesh = GroupSession(localInitials: "ALX")
+        XCTAssertEqual(defaultMesh.sessionId, 0x7E3AF5)
+
+        let allocator = PacketSequenceAllocator(serviceName: service)
+        let seqA1 = try await allocator.next(for: sessionA)
+        let seqA2 = try await allocator.next(for: sessionA)
+        let seqB1 = try await allocator.next(for: sessionB)
+        let seqDefault = try await allocator.next(for: defaultMesh)
+
+        XCTAssertEqual(CleartextEnvelope.counter(from: seqA1), 1)
+        XCTAssertEqual(CleartextEnvelope.counter(from: seqA2), 2)
+        XCTAssertEqual(CleartextEnvelope.counter(from: seqB1), 1)
+        XCTAssertEqual(CleartextEnvelope.counter(from: seqDefault), 1)
+    }
+
     @MainActor
     func testRecoveryUsesKeychainAndLeaveClearsMetadataAndKey() async throws {
         let suite = "session-test-\(UUID())"
         let service = "session-key-test-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite); removeKeychainItems(service: service) }
-        let session = GroupSession(sessionId: 0x1234, sessionName: "Crew", symmetricKeyData: Data(repeating: 0x42, count: 32), localInitials: "ALX")
+        let session = GroupSession(sessionId: 0xABCDEF, sessionName: "Crew", symmetricKeyData: Data(repeating: 0x42, count: 32), localInitials: "ALX")
         let saved = SessionPersistence(defaults: defaults, keys: KeychainStore(serviceName: service))
         try await saved.save(session)
         let metadata = try XCTUnwrap(defaults.data(forKey: "com.teekum.sessionMetadata"))

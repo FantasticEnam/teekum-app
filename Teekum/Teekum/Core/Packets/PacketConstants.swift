@@ -41,4 +41,30 @@ nonisolated public enum PacketConstants {
     
     /// 4-byte protocol domain tag used in nonce construction: 'T', 'K', 'M', '3'
     public static var protocolDomainTag: [UInt8] { TeeKumConfiguration.Network.protocolDomainTag }
+
+    /// Canonical 24-bit Session ID bitmask (`0x00FFFFFF`).
+    public static var sessionIdMask: UInt32 { TeeKumConfiguration.Network.sessionIdMask }
+
+    /// Maximum valid 24-bit Session ID (`0x00FFFFFF`).
+    public static var maxSessionId: UInt32 { TeeKumConfiguration.Network.maxSessionId }
+
+    /// Validates whether a Session ID falls within the non-zero 24-bit range (`0x000001...0xFFFFFF`).
+    public static func isValidSessionId(_ sessionId: UInt32) -> Bool {
+        sessionId >= 1 && sessionId <= maxSessionId
+    }
+
+    /// Encodes a 24-bit Session ID into 3 big-endian wire bytes.
+    public static func encodeSessionId24(_ sessionId: UInt32) -> [UInt8] {
+        let sid = sessionId & sessionIdMask
+        return [
+            UInt8((sid >> 16) & 0xFF),
+            UInt8((sid >> 8) & 0xFF),
+            UInt8(sid & 0xFF)
+        ]
+    }
+
+    /// Formats a 24-bit Session ID canonically as 6 uppercase hexadecimal characters.
+    public static func formatSessionId(_ sessionId: UInt32) -> String {
+        String(format: "%06X", sessionId & sessionIdMask)
+    }
 }

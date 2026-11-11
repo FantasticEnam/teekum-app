@@ -13,6 +13,7 @@ struct GroupPairingInviteView: View {
 
     var body: some View {
         let inviteURL = session.inviteURL()
+        let groupName = session.sessionName
         VStack(spacing: 0) {
             Text("Scan this barcode to join private\ngroup with zero cell reception")
                 .font(.custom("Charter-Roman", size: 12, relativeTo: .caption))
@@ -44,11 +45,11 @@ struct GroupPairingInviteView: View {
                 .background(.white.opacity(0.08), in: Capsule())
                 .padding(.bottom, 16)
 
-            ShareLink(item: inviteURL) {
-                Text("Share Invite Link")
-                    .font(.custom("Charter-Bold", size: 14, relativeTo: .subheadline))
-                    .frame(minWidth: 180, minHeight: 32)
-                    .background(Color(white: 0.11), in: Capsule())
+            ShareLink(
+                item: inviteURL,
+                subject: Text("Join \(groupName) on Meepo"),
+                message: Text("Join my group on Meepo: \(groupName)")) {
+                PairingCardPillLabel(title: "Share Invite Link")
             }
             .buttonStyle(.plain)
         }
@@ -61,6 +62,17 @@ struct GroupPairingInviteView: View {
                 .strokeBorder(Color(white: 0.28), lineWidth: 1)
         }
         .task(id: inviteURL) { qrImage = QRCodeGenerator.image(for: inviteURL) }
+    }
+}
+
+struct PairingCardPillLabel: View {
+    let title: LocalizedStringKey
+
+    var body: some View {
+        Text(title)
+            .font(.custom("Charter-Bold", size: 14, relativeTo: .subheadline))
+            .frame(minWidth: 180, minHeight: 32)
+            .background(Color(white: 0.11), in: Capsule())
     }
 }
 

@@ -114,7 +114,7 @@ extension RouteDiscoveryService {
                     cost: payload.routeCost + 1,
                     sequenceNumber: envelope.sequenceNumber,
                     ttl: 60.0,
-                    sessionId: UInt32(envelope.sessionId)
+                    sessionId: envelope.sessionId
                 )
             } else {
                 await routingTable.recordForwardRoute(
@@ -237,7 +237,7 @@ extension RouteDiscoveryService {
                 return .droppedStaleOrUnsolicited
             }
             
-            let targetKey = "\(session.sessionId):\(payload.targetInitials)"
+            let targetKey = "\(PacketConstants.formatSessionId(session.sessionId)):\(payload.targetInitials)"
             inFlightByTarget.removeValue(forKey: targetKey)
             
             // Loop check
@@ -257,7 +257,7 @@ extension RouteDiscoveryService {
                 routeCost: payload.routeCost + 1,
                 sequenceNumber: envelope.sequenceNumber,
                 expiresAt: clock.now().addingTimeInterval(60.0),
-                sessionId: UInt32(envelope.sessionId)
+                sessionId: envelope.sessionId
             )
             
             if let rt = routingTable as? RoutingTable {
@@ -268,7 +268,7 @@ extension RouteDiscoveryService {
                     cost: payload.routeCost + 1,
                     sequenceNumber: envelope.sequenceNumber,
                     ttl: 60.0,
-                    sessionId: UInt32(envelope.sessionId)
+                    sessionId: envelope.sessionId
                 )
             } else {
                 await routingTable.recordForwardRoute(
@@ -305,7 +305,7 @@ extension RouteDiscoveryService {
                 cost: payload.routeCost + 1,
                 sequenceNumber: envelope.sequenceNumber,
                 ttl: 60.0,
-                sessionId: UInt32(envelope.sessionId)
+                sessionId: envelope.sessionId
             )
         } else {
             await routingTable.recordForwardRoute(

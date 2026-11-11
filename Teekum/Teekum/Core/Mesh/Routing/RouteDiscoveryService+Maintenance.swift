@@ -23,7 +23,7 @@ extension RouteDiscoveryService {
     
     /// Invalidates a route towards a specific destination.
     public func invalidateRoute(towards targetInitials: String, session: GroupSession?) async {
-        let sid = session.map { UInt32($0.sessionId) }
+        let sid = session.map { $0.sessionId & PacketConstants.sessionIdMask }
         if let rt = routingTable as? RoutingTable {
             await rt.invalidateRoute(towards: targetInitials, inSession: sid)
         } else {
@@ -35,8 +35,9 @@ extension RouteDiscoveryService {
     /// Teardown: cancels in-flight discoveries and purges session routes.
     public func teardown(sessionId: UInt32? = nil) async {
         sessionGeneration = UUID()
+        let maskedSid = sessionId.map { $0 & PacketConstants.sessionIdMask }
         let noncesToCancel: [UInt32]
-        if let sid = sessionId {
+        if let sid = maskedSid {
             noncesToCancel = inFlightDiscoveries.values.filter { $0.sessionId == sid }.map(\.discoveryNonce)
             if let rt = routingTable as? RoutingTable {
                 await rt.invalidateRoutes(forSessionId: sid)
@@ -49,7 +50,7 @@ extension RouteDiscoveryService {
         for nonce in noncesToCancel {
             discoveryTimeoutTasks.removeValue(forKey: nonce)?.cancel()
             if let inFlight = inFlightDiscoveries.removeValue(forKey: nonce) {
-                let targetKey = "\(inFlight.sessionId):\(inFlight.targetInitials)"
+                let targetKey = "\(PacketConstants.formatSessionId(inFlight.sessionId)):\(inFlight.targetInitials)"
                 inFlightByTarget.removeValue(forKey: targetKey)
                 totalDiscoveriesFailedCount += 1
                 for cont in inFlight.continuations {
@@ -57,9 +58,10 @@ extension RouteDiscoveryService {
                 }
             }
         }
-        if let sid = sessionId {
+        if let sid = maskedSid {
             sequenceCounters.removeValue(forKey: sid)
-            targetCooldowns = targetCooldowns.filter { !$0.key.hasPrefix("\(sid):") }
+            let prefix = "\(PacketConstants.formatSessionId(sid)):"
+            targetCooldowns = targetCooldowns.filter { !$0.key.hasPrefix(prefix) }
         } else {
             sequenceCounters.removeAll()
             targetCooldowns.removeAll()

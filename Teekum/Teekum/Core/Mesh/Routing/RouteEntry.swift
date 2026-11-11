@@ -33,6 +33,6 @@ nonisolated public struct RouteEntry: Sendable, Equatable {
         self.routeCost = routeCost
         self.sequenceNumber = sequenceNumber
         self.expiresAt = expiresAt
-        self.sessionId = sessionId
+        self.sessionId = sessionId.map { $0 & PacketConstants.sessionIdMask }
     }
 }

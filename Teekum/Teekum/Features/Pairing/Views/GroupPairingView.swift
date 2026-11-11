@@ -55,21 +55,13 @@ struct GroupPairingView: View {
                             .padding(.bottom, 10)
                         QRScannerView(
                             isEnabled: viewModel.form.hasValidInitials && !isShowingAgreement,
-                            onCodeScanned: viewModel.handleScannedCode
+                            onCodeScanned: viewModel.handleScannedCode,
+                            onPasteCandidates: handlePasteCandidates
                         )
-                        TextField("Paste invite link or message", text: $viewModel.inviteText)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.URL)
-                            .submitLabel(.go)
-                            .onSubmit(viewModel.useInviteLink)
-                            .padding(.vertical, 12)
-                        Button("Use Invite Link", action: viewModel.useInviteLink)
-                            .foregroundStyle(Color.yellowProfile)
-                            .frame(minHeight: 44)
                         if let invite = viewModel.scannedInvite {
                             Label(invite.sessionName, systemImage: "checkmark.circle")
                                 .font(.subheadline)
+                                .padding(.top, 12)
                         }
                     } else if let session = viewModel.draftSession {
                         GroupQRCodeView(session: session)
@@ -186,6 +178,14 @@ struct GroupPairingView: View {
         dismissEditing()
         viewModel.preparePublicFestivalMesh()
         isShowingAgreement = true
+    }
+
+    private func handlePasteCandidates(_ candidates: [String]) {
+        viewModel.pasteInvite(candidates: candidates)
+        if viewModel.scannedInvite != nil, viewModel.errorMessage == nil, viewModel.form.hasValidInitials {
+            dismissEditing()
+            isShowingAgreement = true
+        }
     }
 }
 

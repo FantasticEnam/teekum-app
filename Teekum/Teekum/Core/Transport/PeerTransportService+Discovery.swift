@@ -40,7 +40,7 @@ extension PeerTransportService {
         
         // Encode metadata in Bonjour TXT record
         var txtDict: [String: Data] = [:]
-        txtDict["sid"] = String(format: "%08X", session.sessionId).data(using: .utf8)
+        txtDict["sid"] = PacketConstants.formatSessionId(session.sessionId).data(using: .utf8)
         txtDict["name"] = session.localMemberName.data(using: .utf8)
         txtDict["relay"] = (isRelayEnabled ? "1" : "0").data(using: .utf8)
         let txtData = NetService.data(fromTXTRecord: txtDict)
@@ -193,9 +193,10 @@ extension PeerTransportService {
             var isGroup = false
             var isRemoteRelayEnabled = true // default true for backwards compatibility
             if case let .bonjour(txtRecord) = result.metadata {
-                if let sidStr = txtRecord.dictionary["sid"] {
-                    let expectedSid = String(format: "%08X", session.sessionId)
-                    isGroup = (sidStr.uppercased() == expectedSid.uppercased())
+                if let sidStr = txtRecord.dictionary["sid"],
+                   let advertisedSid = UInt32(sidStr, radix: 16),
+                   PacketConstants.isValidSessionId(advertisedSid) {
+                    isGroup = (advertisedSid == (session.sessionId & PacketConstants.sessionIdMask))
                 }
                 if let name = txtRecord.dictionary["name"] {
                     remoteName = name
