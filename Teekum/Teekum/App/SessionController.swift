@@ -258,7 +258,11 @@ final class SessionController {
             let snapshot = await transport.getDiagnostics()
             guard generation == current else { break }
             diagnostics = snapshot
-            store.refreshMemberVisibility(now: .now, peers: snapshot.activeDirectPeers)
+            let losses = store.refreshMemberVisibility(now: .now, peers: snapshot.activeDirectPeers)
+            if !losses.isEmpty {
+                let initials = losses.map(\.initials).formatted(.list(type: .and))
+                notifications.notify(title: "Group activity", body: "Lost contact with \(initials).")
+            }
             meeting.checkExpiration()
             if let coordinate = location.currentLocation?.coordinate { meeting.checkArrival(userLocation: coordinate) }
             let stale = store.members.contains { $0.isWithinStaleRecoveryWindow() }
