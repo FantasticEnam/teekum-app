@@ -16,7 +16,7 @@ final class FriendListViewModel {
 
     var filteredMembers: [Member] {
         let search = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let members = sessionStore.members
+        let members = sessionStore.visibleMembers
         return search.isEmpty ? members : members.filter {
             $0.initials.localizedCaseInsensitiveContains(search)
         }

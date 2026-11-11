@@ -25,3 +25,9 @@ struct CameraPreviewView: UIViewRepresentable {
         uiView.previewLayer.session = nil
     }
 }
+
+#Preview("Camera frame") {
+    CameraPreviewView(session: AVCaptureSession())
+        .frame(width: 320, height: 300)
+        .background(.black)
+}

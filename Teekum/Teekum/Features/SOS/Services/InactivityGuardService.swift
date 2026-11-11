@@ -12,18 +12,6 @@ import Observation
 import UIKit
 #endif
 
-/// Operational state of the Inactivity Guard subsystem.
-public enum InactivityGuardState: Equatable, Sendable {
-    /// Guard is turned off by the user (opt-in default).
-    case disabled
-    /// Actively monitoring accelerometer motion & screen interaction.
-    case monitoring(stillSince: Date)
-    /// In the 30-second pre-alarm silent warning countdown before auto-SOS dispatch.
-    case warning(remainingSeconds: Double)
-    /// Warning countdown completed; automatic SOS has been dispatched.
-    case triggered
-}
-
 /// Service governing the Inactivity Guard ("Man Down" Auto-SOS) feature.
 ///
 /// Principles:
@@ -180,7 +168,7 @@ public final class InactivityGuardService {
     private func startHardwareAccelerometer() {
         #if os(iOS) && canImport(CoreMotion)
         guard let motionManager, motionManager.isAccelerometerAvailable else { return }
-        motionManager.startAccelerometerUpdates(to: motionQueue) { [weak self] data, _ in
+        motionManager.startAccelerometerUpdates(to: motionQueue) { @Sendable [weak self] data, _ in
             guard let data else { return }
             let x = data.acceleration.x
             let y = data.acceleration.y
@@ -240,6 +228,7 @@ public final class InactivityGuardService {
     // MARK: - Pre-Alarm Warning Countdown
     
     private func startWarningCountdown() {
+        cancelCountdown()
         let duration = warningCountdownSeconds
         self.countdownRemaining = duration
         self.state = .warning(remainingSeconds: duration)
@@ -247,7 +236,6 @@ public final class InactivityGuardService {
         onWarningStarted?()
         triggerHapticWarning()
         
-        cancelCountdown()
         countdownTask = Task { @MainActor [weak self] in
             var remaining = duration
             while remaining > 0 && !Task.isCancelled {

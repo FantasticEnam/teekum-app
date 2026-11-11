@@ -10,12 +10,11 @@ import SwiftUI
 struct OrbitHeaderView: View {
     let groupName: String
     let onOpenMap: () -> Void
+    var onSettings: () -> Void = {}
 
     var body: some View {
         HStack {
-            Button {
-                print("Settings Tapped")
-            } label: {
+            Button(action: onSettings) {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 30, weight: .semibold))
 //                    .frame(width: 42, height: 42)

@@ -8,23 +8,22 @@
 
 import SwiftUI
 
-// Dummy Assets, soon will be change to real QR Code
 struct GroupQRCodeView: View {
-    let sessionName: String
+    let session: GroupSession
 
     var body: some View {
         VStack(spacing: 10) {
-            Text(sessionName)
+            Text(session.sessionName)
                 .font(.custom("Charter-Bold", size: 22, relativeTo: .title2))
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
-            GroupPairingInviteView()
+            GroupPairingInviteView(session: session)
         }
     }
 }
 
 #Preview {
-    GroupQRCodeView(sessionName: "Fantasix")
+    GroupQRCodeView(session: GroupSession(sessionName: "Fantasix", localInitials: "NIC"))
         .foregroundStyle(.white)
         .padding(42)
         .background(.black)

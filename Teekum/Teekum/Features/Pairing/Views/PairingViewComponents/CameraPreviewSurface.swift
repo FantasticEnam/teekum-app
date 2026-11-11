@@ -16,3 +16,9 @@ final class CameraPreviewSurface: UIView {
         layer as! AVCaptureVideoPreviewLayer
     }
 }
+
+#Preview("Camera surface", traits: .fixedLayout(width: 320, height: 300)) {
+    let surface = CameraPreviewSurface()
+    surface.backgroundColor = .black
+    return surface
+}

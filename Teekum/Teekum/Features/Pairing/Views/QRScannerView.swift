@@ -9,6 +9,7 @@ import SwiftUI
 
 struct QRScannerView: View {
     var isEnabled = false
+    var onCodeScanned: @MainActor @Sendable (String) -> Void = { _ in }
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
@@ -20,7 +21,7 @@ struct QRScannerView: View {
             Color.black
             if isEnabled {
                 CameraPreviewView(session: scanner.session)
-                    .accessibilityLabel("Camera preview")
+                    .accessibilityLabel("Group QR code scanner")
                 if let cameraMessage {
                     VStack(spacing: 12) {
                         Text(cameraMessage)
@@ -52,7 +53,7 @@ struct QRScannerView: View {
                 scanner.stop()
                 return
             }
-            let message = await scanner.start()
+            let message = await scanner.start(onCodeScanned: onCodeScanned)
             guard !Task.isCancelled else { return }
             cameraMessage = message
         }
