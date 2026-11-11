@@ -52,7 +52,8 @@ struct OrbitMapView: View {
                 Color.black
                     .ignoresSafeArea()
 
-                OrbitSceneView(bloomRotation: .degrees(-(location?.currentHeading ?? 0)),
+                OrbitSceneView(userColor: viewModel.localProfileColor.swiftUIColor,
+                    bloomRotation: .degrees(-(location?.currentHeading ?? 0)),
                     members: visibleMembers, meetingPoint: meetingPoint,
                     location: location?.currentLocation, heading: location?.currentHeading ?? 0,
                     selectedTarget: selectedTarget, onSelectMember: openFinder,

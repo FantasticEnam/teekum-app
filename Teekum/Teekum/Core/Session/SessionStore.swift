@@ -85,9 +85,9 @@ public final class SessionStore {
         for index in members.indices {
             members[index].isDirectPeer = connected.contains(members[index].id)
         }
-        for peer in peers where peer.isGroupMember && peer.id != activeSession?.localInitials {
-            var member = members.first { $0.id == peer.id } ?? Member(id: peer.id)
-            member.isDirectPeer = peer.isDirectLink
+        for peer in peers where peer.isGroupMember && peer.isDirectLink && peer.id != activeSession?.localInitials {
+            var member = members.first { $0.id == peer.id } ?? Member(id: peer.id, lastSeen: peer.lastSeen)
+            member.isDirectPeer = true
             member.rssi = peer.rssi
             member.lastSeen = max(member.lastSeen, peer.lastSeen)
             upsertMember(member)
