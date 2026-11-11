@@ -70,7 +70,7 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 - Accuracy is a one-byte meter value. Battery is capped at 100 by several constructors/serializers. Do not invent an unknown-value encoding without reviewing both sides.
 - Heading helpers map degrees into a one-byte representation. Quantization/dequantization is not a live compass provider.
 - InitialsCodec encodes 1–3 uppercase letters with base 27: a × 729 + b × 27 + c, A=1...Z=26, missing positions=0. Two bytes hold the result. Initials are display data; they do not prove unique membership or non-colliding sender slots.
-- MemberColor is a one-byte source enum, 0x00 unset and 0x01...0x08 explicit colors. PairingProfileColor is a separate UI enum; their names/counts do not establish a mapping.
+- The one-byte `MemberColor` field uses `0x00` for automatic color and `0x01...0x09` for explicit choices. Cream uses `0x04` and yellow uses `0x09`. Location and SOS carry this field. Chat displays the local session or the latest roster color, with an initials-based fallback until a profile color is received. Older builds use their automatic color for an unrecognized code. Saved `0x04` profiles restore as cream because earlier builds stored both choices under that code.
 
 ## 4. Current 30-Byte Payloads
 

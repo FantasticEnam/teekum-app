@@ -15,7 +15,7 @@ public struct LocationPingPayload: Equatable, Sendable {
     public var senderInitials: String // 1..3 uppercase characters A-Z
     public var batteryLevel: UInt8    // 0...100
     public var heading: UInt8         // 0...255 representing 0..<360 degrees
-    public var colorCode: UInt8       // 0x00...0x08 MemberColor code
+    public var colorCode: UInt8       // MemberColor code
     
     public var headingDegrees: CLLocationDirection {
         CLLocationDirection.fromHeadingByte(heading)

@@ -12,32 +12,20 @@ enum PairingProfileColor: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
-    var wireColorCode: UInt8 {
-        switch self {
-        case .red: 1
-        case .peach: 2
-        case .orange: 3
-        case .cream: 4
-        case .gray: 5
-        case .white: 6
-        case .blue: 7
-        case .green: 8
-        // shortcut: nine UI colors share eight wire codes; give yellow its own code only after a protocol decision.
-        case .yellow: 4
-        }
-    }
+    var wireColorCode: UInt8 { memberColor.rawValue }
+    var color: Color { memberColor.swiftUIColor }
 
-    var color: Color {
+    private var memberColor: MemberColor {
         switch self {
-        case .red: .redProfile
-        case .peach: .peachProfile
-        case .orange: .orangeProfile
-        case .cream: .creamProfile
-        case .gray: .greyProfile
-        case .white: .whiteProfile
-        case .blue: .blueProfile
-        case .green: .greenProfile
-        case .yellow: .yellowProfile
+        case .red: .reddish
+        case .peach: .orangeSalmon
+        case .orange: .artyClickOrange
+        case .cream: .apricot
+        case .gray: .sandrift
+        case .white: .paleBlueLily
+        case .blue: .darkSkyBlue
+        case .green: .greenishTeal
+        case .yellow: .yellow
         }
     }
 }

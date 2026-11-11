@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ChatMessageBubbleView: View {
     let message: ChatMessage
+    let profileColor: @MainActor (String) -> MemberColor
 
     var body: some View {
         HStack(alignment: .bottom) {
@@ -16,7 +17,7 @@ struct ChatMessageBubbleView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(message.senderInitials)
                     .font(.caption.bold())
-                    .foregroundStyle(Color.yellowProfile)
+                    .foregroundStyle(profileColor(message.senderInitials).swiftUIColor)
                 Text(message.text).font(.body)
                 Text(message.timestamp, style: .time)
                     .font(.caption2)
@@ -26,7 +27,7 @@ struct ChatMessageBubbleView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if !message.recipientStates.isEmpty {
-                        ChatRecipientStatusView(states: message.recipientStates)
+                        ChatRecipientStatusView(states: message.recipientStates, profileColor: profileColor)
                     }
                 }
             }
@@ -39,9 +40,11 @@ struct ChatMessageBubbleView: View {
 
 #if DEBUG
 #Preview("Sent and received") {
+    let store = SessionStore.preview
+
     VStack(spacing: 16) {
         ForEach(ChatPreviewService.sampleMessages) { message in
-            ChatMessageBubbleView(message: message)
+            ChatMessageBubbleView(message: message, profileColor: store.profileColor)
         }
     }
     .padding()

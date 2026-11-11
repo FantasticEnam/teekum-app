@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ChatSheetView: View {
     let viewModel: ChatViewModel
+    let sessionStore: SessionStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -20,7 +21,7 @@ struct ChatSheetView: View {
                     ScrollView {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.messages) { message in
-                                ChatMessageBubbleView(message: message)
+                                ChatMessageBubbleView(message: message, profileColor: sessionStore.profileColor)
                             }
                         }
                         .padding()
@@ -47,7 +48,7 @@ struct ChatSheetView: View {
 #Preview("Group conversation") {
     @Previewable @State var viewModel = ChatViewModel.preview()
 
-    ChatSheetView(viewModel: viewModel)
+    ChatSheetView(viewModel: viewModel, sessionStore: .preview)
         .task { await viewModel.start() }
 }
 

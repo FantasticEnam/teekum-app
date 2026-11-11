@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ChatRecipientStatusView: View {
     let states: [String: RecipientDeliveryState]
+    let profileColor: @MainActor (String) -> MemberColor
 
     var body: some View {
         DisclosureGroup("Delivery details") {
@@ -16,6 +17,7 @@ struct ChatRecipientStatusView: View {
                 if let state = states[initials] {
                     HStack {
                         Text(initials)
+                            .foregroundStyle(profileColor(initials).swiftUIColor)
                         Spacer()
                         Text(title(for: state))
                     }
@@ -44,7 +46,7 @@ struct ChatRecipientStatusView: View {
         "ADI": .deliveredToRecipient(timestamp: .now, rssi: nil),
         "HAS": .relayedByMesh(hops: 1, relayPeerId: "NIC"),
         "NIC": .deliveryTimedOut
-    ])
+    ], profileColor: SessionStore.preview.profileColor)
     .padding()
     .background(Color.blackCard)
     .preferredColorScheme(.dark)

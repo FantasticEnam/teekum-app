@@ -16,7 +16,7 @@ public struct SOSPayload: Equatable, Sendable {
     public var senderInitials: String // 3 uppercase characters
     public var emergencyType: SOSType
     public var batteryLevel: UInt8
-    public var colorCode: UInt8       // 0x00...0x08 MemberColor code
+    public var colorCode: UInt8       // MemberColor code
     
     public init(
         coordinate: CLLocationCoordinate2D,

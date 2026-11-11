@@ -11,6 +11,37 @@ import CoreLocation
 @testable import Teekum
 
 final class ChatSOSMigrationTests: XCTestCase {
+    @MainActor
+    func testChatNameColorsDistinguishYellowFromCreamAcrossV3Payloads() throws {
+        let cream = PairingProfileColor.cream
+        let yellow = PairingProfileColor.yellow
+        XCTAssertEqual(cream.wireColorCode, 0x04)
+        XCTAssertEqual(yellow.wireColorCode, 0x09)
+
+        let session = GroupSession(localInitials: "ALX", localColorCode: cream.wireColorCode)
+        let store = SessionStore(activeSession: session)
+        XCTAssertEqual(store.profileColor(for: "ALX"), .apricot)
+        XCTAssertEqual(store.profileColor(for: "BOB"), .deterministicColor(for: "BOB"))
+
+        let coordinate = CLLocationCoordinate2D(latitude: 1, longitude: 2)
+        let ping = LocationPingPayload(coordinate: coordinate, accuracy: 5, senderInitials: "BOB",
+            batteryLevel: 84, colorCode: yellow.wireColorCode).serialize()
+        XCTAssertEqual(ping.count, 30)
+        XCTAssertEqual(ping[17], 0x09)
+        let packet = RawWirePacket(envelope: .init(type: .locationPing, sessionId: session.sessionId, sequenceNumber: 1),
+            ciphertext: Data(), authTag: Data())
+        store.applyLocationPing(try LocationPingPayload.deserialize(from: ping),
+            inbound: InboundPacket(rawPacket: packet, sourcePeerId: "BOB"))
+        XCTAssertEqual(store.profileColor(for: "BOB"), .yellow)
+        XCTAssertNotEqual(store.profileColor(for: "BOB").swiftUIColor, store.profileColor(for: "ALX").swiftUIColor)
+
+        let sos = SOSPayload(coordinate: coordinate, accuracy: 5, sosEventId: 1, senderInitials: "BOB",
+            batteryLevel: 84, colorCode: yellow.wireColorCode).serialize()
+        XCTAssertEqual(sos.count, 30)
+        XCTAssertEqual(sos[22], 0x09)
+        XCTAssertEqual(try SOSPayload.deserialize(from: sos).colorCode, 0x09)
+    }
+
     private let keyData = Data(repeating: 0x42, count: 32)
 
     // Same behavioral cases as f4c6393 ChatMessagingEngineTests: auth, dedup ACK and final-hop receipt.

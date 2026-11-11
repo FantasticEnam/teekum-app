@@ -32,6 +32,8 @@ Leave/rejoin stops the router, cancels the session task and probes, stops publis
 
 `Core/Mesh/Routing/RouteDiscoveryService.swift` handles authenticated requests, responses and route invalidation. Its extensions sit in the same folder. The maintenance loop triggers the legacy stale-member cadence and staggered route probes; target arrival can burst location pings. Keep route discovery, request timeouts and late callback cancellation within the session lifetime.
 
+V3 has no leave packet. Orbit hides a member from its radar and friend list after 90 seconds without contact, unless the member still has a ready group link or an active SOS. Fresh location traffic can make the member visible again. Routing and chat still use the session roster.
+
 ## Verification boundary
 
 `OrbitSettingsView` shows the transport snapshot, relay/power state, and the latest 100 packet events for the active session. The log uses header and link metadata and distinguishes packets received with another group ID from relays dispatched on TCP or BLE. A dispatch entry records local link completion and recipient confirmation still uses the protocol ACK. Simulator XCTest covers framing, queue/carry policy, auth boundaries and selected feature behavior. Physical phones are needed to verify radio discovery, multi-hop, reconnect, locked/background behavior, permissions and end-to-end delivery. See [Payload guide](PAYLOAD_GUIDE.md) for wire fields.

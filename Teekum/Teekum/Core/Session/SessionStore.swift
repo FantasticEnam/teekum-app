@@ -21,11 +21,24 @@ public final class SessionStore {
     /// Accepted peer members in the current group session.
     public var members: [Member]
 
+    private var unreachableMemberIDs: Set<Member.ID> = []
+
+    var visibleMembers: [Member] {
+        members.filter { $0.isEmergency || !unreachableMemberIDs.contains($0.id) }
+    }
+
     /// Single active group meeting point proposal, if any.
     public var activeMeetingPoint: MeetingPoint?
 
     public var hasActiveSession: Bool {
         activeSession != nil
+    }
+
+    func profileColor(for initials: String) -> MemberColor {
+        if let activeSession, activeSession.localInitials == initials {
+            return .resolve(code: activeSession.localColorCode, initials: initials)
+        }
+        return members.first { $0.id == initials }?.color ?? .deterministicColor(for: initials)
     }
 
     public init(
@@ -74,6 +87,18 @@ public final class SessionStore {
         }
     }
 
+    func refreshMemberVisibility(now: Date, peers: [PeerInfo]) {
+        let timing = MeshTimingConfiguration.default
+        let cutoff = now.addingTimeInterval(-(timing.stalePeerThreshold + timing.staleRecoveryTimeout))
+        let connected = Set(peers.lazy.filter { $0.isGroupMember && $0.isDirectLink }.map(\.id))
+        let unreachable = Set(members.lazy.filter {
+            $0.lastSeen < cutoff && !connected.contains($0.id)
+        }.map(\.id))
+        if unreachable != unreachableMemberIDs {
+            unreachableMemberIDs = unreachable
+        }
+    }
+
     /// Inserts or updates a member record only if the incoming sample is not older than existing state.
     public func upsertMember(_ incoming: Member) {
         if let index = members.firstIndex(where: { $0.id == incoming.id }) {
@@ -99,6 +124,7 @@ public final class SessionStore {
         pendingInvite = nil
         pendingDeepLink = nil
         members.removeAll()
+        unreachableMemberIDs.removeAll()
         activeMeetingPoint = nil
     }
 }

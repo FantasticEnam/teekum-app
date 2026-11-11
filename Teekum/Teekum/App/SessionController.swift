@@ -255,8 +255,10 @@ final class SessionController {
             do { try await Task.sleep(for: .seconds(1)) } catch { break }
             guard generation == current else { break }
             await updatePower()
-            diagnostics = await transport.getDiagnostics()
+            let snapshot = await transport.getDiagnostics()
             guard generation == current else { break }
+            diagnostics = snapshot
+            store.refreshMemberVisibility(now: .now, peers: snapshot.activeDirectPeers)
             meeting.checkExpiration()
             if let coordinate = location.currentLocation?.coordinate { meeting.checkArrival(userLocation: coordinate) }
             let stale = store.members.contains { $0.isWithinStaleRecoveryWindow() }
@@ -264,7 +266,7 @@ final class SessionController {
                 location.hasStalePeers = stale
                 if stale { location.triggerCadenceEvaluation() }
             }
-            await liveActivity.update(peerCount: diagnostics?.activeDirectPeers.filter(\.isDirectLink).count ?? 0,
+            await liveActivity.update(peerCount: snapshot.activeDirectPeers.filter(\.isDirectLink).count,
                 meeting: store.activeMeetingPoint, location: location.currentLocation,
                 sosSender: sos.incomingAlert?.senderInitials ?? (sos.deliveryState == .idle ? nil : session.localInitials),
                 relay: relayState)

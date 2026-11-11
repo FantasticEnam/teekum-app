@@ -23,10 +23,11 @@ struct OrbitMapView: View {
     private let notifications: NotificationService?
 
     private var meetingPoint: MeetingPoint? { viewModel.sessionStore.activeMeetingPoint }
+    private var visibleMembers: [Member] { viewModel.sessionStore.visibleMembers }
 
     private var selectedMember: Member? {
         guard case .member(let id) = selectedTarget else { return nil }
-        return viewModel.sessionStore.members.first { $0.id == id }
+        return visibleMembers.first { $0.id == id }
     }
 
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
@@ -52,7 +53,7 @@ struct OrbitMapView: View {
                     .ignoresSafeArea()
 
                 OrbitSceneView(bloomRotation: .degrees(-(location?.currentHeading ?? 0)),
-                    members: viewModel.sessionStore.members, meetingPoint: meetingPoint,
+                    members: visibleMembers, meetingPoint: meetingPoint,
                     location: location?.currentLocation, heading: location?.currentHeading ?? 0,
                     selectedTarget: selectedTarget, onSelectMember: openFinder,
                     onSelectMeetingPoint: selectMeetingPoint)
@@ -100,6 +101,14 @@ struct OrbitMapView: View {
                 selectedTarget = nil
             }
         }
+        .onChange(of: visibleMembers.map(\.id)) { _, ids in
+            if case .member(let id) = selectedTarget, !ids.contains(id) {
+                selectedTarget = nil
+            }
+            if case .finder(let id) = activeModal, !ids.contains(id) {
+                activeModal = nil
+            }
+        }
         .onChange(of: viewModel.sessionStore.pendingDeepLink, initial: true) { _, url in
             guard let url else { return }
             if url.host == "meeting" { activeModal = .mapPoint }
@@ -108,7 +117,7 @@ struct OrbitMapView: View {
         }
         .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
             if let chat {
-                ChatSheetView(viewModel: chat)
+                ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
                     .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
             }
         }
@@ -160,7 +169,7 @@ struct OrbitMapView: View {
                     }
                 }
             case .finder(let id):
-                if let member = viewModel.sessionStore.members.first(where: { $0.id == id }) {
+                if let member = visibleMembers.first(where: { $0.id == id }) {
                     FriendFinderView(member: member, location: location)
                 }
             } }

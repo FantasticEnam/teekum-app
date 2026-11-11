@@ -20,6 +20,7 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
     case paleBlueLily     = 0x06
     case darkSkyBlue      = 0x07
     case greenishTeal     = 0x08
+    case yellow           = 0x09
     
     public var id: UInt8 { rawValue }
     
@@ -34,6 +35,7 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
         case .paleBlueLily:   return "Pale Blue Lily"
         case .darkSkyBlue:    return "Dark Sky Blue"
         case .greenishTeal:   return "Greenish Teal"
+        case .yellow:         return "Yellow"
         }
     }
         
@@ -42,26 +44,19 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
         switch self {
         case .unset:
             return Color(red: 0.0, green: 0.85, blue: 1.0)
-        case .reddish:
-            return Color(red: 0.73, green: 0.30, blue: 0.26) // #CB443D
-        case .orangeSalmon:
-            return Color(red: 0.75, green: 0.45, blue: 0.37) // #CE7059
-        case .artyClickOrange:
-            return Color(red: 0.92, green: 0.5, blue: 0.19) // #FD7900
-        case .apricot:
-            return Color(red: 0.93, green: 0.72, blue: 0.47) // #F7B66E
-        case .sandrift:
-            return Color(red: 0.64, green: 0.58, blue: 0.51) // #A79581
-        case .paleBlueLily:
-            return Color(red: 0.85, green: 0.93, blue: 0.93) // #D5EEEF
-        case .darkSkyBlue:
-            return Color(red: 0.33, green: 0.58, blue: 0.86) // #3A97E3
-        case .greenishTeal:
-            return Color(red: 0.37, green: 0.77, blue: 0.55) // #1EC989
+        case .reddish: return .redProfile
+        case .orangeSalmon: return .peachProfile
+        case .artyClickOrange: return .orangeProfile
+        case .apricot: return .creamProfile
+        case .sandrift: return .greyProfile
+        case .paleBlueLily: return .whiteProfile
+        case .darkSkyBlue: return .blueProfile
+        case .greenishTeal: return .greenProfile
+        case .yellow: return .yellowProfile
         }
     }
     
-    /// The 8 active selectable palette colors for user selection.
+    /// Explicit profile colors available to select.
     public static var selectableColors: [MemberColor] {
         allCases.filter { $0 != .unset }
     }
@@ -75,7 +70,7 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
         return deterministicColor(for: initials)
     }
     
-    /// Deterministically maps 1 to 3 uppercase initials into one of the 8 neon palette colors.
+    /// Uses the original eight-color palette to keep automatic colors stable.
     public static func deterministicColor(for initials: String) -> MemberColor {
         let clean = initials.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard !clean.isEmpty else { return .reddish }
