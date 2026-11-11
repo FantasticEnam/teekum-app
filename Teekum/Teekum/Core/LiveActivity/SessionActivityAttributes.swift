@@ -19,7 +19,7 @@ struct SessionActivityAttributes: ActivityAttributes {
         var lastUpdated = Date.now
     }
 
-    let sessionId: UInt16
+    let sessionId: UInt32
     let sessionName: String
     let userInitials: String
 }

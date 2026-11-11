@@ -11,12 +11,12 @@ All offsets are zero-based and inclusive. Multi-byte values are big-endian.
 | 0 | Version 3 in the high nibble; packet type in the low nibble. |
 | 1 | Hop limit, UInt8. |
 | 2 | Hop count, UInt8. |
-| 3..5 | UInt16 session ID in a three-byte field; encoders write byte 3 as zero. |
+| 3..5 | 24-bit session ID (`0x000001...0xFFFFFF`) in a three-byte big-endian field. |
 | 6..9 | Sequence number, UInt32. |
 | 10..39 | 30 ciphertext bytes. |
 | 40..55 | 16 Poly1305 tag bytes. |
 
-`Core/Packets/RawWirePacket.swift` assembles and parses the frame using `CleartextEnvelope.swift`. Envelope decoding preserves the UInt16 SID contract and the legacy narrowing of a noncanonical upper byte. The old 54-byte proposals are not compatibility modes. See [Payload guide](PAYLOAD_GUIDE.md) for actual fields. UWB token exchange remains a type code without a connected payload flow.
+`Core/Packets/RawWirePacket.swift` assembles and parses the frame using `CleartextEnvelope.swift`. Envelope encoding and decoding use the full 24-bit SID (`UInt32` masked to `0x00FFFFFF`); note that the frozen `f4c6393` prototype uses a 16-bit `UInt16` SID with byte 3 zeroed, so session IDs `> 0xFFFF` (including `defaultSessionId = 0x7E3AF5`) do not wire-interoperate with unmodified `f4c6393` builds. The old 54-byte proposals are not compatibility modes. See [Payload guide](PAYLOAD_GUIDE.md) for actual fields. UWB token exchange remains a type code without a connected payload flow.
 
 ## Key, AAD and nonce
 

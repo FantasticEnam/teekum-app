@@ -12,7 +12,10 @@ public struct CleartextEnvelope: Equatable, Sendable {
     public var type: PacketType
     public var hopLimit: UInt8
     public var hopCount: UInt8
-    public var sessionId: UInt16
+    /// Canonical 24-bit session identifier (`0x000000...0xFFFFFF`).
+    public var sessionId: UInt32 {
+        didSet { sessionId &= PacketConstants.sessionIdMask }
+    }
     public var sequenceNumber: UInt32
     
     public var memberSlot: UInt8 {
@@ -28,14 +31,14 @@ public struct CleartextEnvelope: Equatable, Sendable {
         type: PacketType,
         hopLimit: UInt8 = PacketConstants.defaultHopLimit,
         hopCount: UInt8 = 0,
-        sessionId: UInt16,
+        sessionId: UInt32,
         sequenceNumber: UInt32
     ) {
         self.version = version
         self.type = type
         self.hopLimit = min(max(1, hopLimit), PacketConstants.maxHopLimit)
         self.hopCount = min(hopCount, self.hopLimit)
-        self.sessionId = sessionId
+        self.sessionId = sessionId & PacketConstants.sessionIdMask
         self.sequenceNumber = sequenceNumber
     }
     
@@ -52,6 +55,14 @@ public struct CleartextEnvelope: Equatable, Sendable {
     public static func counter(from sequenceNumber: UInt32) -> UInt32 {
         sequenceNumber & 0x00FFFFFF
     }
+
+    private var versionAndTypeByte: UInt8 {
+        ((version & 0x0F) << 4) | (type.rawValue & 0x0F)
+    }
+
+    private var sessionIdBytes: [UInt8] {
+        PacketConstants.encodeSessionId24(sessionId)
+    }
     
     // MARK: - Serialization (10 Bytes)
     
@@ -59,8 +70,7 @@ public struct CleartextEnvelope: Equatable, Sendable {
         var data = Data(capacity: PacketConstants.cleartextEnvelopeSize)
         
         // Byte 0: version (high 4 bits) | type (low 4 bits)
-        let byte0 = ((version & 0x0F) << 4) | (type.rawValue & 0x0F)
-        data.append(byte0)
+        data.append(versionAndTypeByte)
         
         // Byte 1: hopLimit (UInt8)
         data.append(hopLimit)
@@ -69,12 +79,7 @@ public struct CleartextEnvelope: Equatable, Sendable {
         data.append(hopCount)
         
         // Bytes 3..5: sessionId (3 bytes, 24-bit big-endian)
-        let sid3Bytes: [UInt8] = [
-            UInt8((sessionId >> 16) & 0xFF),
-            UInt8((sessionId >> 8) & 0xFF),
-            UInt8(sessionId & 0xFF)
-        ]
-        data.append(contentsOf: sid3Bytes)
+        data.append(contentsOf: sessionIdBytes)
         
         // Bytes 6..9: sequenceNumber (32-bit big-endian)
         var seqBE = sequenceNumber.bigEndian
@@ -112,8 +117,7 @@ public struct CleartextEnvelope: Equatable, Sendable {
         let b3 = UInt32(data[data.startIndex + 3])
         let b4 = UInt32(data[data.startIndex + 4])
         let b5 = UInt32(data[data.startIndex + 5])
-        let sid32 = (b3 << 16) | (b4 << 8) | b5
-        let sid16 = UInt16(sid32 & 0xFFFF)
+        let sid24 = (b3 << 16) | (b4 << 8) | b5
         
         let seq = data.subdata(in: (data.startIndex + 6)..<(data.startIndex + 10)).withUnsafeBytes {
             $0.loadUnaligned(as: UInt32.self).bigEndian
@@ -124,7 +128,7 @@ public struct CleartextEnvelope: Equatable, Sendable {
             type: type,
             hopLimit: hopLimit,
             hopCount: hopCount,
-            sessionId: sid16,
+            sessionId: sid24,
             sequenceNumber: seq
         )
     }
@@ -135,8 +139,7 @@ public struct CleartextEnvelope: Equatable, Sendable {
         var aad = Data(capacity: PacketConstants.cleartextEnvelopeSize)
         
         // Byte 0: versionAndType
-        let byte0 = ((version & 0x0F) << 4) | (type.rawValue & 0x0F)
-        aad.append(byte0)
+        aad.append(versionAndTypeByte)
         
         // Byte 1: hopLimit
         aad.append(hopLimit)
@@ -145,12 +148,7 @@ public struct CleartextEnvelope: Equatable, Sendable {
         aad.append(0x00)
         
         // Bytes 3..5: sessionId (3 bytes)
-        let sid3Bytes: [UInt8] = [
-            UInt8((sessionId >> 16) & 0xFF),
-            UInt8((sessionId >> 8) & 0xFF),
-            UInt8(sessionId & 0xFF)
-        ]
-        aad.append(contentsOf: sid3Bytes)
+        aad.append(contentsOf: sessionIdBytes)
         
         // Bytes 6..9: sequenceNumber (4 bytes)
         var seqBE = sequenceNumber.bigEndian
@@ -167,18 +165,12 @@ public struct CleartextEnvelope: Equatable, Sendable {
     public func constructNonce() -> Data {
         var nonceData = Data(capacity: PacketConstants.nonceSize)
         
-        let sid3Bytes: [UInt8] = [
-            UInt8((sessionId >> 16) & 0xFF),
-            UInt8((sessionId >> 8) & 0xFF),
-            UInt8(sessionId & 0xFF)
-        ]
-        nonceData.append(contentsOf: sid3Bytes)
+        nonceData.append(contentsOf: sessionIdBytes)
         
         var seqBE = sequenceNumber.bigEndian
         nonceData.append(Data(bytes: &seqBE, count: 4))
         
-        let byte0 = ((version & 0x0F) << 4) | (type.rawValue & 0x0F)
-        nonceData.append(byte0)
+        nonceData.append(versionAndTypeByte)
         
         nonceData.append(contentsOf: PacketConstants.protocolDomainTag)
         return nonceData

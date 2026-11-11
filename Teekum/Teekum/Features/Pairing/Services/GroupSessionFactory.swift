@@ -16,7 +16,7 @@ enum GroupSessionFactory {
         guard !groupName.isEmpty else { throw PairingError.invalidGroupName }
         let key = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
         return GroupSession(
-            sessionId: UInt16.random(in: 1...UInt16.max),
+            sessionId: UInt32.random(in: 1...PacketConstants.maxSessionId),
             sessionName: groupName,
             symmetricKeyData: key,
             localInitials: cleanInitials,
@@ -28,7 +28,7 @@ enum GroupSessionFactory {
     static func join(invite: GroupSessionInvite, initials: String, colorCode: UInt8) throws -> GroupSession {
         let cleanInitials = initials.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard InitialsCodec.isValid(cleanInitials) else { throw PairingError.invalidInitials }
-        guard invite.sessionId != 0, invite.keyData.count == 32,
+        guard PacketConstants.isValidSessionId(invite.sessionId), invite.keyData.count == 32,
               !invite.sessionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw PairingError.invalidInvite
         }

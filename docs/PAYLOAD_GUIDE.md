@@ -42,12 +42,12 @@ See `Core/Packets/CleartextEnvelope.swift` and `Core/Packets/RawWirePacket.swift
 | 0 | 1 | High nibble version 3; low nibble PacketType. |
 | 1 | 1 | hopLimit, separate UInt8. |
 | 2 | 1 | hopCount, separate UInt8. |
-| 3..5 | 3 | UInt16 sessionId in three bytes, big-endian; encoders write the first byte as zero. |
+| 3..5 | 3 | 24-bit sessionId (`0x000001...0xFFFFFF`) in three bytes, big-endian (`UInt32` masked to `0x00FFFFFF`). |
 | 6..9 | 4 | sequenceNumber, big-endian UInt32. |
 | 10..39 | 30 | Ciphertext. |
 | 40..55 | 16 | Poly1305 authentication tag. |
 
-The decoder returns a UInt16 SID and narrows noncanonical upper bytes as in the prototype.
+The decoder reads all three bytes (`3..5`) as a 24-bit `UInt32` SID, and `CleartextEnvelope` masks `sessionId` to `0x00FFFFFF`.
 
 The decoder checks for a positive hop limit and a hop count within that limit. The initializer then clamps the limit to 1...PacketConstants.maxHopLimit (15) and clamps the count to that limit.
 
@@ -64,7 +64,7 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 
 ## 3. Field Encoding
 
-- Multi-byte numeric fields use big-endian encoding. The three-byte SID field retains a zero upper byte for the UInt16 session contract.
+- Multi-byte numeric fields use big-endian encoding. The three-byte SID field holds a canonical 24-bit `sessionId` (`0x000001...0xFFFFFF`), formatted as `%06X` for invite links, Keychain accounts, Bonjour TXT `sid`, and routing keys.
 - Coordinate integers are rounded signed Int32 values of degrees × 1,000,000. This is about 0.11 m latitude quantization, **not GPS accuracy**; longitude spacing depends on latitude. Validate finite/range-safe inputs before conversion.
 - Timestamp fields are UInt32 Unix seconds. Do not refresh an old measurement timestamp when a packet is received. Existing direct conversions require range review; clock-skew/expiry rules are not uniformly enforced by serialization.
 - Accuracy is a one-byte meter value. Battery is capped at 100 by several constructors/serializers. Do not invent an unknown-value encoding without reviewing both sides.
@@ -187,7 +187,7 @@ sequenceNumber=(7 << 24) | 42 = 0x0700002A
 00 12 34 07 00 00 2A 31 54 4B 4D 33
 ```
 
-Both envelope decode paths round-trip the UInt16 SID; AAD masks hop count without changing the other canonical bytes.
+Both `Teekum` and prototype decode paths round-trip 16-bit contract vectors such as `0x1234`, while `Teekum` encodes and decodes the full 24-bit SID (`0x000001...0xFFFFFF`); AAD masks hop count without changing the other canonical bytes.
 
 A valid encrypted fixture must declare test-only key/input data and use the actual CryptoKit implementation to produce ciphertext/tag. No fabricated authentication tags or copied historical pass counts belong in acceptance evidence.
 

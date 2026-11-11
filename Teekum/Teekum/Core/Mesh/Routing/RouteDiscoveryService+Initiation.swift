@@ -23,7 +23,7 @@ extension RouteDiscoveryService {
         
         // 1. Check existing unexpired route in routing table
         if let routingTable = routingTable as? RoutingTable {
-            if let cached = await routingTable.findRoute(to: sanitizedTarget, inSession: UInt32(session.sessionId)), cached.isFresh {
+            if let cached = await routingTable.findRoute(to: sanitizedTarget, inSession: session.sessionId), cached.isFresh {
                 return cached
             }
         } else if let cached = await routingTable.findRoute(to: sanitizedTarget), cached.isFresh {
@@ -48,7 +48,7 @@ extension RouteDiscoveryService {
             throw RouteDiscoveryFailure.loopDetected
         }
         
-        let targetKey = "\(session.sessionId):\(sanitizedTarget)"
+        let targetKey = "\(PacketConstants.formatSessionId(session.sessionId)):\(sanitizedTarget)"
         
         // 1. Coalesce with existing in-flight discovery to avoid duplicate floods
         if let existingNonce = inFlightByTarget[targetKey],
@@ -120,7 +120,7 @@ extension RouteDiscoveryService {
         return try await withCheckedThrowingContinuation { cont in
             let inFlight = InFlightDiscovery(
                 targetInitials: sanitizedTarget,
-                sessionId: UInt32(session.sessionId),
+                sessionId: session.sessionId & PacketConstants.sessionIdMask,
                 discoveryNonce: nonce,
                 sequenceNumber: seq,
                 startedAt: now,
@@ -151,7 +151,7 @@ extension RouteDiscoveryService {
     public func handleDiscoveryTimeout(nonce: UInt32) {
         discoveryTimeoutTasks.removeValue(forKey: nonce)?.cancel()
         guard let inFlight = inFlightDiscoveries.removeValue(forKey: nonce) else { return }
-        let targetKey = "\(inFlight.sessionId):\(inFlight.targetInitials)"
+        let targetKey = "\(PacketConstants.formatSessionId(inFlight.sessionId)):\(inFlight.targetInitials)"
         inFlightByTarget.removeValue(forKey: targetKey)
         totalDiscoveriesFailedCount += 1
         for cont in inFlight.continuations {

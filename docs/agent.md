@@ -80,7 +80,7 @@ Avoid “migration complete,” “all logic transferred,” “production-ready
 - For nontrivial logic delivery, agree meaningful executable checks with the owner and record actual results. Generation, parsing, building, testing and physical-device verification are different evidence levels.
 - Preserve original location measurement timestamps and accuracy; receipt time is not a fresh GPS fix. Disconnection/stale samples do not prove stillness or danger.
 - A hold callback/local send/TCP completion/relay ACK is not recipient-confirmed SOS or chat delivery.
-- Never silently resolve protocol/key/identity conflicts from an old document. The agreed V3 layout is 56 bytes with a UInt16 SID in a three-byte field. See the protocol documents before changing wire or identity behavior.
+- Never silently resolve protocol/key/identity conflicts from an old document. The agreed V3 layout is 56 bytes with a 24-bit SID (`0x000001...0xFFFFFF`) in a three-byte big-endian field. See the protocol documents before changing wire or identity behavior.
 - Never publish real keys, invite secrets or private location traces. Do not treat the imported deterministic shared default key as production private-group provisioning.
 - Changes to session services must preserve cancellation, history/key cleanup and old-session callback rejection. The durable sequence record intentionally survives leave.
 - Inactivity defaults are not research-backed thresholds or a validated safety feature. Obtain use-case evidence and consent/cancellation/fallback decisions before enabling automatic alerts.

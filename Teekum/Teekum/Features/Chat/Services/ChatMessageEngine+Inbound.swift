@@ -105,7 +105,7 @@ extension ChatMessageEngine {
             
             // Blind forward across mesh (never decrypt or display)
             try await forwardOpaquePacket(mutatedData, exceptPeerId: fromPeerId)
-            return .relayedStranger(sessionId: UInt32(envelope.sessionId), hopCount: envelope.hopCount + 1)
+            return .relayedStranger(sessionId: envelope.sessionId, hopCount: envelope.hopCount + 1)
         }
         
         // 3. Local Group Session Ingestion

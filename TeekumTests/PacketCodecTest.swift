@@ -32,6 +32,17 @@ struct PacketCodecTests {
 
         let decoded = try CleartextEnvelope.deserialize(from: data)
         #expect(decoded == original)
+
+        for sid: UInt32 in [0x000001, 0x7E3AF5, 0xFFFFFF] {
+            let sidEnv = CleartextEnvelope(type: .chatMessage, hopLimit: 8, hopCount: 1, sessionId: sid, sequenceNumber: 99)
+            #expect(try CleartextEnvelope.deserialize(from: sidEnv.serialize()) == sidEnv)
+        }
+
+        var overwide = CleartextEnvelope(type: .locationPing, sessionId: 0x12345678, sequenceNumber: 1)
+        #expect(overwide.sessionId == 0x345678)
+        overwide.sessionId = 0xAABBCCDD
+        #expect(overwide.sessionId == 0xBBCCDD)
+        #expect(try CleartextEnvelope.deserialize(from: overwide.serialize()) == overwide)
     }
 
     // MARK: - Test 2: Envelope Validation & Error Handling

@@ -19,7 +19,8 @@ public actor PacketSequenceAllocator {
 
     public func next(for session: GroupSession) throws -> UInt32 {
         var identity = session.symmetricKeyData
-        identity.append(contentsOf: [UInt8(session.sessionId >> 8), UInt8(session.sessionId & 0xff), session.memberSlot])
+        identity.append(contentsOf: PacketConstants.encodeSessionId24(session.sessionId))
+        identity.append(session.memberSlot)
         let account = SHA256.hash(data: identity).map { String(format: "%02x", $0) }.joined()
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

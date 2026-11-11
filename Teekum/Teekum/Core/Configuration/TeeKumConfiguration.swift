@@ -30,11 +30,17 @@ nonisolated public enum TeeKumConfiguration {
         /// Size of cryptographic AEAD nonce (12 bytes).
         public static let nonceSize: Int = 12
         
-        /// Protocol version (0x03 for Protocol Version 3).
-        public static let protocolVersion: UInt8 = 0x03
+        /// Protocol version (0x01 for Protocol Version 1).
+        public static let protocolVersion: UInt8 = 0x01
         
         /// 4-byte domain separation tag used in AEAD nonce construction: 'T', 'K', 'M', '3'.
         public static let protocolDomainTag: [UInt8] = [0x54, 0x4B, 0x4D, 0x33]
+
+        /// Bitmask for canonical 24-bit Session ID values (`0x000000...0xFFFFFF`).
+        public static let sessionIdMask: UInt32 = 0x00FFFFFF
+
+        /// Maximum allowable 24-bit Session ID (`0x00FFFFFF` = 16,777,215).
+        public static let maxSessionId: UInt32 = 0x00FFFFFF
         
         /// Hard architectural maximum allowable hop limit across the entire mesh (1...15).
         public static let maxHopLimit: UInt8 = 15

@@ -33,7 +33,6 @@ final class PairingViewModel {
     private(set) var isPublicFestivalMesh = false
     private(set) var draftSession: GroupSession?
     private(set) var scannedInvite: GroupSessionInvite?
-    var inviteText = ""
     var errorMessage: String?
     var isShowingQR: Bool { draftSession != nil }
 
@@ -102,8 +101,19 @@ final class PairingViewModel {
         receiveInvite(invite)
     }
 
-    func useInviteLink() {
-        handleScannedCode(inviteText)
+    func pasteInvite(candidates: [String]) {
+        let nonEmpty = candidates.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !nonEmpty.isEmpty else {
+            errorMessage = PairingError.emptyClipboard.localizedDescription
+            return
+        }
+        for text in nonEmpty {
+            if let invite = GroupSession.parseInvite(from: text) {
+                receiveInvite(invite)
+                return
+            }
+        }
+        errorMessage = PairingError.invalidInvite.localizedDescription
     }
 
     func preparePublicFestivalMesh() {
