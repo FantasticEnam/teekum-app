@@ -13,6 +13,12 @@ import Observation
 @MainActor
 @Observable
 public final class SessionStore {
+    struct MemberContactLoss: Identifiable, Equatable {
+        let id = UUID()
+        let initials: Member.ID
+        let timestamp: Date
+    }
+
     /// Active group session; nil when unpaired (AppRootView shows Pairing).
     public var activeSession: GroupSession?
     public var pendingInvite: GroupSessionInvite?
@@ -22,6 +28,7 @@ public final class SessionStore {
     public var members: [Member]
 
     private var unreachableMemberIDs: Set<Member.ID> = []
+    private(set) var memberContactLog: [MemberContactLoss] = []
 
     var visibleMembers: [Member] {
         members.filter { $0.isEmergency || !unreachableMemberIDs.contains($0.id) }
@@ -87,16 +94,25 @@ public final class SessionStore {
         }
     }
 
-    func refreshMemberVisibility(now: Date, peers: [PeerInfo]) {
+    func refreshMemberVisibility(now: Date, peers: [PeerInfo]) -> [MemberContactLoss] {
         let timing = MeshTimingConfiguration.default
         let cutoff = now.addingTimeInterval(-(timing.stalePeerThreshold + timing.staleRecoveryTimeout))
         let connected = Set(peers.lazy.filter { $0.isGroupMember && $0.isDirectLink }.map(\.id))
         let unreachable = Set(members.lazy.filter {
             $0.lastSeen < cutoff && !connected.contains($0.id)
         }.map(\.id))
-        if unreachable != unreachableMemberIDs {
-            unreachableMemberIDs = unreachable
+        guard unreachable != unreachableMemberIDs else { return [] }
+        let losses = unreachable.subtracting(unreachableMemberIDs).sorted().map {
+            MemberContactLoss(initials: $0, timestamp: now)
         }
+        unreachableMemberIDs = unreachable
+        if !losses.isEmpty {
+            memberContactLog.append(contentsOf: losses)
+            if memberContactLog.count > 100 {
+                memberContactLog.removeFirst(memberContactLog.count - 100)
+            }
+        }
+        return losses
     }
 
     /// Inserts or updates a member record only if the incoming sample is not older than existing state.
@@ -125,6 +141,7 @@ public final class SessionStore {
         pendingDeepLink = nil
         members.removeAll()
         unreachableMemberIDs.removeAll()
+        memberContactLog.removeAll()
         activeMeetingPoint = nil
     }
 }

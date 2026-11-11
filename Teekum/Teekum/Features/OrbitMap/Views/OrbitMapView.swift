@@ -159,7 +159,8 @@ struct OrbitMapView: View {
                 .presentationBackground(.clear)
             case .settings:
                 OrbitSettingsView(location: location, sos: sos, relayPolicy: relayPolicy,
-                    relayState: relayState, diagnostics: diagnostics)
+                    relayState: relayState, memberContactLog: { viewModel.sessionStore.memberContactLog },
+                    diagnostics: diagnostics)
             case .invite:
                 if let session = viewModel.sessionStore.activeSession {
                     NavigationStack {

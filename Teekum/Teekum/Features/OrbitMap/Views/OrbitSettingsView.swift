@@ -16,6 +16,7 @@ struct OrbitSettingsView: View {
     let sos: SOSViewModel?
     let relayPolicy: RelayPolicyManager?
     let relayState: RelayPolicyState
+    let memberContactLog: @MainActor () -> [SessionStore.MemberContactLoss]
     let diagnostics: @MainActor () -> TransportDiagnostics?
     @Environment(\.dismiss) private var dismiss
     @State private var changingRelay = false
@@ -23,6 +24,7 @@ struct OrbitSettingsView: View {
 
     var body: some View {
         let snapshot = diagnostics()
+        let activity = memberContactLog()
         NavigationStack {
             Form {
                 if let location {
@@ -55,6 +57,7 @@ struct OrbitSettingsView: View {
                     @Bindable var inactivityGuard = sos.inactivityGuard
                     InactivitySettingsView(isEnabled: $inactivityGuard.isEnabled)
                 }
+                groupActivity(activity)
                 Section("Connection diagnostics") {
                     LabeledContent("Direct peers", value: "\(snapshot?.activeDirectPeers.filter(\.isDirectLink).count ?? 0)")
                     LabeledContent("Packets sent", value: "\(snapshot?.packetsSent ?? 0)")
@@ -68,6 +71,23 @@ struct OrbitSettingsView: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close", systemImage: "xmark", action: dismiss.callAsFunction) } }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private func groupActivity(_ losses: [SessionStore.MemberContactLoss]) -> some View {
+        Section("Group activity") {
+            if losses.isEmpty {
+                Text("No activity yet.").foregroundStyle(.secondary)
+            }
+            ForEach(losses.reversed()) { loss in
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Lost contact with \(loss.initials)", systemImage: "wifi.slash")
+                    Text(loss.timestamp, format: .dateTime.hour().minute().second())
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
     }
 
     private func packetLog(_ packets: [TransportDiagnostics.PacketEvent]) -> some View {
@@ -164,7 +184,8 @@ struct OrbitSettingsView: View {
     }
 }
 
-#Preview("Connection diagnostics and packet log") {
+#Preview("Group activity and diagnostics") {
+    let activity = [SessionStore.MemberContactLoss(initials: "NIC", timestamp: .now.addingTimeInterval(-30))]
     let snapshot = TransportDiagnostics(
         localPeerId: "DAF",
         serviceType: "_teekum._tcp",
@@ -189,5 +210,5 @@ struct OrbitSettingsView: View {
     )
 
     OrbitSettingsView(location: nil, sos: nil, relayPolicy: nil, relayState: .init(mode: .disabled),
-        diagnostics: { snapshot })
+        memberContactLog: { activity }, diagnostics: { snapshot })
 }
