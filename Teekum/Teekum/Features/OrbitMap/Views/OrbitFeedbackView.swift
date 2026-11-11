@@ -32,3 +32,14 @@ struct OrbitFeedbackView: View {
         .padding(.horizontal)
     }
 }
+
+#if DEBUG
+#Preview("Incoming SOS feedback") {
+    @Previewable @State var sos = SOSViewModel.preview
+
+    OrbitFeedbackView(sos: sos, notifications: nil)
+        .padding(.vertical)
+        .background(.black)
+        .preferredColorScheme(.dark)
+}
+#endif

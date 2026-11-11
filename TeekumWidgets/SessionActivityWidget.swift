@@ -33,3 +33,13 @@ struct SessionActivityWidget: Widget {
         }
     }
 }
+
+#Preview("Lock Screen Live Activity", as: .content,
+    using: SessionActivityAttributes(sessionId: 0x4321, sessionName: "Festival Crew", userInitials: "DAF")) {
+    SessionActivityWidget()
+} contentStates: {
+    SessionActivityAttributes.ContentState(directPeerCount: 3, meetingPointName: "Gate 2",
+        meetingPointDistanceMeters: 120, relayStatusText: "Relay active")
+    SessionActivityAttributes.ContentState(directPeerCount: 3, sosSenderInitials: "ADI",
+        relayStatusText: "Relay active")
+}

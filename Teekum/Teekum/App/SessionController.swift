@@ -212,7 +212,6 @@ final class SessionController {
         await routes.setOnTargetReached(nil)
         await routes.teardown()
         await seen.removeAll()
-        await crypto.replayFilter.purge()
         diagnostics = nil
         directPeers.removeAll()
     }
@@ -293,10 +292,10 @@ final class SessionController {
             routeDiscoveryService: routes, seenPacketCache: seen,
             onLocationPing: { [weak self] ping, inbound in
                 guard let self, generation == current else { return }
-                acceptLocation(ping, inbound: inbound)
+                store.applyLocationPing(ping, inbound: inbound)
             }, onSOS: { [weak self] payload, inbound in
                 guard let self, generation == current else { return }
-                acceptSOSMember(payload, inbound: inbound)
+                store.applySOSLocation(payload, inbound: inbound)
                 try? await sosEngine.handleInboundSOSPacket(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
             }, onACK: { [weak self] inbound in
                 guard let self, generation == current else { return }
@@ -318,27 +317,6 @@ final class SessionController {
             })
     }
 
-    private func acceptLocation(_ ping: LocationPingPayload, inbound: InboundPacket) {
-        let existing = store.members.first { $0.id == ping.senderInitials }
-        store.upsertMember(Member(id: ping.senderInitials, lastSeen: inbound.receivedAt, coordinate: ping.coordinate,
-            horizontalAccuracy: Double(ping.accuracy), isEmergency: existing?.isEmergency ?? false,
-            batteryLevel: Float(ping.batteryLevel) / 100, heading: ping.headingDegrees,
-            isDirectPeer: inbound.rawPacket.envelope.hopCount == 0, rssi: inbound.receivedRssi,
-            color: .resolve(code: ping.colorCode, initials: ping.senderInitials), measurementTimestamp: ping.timestamp))
-    }
-
-    private func acceptSOSMember(_ payload: SOSPayload, inbound: InboundPacket) {
-        let existing = store.members.first { $0.id == payload.senderInitials }
-        let hasLocation = payload.timestamp.timeIntervalSince1970 > 0
-        store.upsertMember(Member(id: payload.senderInitials, lastSeen: inbound.receivedAt,
-            coordinate: hasLocation ? payload.coordinate : nil,
-            horizontalAccuracy: hasLocation ? Double(payload.accuracy) : nil,
-            isEmergency: existing?.isEmergency ?? false, batteryLevel: Float(payload.batteryLevel) / 100,
-            heading: existing?.heading, isDirectPeer: inbound.rawPacket.envelope.hopCount == 0,
-            rssi: inbound.receivedRssi, color: .resolve(code: payload.colorCode, initials: payload.senderInitials),
-            measurementTimestamp: hasLocation ? payload.timestamp : nil))
-    }
-
     private func acceptPeerUpdate(_ peers: [PeerInfo]) async {
         let current = generation
         let connected = Set(peers.filter(\.isDirectLink).map(\.id))
@@ -348,14 +326,7 @@ final class SessionController {
             await routes.handleNeighborDisconnected(peerId: peer)
             guard generation == current else { return }
         }
-        for index in store.members.indices { store.members[index].isDirectPeer = connected.contains(store.members[index].id) }
-        for peer in peers where peer.isGroupMember && peer.id != store.activeSession?.localInitials {
-            var member = store.members.first { $0.id == peer.id } ?? Member(id: peer.id)
-            member.isDirectPeer = peer.isDirectLink
-            member.rssi = peer.rssi
-            member.lastSeen = max(member.lastSeen, peer.lastSeen)
-            store.upsertMember(member)
-        }
+        store.applyPeerSnapshot(peers, connected: connected)
         if !connected.isEmpty {
             location.publishCurrentState()
             await meeting.syncActiveMeetingPointToPeers()

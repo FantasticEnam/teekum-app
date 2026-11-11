@@ -62,3 +62,18 @@ struct FriendFinderView: View {
         .onDisappear { location?.setTacticalRadarActive(false) }
     }
 }
+
+#Preview("Direction to a friend") {
+    @Previewable @State var location = {
+        let location = LocationService(isLiveSharingEnabled: false)
+        location.currentLocation = LocationPin(
+            coordinate: .init(latitude: -6.1988, longitude: 106.8225),
+            horizontalAccuracy: 5
+        )
+        location.currentHeading = 30
+        return location
+    }()
+
+    FriendFinderView(member: SessionStore.preview.members[0], location: location)
+        .preferredColorScheme(.dark)
+}

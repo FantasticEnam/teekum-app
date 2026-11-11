@@ -130,3 +130,17 @@ final class SOSViewModel {
         inactivityGuard.recordUserInteraction()
     }
 }
+
+#if DEBUG
+extension SOSViewModel {
+    static var preview: SOSViewModel {
+        let viewModel = SOSViewModel(
+            engine: SOSForwardingEngine(transport: PeerTransportService(), cryptoService: CryptoService()),
+            locationService: LocationService(isLiveSharingEnabled: false),
+            sessionProvider: { nil }
+        )
+        viewModel.incomingAlert = .preview
+        return viewModel
+    }
+}
+#endif

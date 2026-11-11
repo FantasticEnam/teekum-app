@@ -2,424 +2,106 @@
 
 **Fantasix · Last reviewed: 11 November 2026**
 
-> **Current implementation:** See [Session migration](features/session-migration.md) for the connected behavior, source changes, test evidence and open protocol decisions. The inventory and G1–G12 below describe the pre-integration baseline `796f586`; they are retained as comparison history. The architecture and workflow rules still apply.
-
 ## 1. Project Overview
 
-TeeKum is an iPhone concert/festival companion intended to help friends coordinate when internet access is poor. The desired product includes group entry, location sharing, a directional Orbit overview, geographic meeting points, chat and SOS. Offline radio, privacy, delivery and safety behavior require integration and physical-device evidence before release.
+TeeKum helps groups coordinate at concerts and festivals when internet access is poor. The app connects private group invitations, an explicit public group, Orbit and friend finding, geographic meeting points, chat, SOS and optional inactivity monitoring. [Session migration](features/session-migration.md) records the comparison with prototype `f4c6393` and the verification limits. The original UI/import baseline is `796f586`.
 
-- Team: Fantasix. Developers: Adiat, Daffa, Hasan and Nicho; designers: Ayu and Ivanna.
-- Minimum deployment target: **iOS 27.0**, from `project.yml`.
-- SwiftUI with Observation and **Feature-Driven MVVM**. Swift 6 language mode; XcodeGen minimum 2.46.0.
-- The configured app identifier is `com.fantasticenam.meepo`; display name/scheme remain Teekum. Confirm release naming with the team rather than changing it through a doc assumption.
-
-### 1.1 Current State by Area
-
-| Area | Source present | Integration status |
-| :--- | :--- | :--- |
-| Pairing / Agreement | Form, color picker, focus handling, QR artwork, camera preview and local activation action | Local demo navigation only. GroupInvite/GroupInvitedCodec/QRCodeGenerator remain placeholders. Imported GroupSession invite methods do not make the UI a real join flow. |
-| Orbit / friends | Header, scene, hold control, roster/search, curved panel and leave confirmation | Group title and roster read SessionStore; marker positions/heading are fixtures. SOS, chat, settings, add-friend and member-selection callbacks remain unconnected. |
-| MapPoint | MainMapView, MapLayerView, pin and ViewModel | Local candidate/proposal/attendance state only; no peer synchronization. Old session identity access needs reconciliation with imported models. |
-| Messaging / security / transport | Packet codecs, router, crypto, replay, keychain, framing and peer actor | Imported, not assembled/started by TeekumApp. Missing dependencies and conflicting contracts remain. |
-| Mesh | Neighbor/routing/forwarding/policy/telemetry services and protocols | Imported source, not verified multi-hop behavior or an approved Phase 1 scope expansion. |
-| Location / power | LocationService, LocationPublisher and adaptive hardware extensions | Imported, not connected to Orbit. MapPoint's local CLLocationManager permission request is not the shared publisher. |
-| Chat / SOS / inactivity | Engines, protocol/model files, audio adapter and guard | Imported logic, not connected to buttons, warning UI, app interaction events or session teardown. |
-| Recovery / Live Activity / Finder / strobe beacon / Diagnostics UI | No implementation located for these complete features in this snapshot | Missing, deferred or not yet migrated; compare with legacy before deciding which. No widget target is configured. |
-
-### 1.2 Product Intent versus Imported Defaults
-
-| Topic | Current observation / decision still required |
-| :--- | :--- |
-| Private groups | Intended product behavior. Imported GroupSession also contains a deterministic shared-key/auto-mesh default; that is not approval for private-group key management. |
-| Location and status | Current LocationPingPayload contains sensor telemetry/color, **not statusCode or targetRefId**. Chat presets exist separately. SessionStore still has localStatus/localTargetRefId. Agree their intended behavior before integration. |
-| SOS hold | Shared/UI currently requires **1.5 seconds**. TeeKumConfiguration.SOS.holdDuration is **3 seconds** and is not used by that control. Resolve the difference; do not silently choose a value. |
-| Inactivity | Imported guard defaults to disabled, 180 seconds of local stillness plus a 30-second warning. These are unvalidated tunables, not research-backed safety thresholds or a shipped remote-friend idle alert. |
-| Location cadence | Configuration contains moving 4 s, stationary 20 s, distant 2 s and survival 60 s defaults. Other configuration/defaults also exist; trace the active consumer before documenting effective behavior. |
-| Meeting point | One shared local point is the UI intent. Conflict resolution, expiry, attendance identity and network reconciliation remain integration tasks. |
-| Relay consent | Imported relay policy/discovery logic exists. Final consent UX, stranger eligibility, rate budgets and background scope still need owner review. |
-| UWB / offline maps / battery | Capability, map availability, runtime limits and battery impact remain unverified. No fixed distance, energy-saving percentage, guaranteed delivery or continuous background execution is established here. |
-
-Custom venue overlays and an Apple Watch companion remain later product proposals, not prerequisites or implemented targets. Preserve the legacy compass/radar/strobe behavior in the parity review before deciding what to restore, replace or defer.
+- Team: Fantasix. Developers: Adiat, Daffa, Hasan and Nicho. Designers: Ayu and Ivanna.
+- Minimum iOS 27.0, Swift 6, SwiftUI with Observation and Feature-Driven MVVM.
+- The XcodeGen spec names the app Teekum and sets the bundle ID to `com.fantasticenam.meepo`.
 
 ## 2. Technologies and Configuration
 
-| Framework | Located source/use | Status |
-| :--- | :--- | :--- |
-| SwiftUI / Observation | App, Features, Shared/UI, SessionStore | UI/local state structure present; integration conflicts can still prevent a complete build. |
-| MapKit | Features/MapPoint/Views/Components/MapLayerView.swift | Geographic UI and user annotation; offline map availability is not established. |
-| AVFoundation / UIKit bridge | Pairing QRScannerService, CameraPreviewView/Surface | Preview/permission lifecycle, not QR decoding. |
-| Network | Core/Transport/Services and Extensions | Imported Bonjour/TCP-oriented implementation with optional UDP branch. See NETWORKING. |
-| CryptoKit / Security | Core/Security/Services | Imported ChaChaPoly/key storage, not app-wired. See PROTOCOL_SPECIFICATION. |
-| CoreLocation / CoreMotion | Core/Location and Features/SOS/Services/InactivityGuardService.swift | Imported sensor logic. Permissions, lifecycle and policy need integration. |
-| NearbyInteraction / ActivityKit / SQLite recovery | No complete corresponding implementation/target located | Planned or missing from this migration; do not invent completed services. |
+| Framework | Owner and responsibility |
+| :--- | :--- |
+| SwiftUI / Observation | `App`, `Features` and `Shared/UI` render and observe session/feature state. |
+| MapKit | `Features/MeetingPoint/Views/Components/MapLayerView.swift` draws the map and meeting pin. Offline map availability needs device evidence. |
+| AVFoundation / UIKit | Pairing's `QRScannerService` and camera preview handle QR scanning. |
+| Network / CoreBluetooth | `Core/Transport` manages Bonjour TCP and BLE. [Networking](NETWORKING.md) |
+| CryptoKit / Security | `Core/Security` seals/opens payloads, stores session keys and reserves outgoing sequence numbers. [Protocol specification](PROTOCOL_SPECIFICATION.md) |
+| CoreLocation / CoreMotion | `Core/Location` collects location/heading. `Features/SOS/Services/InactivityGuardService.swift` owns the opt-in inactivity timer. |
+| ActivityKit / WidgetKit | `Core/LiveActivity` manages the activity. `TeekumWidgets` renders the companion. |
 
-`project.yml` currently declares a single application target, the Teekum scheme, camera usage text and When-In-Use location usage text. Local-network/Bonjour declarations, motion usage text, URL scheme registration, background modes and a Live Activity widget target are not configured there. Review the relevant APIs/required configuration during integration; do not add capabilities merely because imported code mentions them. No external dependency is declared in this spec.
+`project.yml` declares the app, widget and XCTest targets along with privacy strings, Bonjour, the invite URL scheme and background modes. `project-parity.yml` adds the optional reference test targets. The specs declare no external dependencies.
 
 ## 3. Architecture — MVVM Feature-Driven
 
-### 3.1 Architecture Name & Status
+### 3.1 Dependency and Ownership
 
-Feature-Driven MVVM remains the intended structure. Imported legacy classes are migration inputs, not automatic architecture decisions. In particular, PacketRouter currently depends on old feature ViewModels; this conflicts with the desired Core boundary and needs a reviewed adaptation.
+- A View owns presentation, focus and gestures. Its ViewModel exposes feature actions and observable state. Feature services own rules, tasks and retries specific to that feature.
+- `App/TeekumApp.swift` retains `SessionController`. The controller assembles dependencies, handles join/restore/leave, and owns the inbound consumer, peer stream and maintenance tasks.
+- `Core/Session/SessionStore.swift` owns the accepted roster and meeting point. Its member updates retain the newest measurement separately from receipt time. Chat and SOS delivery state stay in their respective engines.
+- Features depend on Core. `Core/Mesh/PacketRouter.swift` takes callbacks from app composition for accepted packets. The router has no ViewModel dependency.
+- Group Core files by responsibility and keep extensions beside the type they extend as `Type+Responsibility.swift`. Keep feature-only types inside that feature and wire payload models in `Core/Packets/Payloads`. Use `Shared/UI` for presentation reused across features.
 
-### 3.2 Dependency & Ownership Rules
-
-- Views own presentation, focus, selection and gestures. ViewModels own feature actions/presentation state. Keep UI-observed state on MainActor.
-- Retain the existing SessionStore for accepted cross-feature state; agree model compatibility before wiring imports. Do not maintain independently writable copies of the roster/meeting state.
-- Create/retain shared service instances at App composition when integration is ready. Direct initializer injection is sufficient; no mandatory Coordinator, AppDependencies, Repository, UseCase or runtime layer.
-- The intended boundary is Feature → shared Core contracts. Core should not require feature UI/ViewModel types. The current router violates this intention; do not conceal that with empty replacement classes.
-- Use actors for shared mutable service state where needed, and one explicitly owned inbound consumer. Service lifetimes must not depend on which map/modal is visible.
-- Put payload-free enums in the owning Models/Enums folder; structured records and associated-value enums remain data/state types. Some imported files currently contain multiple types; the inventory below reports reality, not approval of every placement.
-- Names/comments do not establish semantics: MemberID still exists, but imported Member uses a String ID and GroupSession derives a slot from initials. Resolve identity jointly rather than assuming the earlier typed-ID migration survived intact.
-
-### 3.3 Current Folder Structure
-
-Paths below are relative to `Teekum/Teekum/` and list the Swift source actually present. `//` comments identify key responsibilities/limits; an unannotated imported file is still unverified. Assets.xcassets also exists at this source root. No proposed widget/test/persistence tree is presented as implemented.
+### 3.2 Source Layout
 
 ```text
 Teekum/Teekum/
-├── App/
-│   ├── AppRootView.swift // Local session-based Pairing/Orbit root switch
-│   └── TeekumApp.swift // Retains SessionStore; does not assemble imported services
+├── App/               Session composition and lifecycle
 ├── Features/
-│   ├── Chat/
-│   │   ├── Models/
-│   │   │   └── InFlightMessage.swift
-│   │   ├── Protocols/
-│   │   │   └── ChatMessagingService.swift
-│   │   └── Services/
-│   │       ├── Extensions/
-│   │       │   ├── ChatMessageEngineDelivery.swift
-│   │       │   ├── ChatMessageEngineInbound.swift
-│   │       │   └── ChatMessageEngineOutbound.swift
-│   │       └── ChatMessageEngine.swift // Imported chat actor; no current chat UI wiring
-│   ├── MapPoint/
-│   │   ├── ViewModels/
-│   │   │   └── MapPointViewModel.swift // Local candidate and shared meeting edits; old session identity API still referenced
-│   │   └── Views/
-│   │       ├── Components/
-│   │       │   ├── MapLayerView.swift // MapKit viewport, annotations and long-press selection
-│   │       │   └── MapPointPinView.swift
-│   │       └── MainMapView.swift // Geographic modal and native local meeting alerts
-│   ├── OrbitMap/
-│   │   ├── Models/
-│   │   │   └── Enums/
-│   │   │       └── OrbitModal.swift
-│   │   ├── ViewModels/
-│   │   │   ├── FriendListViewModel.swift // Roster filtering and seconds-or-minutes age formatting
-│   │   │   └── OrbitMapViewModel.swift // Group title and local SessionStore reset only
-│   │   └── Views/
-│   │       ├── Components/
-│   │       │   ├── FriendListMemberView.swift
-│   │       │   ├── OrbitBloomView.swift
-│   │       │   ├── OrbitControlsView.swift
-│   │       │   ├── OrbitHeaderView.swift
-│   │       │   ├── OrbitMarkerMemberView.swift // Declares OrbitMemberMarkerView
-│   │       │   ├── OrbitPanelShape.swift // Curved panel and chevron-handle surface
-│   │       │   ├── OrbitSceneView.swift // Rings, stars and fixture heading/member positions
-│   │       │   ├── OrbitUserMarkerView.swift
-│   │       │   └── StarfieldView.swift // Decorative twinkle with scene/motion/power handling
-│   │       ├── FriendListSheet.swift // Roster/search and native leave confirmation; model reconciliation pending
-│   │       └── OrbitMapView.swift // Friends/map modal composition; SOS/chat/invite callbacks are placeholders
-│   ├── Pairing/
-│   │   ├── Models/
-│   │   │   ├── Enums/
-│   │   │   │   ├── PairingField.swift // Payload-free input focus choices
-│   │   │   │   ├── PairingMode.swift // Create/join UI mode
-│   │   │   │   └── PairingProfileColor.swift // Draft UI color selection
-│   │   │   ├── GroupInvite.swift // Placeholder, not an implemented invite contract
-│   │   │   └── PairingForm.swift
-│   │   ├── Services/
-│   │   │   ├── GroupInvitedCodec.swift // Placeholder; filename retained as currently spelled
-│   │   │   ├── QRCodeGenerator.swift // Placeholder; screen uses static QR artwork
-│   │   │   └── QRScannerService.swift // AVFoundation camera preview lifecycle; no QR decoding
-│   │   ├── ViewModels/
-│   │   │   └── PairingViewModel.swift // Local navigation demo; session-model compatibility unresolved
-│   │   └── Views/
-│   │       ├── AgreementViewComponents/
-│   │       │   ├── AggrementGroupSummaryView.swift // Declares AgreementGroupSummaryView
-│   │       │   ├── CardAgreement.swift
-│   │       │   ├── FooterAgreement.swift
-│   │       │   └── HeadAgreement.swift
-│   │       ├── PairingViewComponents/
-│   │       │   ├── CameraPreviewSurface.swift
-│   │       │   ├── CameraPreviewView.swift
-│   │       │   ├── GroupNameField.swift
-│   │       │   ├── GroupPairingInviteView.swift // Static QR artwork; share action unconnected
-│   │       │   ├── GroupPairingProfileView.swift
-│   │       │   └── ProfilePickerView.swift
-│   │       ├── AgreementView.swift // Consent screen; product copy is not runtime evidence
-│   │       ├── GroupPairingView.swift // Form, focus/color-picker presentation and Agreement push
-│   │       ├── GroupQRCodeView.swift // Group title and static invitation UI
-│   │       ├── MeshAgreementView.swift // Unused Hello-world placeholder
-│   │       └── QRScannerView.swift
-│   └── SOS/
-│       ├── Protocols/
-│       │   └── SOSAudioAlerting.swift
-│       └── Services/
-│           ├── Extensions/
-│           │   ├── SOSForwardingEngineACK.swift
-│           │   ├── SOSForwardingEngineInbound.swift
-│           │   ├── SOSForwardingEngineOutbound.swift
-│           │   └── SOSForwardingEngineRetries.swift
-│           ├── DefaultSOSAudioAlerter.swift // Imported alert feedback adapter
-│           ├── InactivityGuardService.swift // Imported opt-in local stillness/countdown service; not connected
-│           └── SOSForwardingEngine.swift // Imported SOS actor; hold callback is not connected
+│   ├── Pairing/       Create, join, invite and agreement
+│   ├── OrbitMap/      Radar, friends and connection settings
+│   ├── MeetingPoint/ Geographic map, meeting rules and RSVP
+│   ├── Chat/          Chat UI and delivery
+│   └── SOS/           SOS, alerts and inactivity
 ├── Core/
-│   ├── Configuration/
-│   │   └── TeeKumConfiguration.swift // Imported constants; values are not approved field evidence
-│   ├── Location/
-│   │   ├── Models/
-│   │   │   ├── Enums/
-│   │   │   │   └── LocationServiceError.swift
-│   │   │   └── CadenceConfiguration.swift
-│   │   ├── Protocols/
-│   │   │   ├── Extensions/
-│   │   │   │   └── LocationServiceProtocolConfiguration.swift
-│   │   │   └── LocationServiceProtocol.swift
-│   │   └── Services/
-│   │       ├── Extensions/
-│   │       │   ├── LocationServiceAdaptiveHardware.swift
-│   │       │   ├── LocationServiceDelegate.swift
-│   │       │   ├── LocationServiceLifecycle.swift
-│   │       │   ├── LocationServicePublishing.swift
-│   │       │   └── LocationServiceTesting.swift
-│   │       ├── LocationPublisher.swift // Imported sensor-only ping publisher; not started by current app
-│   │       └── LocationService.swift // Imported location/motion/battery service; protocol naming mismatch
-│   ├── Mesh/
-│   │   ├── Models/
-│   │   │   ├── InFlightDiscovery.swift
-│   │   │   ├── NeighborEntry.swift
-│   │   │   ├── PacketKey.swift
-│   │   │   └── SeenRREQEntry.swift
-│   │   ├── NeighborManagement/
-│   │   │   ├── Models/
-│   │   │   │   ├── Enums/
-│   │   │   │   │   ├── NeighborEvent.swift
-│   │   │   │   │   └── NeighborState.swift
-│   │   │   │   ├── InboundFrame.swift
-│   │   │   │   ├── NeighborInfo.swift
-│   │   │   │   ├── QueueDepth.swift
-│   │   │   │   ├── SendOutcome.swift
-│   │   │   │   └── TransportCapabilities.swift
-│   │   │   └── Protocols/
-│   │   │       ├── MeshTransport.swift
-│   │   │       └── NeighborManaging.swift
-│   │   ├── PacketForwarding/
-│   │   │   ├── Models/
-│   │   │   │   └── Enums/
-│   │   │   │       └── ForwardingDecision.swift
-│   │   │   └── Protocols/
-│   │   │       ├── ForwardingBudgetManaging.swift
-│   │   │       └── PacketForwarding.swift
-│   │   ├── Protocols/
-│   │   │   └── MeshClock.swift
-│   │   ├── RelayDiagnostic/
-│   │   │   ├── Models/
-│   │   │   │   ├── Enums/
-│   │   │   │   │   └── DropReason.swift
-│   │   │   │   └── RelayTelemetry.swift
-│   │   │   └── Protocols/
-│   │   │       └── RelayDiagnosticProviding.swift
-│   │   ├── RelayParticipation/
-│   │   │   ├── Models/
-│   │   │   │   └── Enums/
-│   │   │   │       ├── RelayParticipationMode.swift
-│   │   │   │       └── RelayStatus.swift
-│   │   │   ├── Protocols/
-│   │   │   │   └── RelayPolicyManaging.swift
-│   │   │   └── Services/
-│   │   │       └── RelayPolicyState.swift
-│   │   ├── Routing/
-│   │   │   ├── "Models "/
-│   │   │   │   ├── Enums/
-│   │   │   │   │   ├── RouteDiscoveryFailure.swift
-│   │   │   │   │   ├── RouteReqHandlingResult.swift
-│   │   │   │   │   └── RouteRespHandlingResult.swift
-│   │   │   │   ├── ReverseRouteEntry.swift
-│   │   │   │   ├── RouteDiscoveryDiagnostics.swift
-│   │   │   │   └── RouteEntry.swift
-│   │   │   └── Protocols/
-│   │   │       ├── RouteDiscoveryManaging.swift
-│   │   │       └── RouteTableManagingProtocol.swift // Declares RoutingTableManaging
-│   │   ├── SOSForwarding/
-│   │   │   └── Protocols/
-│   │   │       └── SOSForwardingManaging.swift
-│   │   └── Services/
-│   │       ├── Extensions/
-│   │       │   ├── NeighborTable/
-│   │       │   │   ├── NeighborTableHealth.swift
-│   │       │   │   └── NeighborTableRegistry.swift
-│   │       │   ├── PacketForwarder/
-│   │       │   │   ├── PacketForwarderDispatch.swift
-│   │       │   │   └── PacketForwarderEvaluation.swift
-│   │       │   └── RouteDiscoveryService/
-│   │       │       ├── RouteDiscoveryServiceInbound.swift
-│   │       │       ├── RouteDiscoveryServiceInitiation.swift
-│   │       │       └── RouteDiscoveryServiceMaintenance.swift
-│   │       ├── ForwardRateLimiter.swift // Declares ForwardingRateLimiter
-│   │       ├── MeshTimingConfiguration.swift
-│   │       ├── NeighborTable.swift
-│   │       ├── PacketForwarder.swift
-│   │       ├── RelayPolicyManager.swift
-│   │       ├── RouteDiscoveryService.swift
-│   │       ├── RoutingTable.swift
-│   │       ├── SeenPacketCache.swift
-│   │       ├── SystemMeshClock.swift
-│   │       └── TestMeshClock.swift // Imported deterministic clock helper; not an executed test
-│   ├── Messaging/
-│   │   ├── Models/
-│   │   │   ├── Enums/
-│   │   │   │   ├── ACKStatus.swift
-│   │   │   │   ├── PacketCodecError.swift
-│   │   │   │   └── PacketType.swift
-│   │   │   ├── Payloads/
-│   │   │   │   ├── ACKPayload.swift
-│   │   │   │   ├── ChatMessagePayload.swift
-│   │   │   │   ├── LocationPingPayload.swift
-│   │   │   │   ├── MeetingUpdatePayload.swift
-│   │   │   │   ├── RouteReqPayload.swift
-│   │   │   │   ├── RouteRespPayload.swift
-│   │   │   │   └── SOSPayload.swift
-│   │   │   ├── CleartextEnvelope.swift // V3 envelope, AAD and nonce; decoder still narrows session ID
-│   │   │   ├── PacketConstant.swift // PacketConstants facade over TeeKumConfiguration
-│   │   │   ├── PacketReader.swift
-│   │   │   ├── PacketWritter.swift // Declares PacketWriter; current spelling retained
-│   │   │   └── RawWirePacket.swift // 10 + 30 + 16-byte assembly/slicing
-│   │   └── Service/
-│   │       ├── InitialsCodec.swift
-│   │       ├── PacketCodec.swift // 56-byte codec; decoder still narrows session ID to UInt16
-│   │       ├── PacketRouter.swift // Imported demultiplexer; missing legacy dependencies and Core-to-Features coupling
-│   │       └── PriorityOutboxQueue.swift
-│   ├── Models/
-│   │   ├── Enums/
-│   │   │   ├── AcknowledgementStage.swift
-│   │   │   ├── AttandanceStatus.swift // Declares AttendanceStatus; separate from MeetingAttendance
-│   │   │   ├── ChatDeliveryState.swift
-│   │   │   ├── ChatEngineError.swift
-│   │   │   ├── InboundChatOutcome.swift
-│   │   │   ├── LocationFreshness.swift
-│   │   │   ├── MeetingAction.swift
-│   │   │   ├── MeetingAttendance.swift
-│   │   │   ├── MeetingTimePreset.swift
-│   │   │   ├── MemberColor.swift
-│   │   │   ├── RecipientDeliveryState.swift
-│   │   │   ├── SOSDeliveryState.swift
-│   │   │   ├── SOSType.swift
-│   │   │   └── Status.swift
-│   │   ├── ChatMessage.swift
-│   │   ├── GroupSession.swift // Imported key/invite/initials-based model; incompatible with some UI callers
-│   │   ├── GroupSessionInvite.swift
-│   │   ├── IncomingSOSAlert.swift
-│   │   ├── LocationPin.swift // Imported geographic sample and coordinate helpers
-│   │   ├── LocationSample.swift // Existing UI sample representation
-│   │   ├── MeetingPoint.swift
-│   │   ├── Member.swift // Imported String-initials identity model; differs from UI fixtures
-│   │   ├── MemberID.swift // Existing typed identity; not consistently adopted by imports
-│   │   ├── RouteChoice.swift
-│   │   ├── SOSDiagnostics.swift
-│   │   └── SOSEvent.swift
-│   ├── Security/
-│   │   ├── Models/
-│   │   │   └── Enums/
-│   │   │       └── CryptoServiceError.swift
-│   │   ├── Protocols/
-│   │   │   ├── CryptoServiceProtocol.swift
-│   │   │   └── KeychainStoreProtocol.swift
-│   │   └── Services/
-│   │       ├── CryptoService.swift // Imported ChaChaPoly sealing/opening; not wired by app
-│   │       ├── KeychainStore.swift // Imported key storage with memory fallback; not wired by app
-│   │       └── ReplayProtectionFilter.swift // Imported replay API; UInt16 session keys need reconciliation
-│   ├── Session/
-│   │   └── SessionStore.swift // Existing shared UI state/fixtures; expects older Member API
-│   └── Transport/
-│       ├── Models/
-│       │   ├── Enums/
-│       │   │   ├── TransportError.swift
-│       │   │   └── TransportState.swift
-│       │   ├── DiagnosticEvent.swift
-│       │   ├── InboundPacket.swift
-│       │   ├── PeerConnection.swift
-│       │   ├── PeerInfo.swift
-│       │   └── TransportDiagnostics.swift
-│       ├── Protocols/
-│       │   └── PeerTransport.swift
-│       └── Services/
-│           ├── Extensions/
-│           │   ├── PeerTransportServiceConnection.swift
-│           │   ├── PeerTransportServiceDiagnostics.swift
-│           │   ├── PeerTransportServiceDiscovery.swift
-│           │   ├── PeerTransportServiceFraming.swift
-│           │   └── PeerTransportServiceTransmission.swift
-│           ├── PeerTransportService.swift // Imported peer transport actor; not started by current app
-│           └── StreamMessageFramer.swift // 56-byte stream frame accumulation and resynchronization
-└── Shared/
-    ├── UI/
-    │   ├── PrimaryButtonView.swift // Shared capsule CTA with injected action
-    │   ├── SOSHoldButtonView.swift // Declares SOSHoldButton; current UI hold is 1.5 seconds, callback only
-    │   └── Theme.swift // Semantic/profile colors, blackCard and hex initializer
-    └── Formatters.swift // Imported geographic/time/heading formatting helpers
+│   ├── Session/       Identity, roster, shared meeting state and recovery
+│   ├── Location/      Sensor samples, adaptive cadence and publishing
+│   ├── Packets/       V3 envelope, wire frame and Payloads/
+│   ├── Transport/     Bonjour, TCP/BLE, framing, queue and carry
+│   ├── Mesh/          Packet dispatch and dedup, with Routing/ and Relay/
+│   ├── Security/      Crypto, Keychain and sequence allocation
+│   ├── Notifications/
+│   ├── LiveActivity/
+│   └── Configuration/
+└── Shared/            Reusable UI and formatters
+TeekumWidgets/         Live Activity UI
+TeekumTests/           XCTest and Support/ fixtures
 ```
 
-Current spelling is retained, including `PacketWritter.swift`, `AttandanceStatus.swift`, `AggrementGroupSummaryView.swift`, `GroupInvitedCodec.swift`, `ForwardRateLimiter.swift` and `OrbitMarkerMemberView.swift`. `Core/Mesh/Routing/"Models "/` has a trailing space in the directory name. Do not guess a normalized path in scripts or links. Renaming these is separate source work.
+### 3.3 Feature Map
 
-### 3.4 Feature Boundaries & Data Flow
+Start at the entry point for a screen or action. Follow the owner column when changing behavior.
 
-**Source-visible local UI path:** TeekumApp retains SessionStore → AppRootView selects Pairing or Orbit → feature ViewModels read local state. Pairing activation changes local session state; MapPoint edits local shared meeting data. These call sites have not been proven compatible with the latest imported models.
+| Feature or behavior | Entry point | State or behavior owner | XCTest to inspect |
+| :--- | :--- | :--- | :--- |
+| Create/join, QR, link and fingerprint | [GroupPairingView](../Teekum/Teekum/Features/Pairing/Views/GroupPairingView.swift), [GroupQRCodeView](../Teekum/Teekum/Features/Pairing/Views/GroupQRCodeView.swift) | [PairingViewModel](../Teekum/Teekum/Features/Pairing/ViewModels/PairingViewModel.swift), [GroupSessionFactory](../Teekum/Teekum/Features/Pairing/Services/GroupSessionFactory.swift), [GroupSession](../Teekum/Teekum/Core/Session/GroupSession.swift) | `PairingMeetingMigrationTests` |
+| Agreement, restore and leave | [AgreementView](../Teekum/Teekum/Features/Pairing/Views/AgreementView.swift), [AppRootView](../Teekum/Teekum/App/AppRootView.swift) | [SessionController](../Teekum/Teekum/App/SessionController.swift), [SessionPersistence](../Teekum/Teekum/Core/Session/SessionPersistence.swift) | `SessionSafetyTests`, `PairingMeetingMigrationTests` |
+| Orbit markers, friend highlight and finder | [OrbitMapView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitMapView.swift), [FriendListSheet](../Teekum/Teekum/Features/OrbitMap/Views/FriendListSheet.swift) | [OrbitMapViewModel](../Teekum/Teekum/Features/OrbitMap/ViewModels/OrbitMapViewModel.swift), [OrbitProjection](../Teekum/Teekum/Features/OrbitMap/Models/OrbitProjection.swift), [SessionStore](../Teekum/Teekum/Core/Session/SessionStore.swift) | `SessionSafetyTests` |
+| GPS, heading and outgoing pings | [LocationService](../Teekum/Teekum/Core/Location/LocationService.swift), [LocationPublisher](../Teekum/Teekum/Core/Location/LocationPublisher.swift) | `Core/Location` for cadence and sending, `SessionStore.applyLocationPing` for accepted peer measurements | `ParityContractTests`, `SessionSafetyTests` |
+| Set, show and cancel meeting point, RSVP | [MainMapView](../Teekum/Teekum/Features/MeetingPoint/Views/MainMapView.swift), `OrbitMapView` for its marker | [MeetingPointViewModel](../Teekum/Teekum/Features/MeetingPoint/ViewModels/MeetingPointViewModel.swift), [MeetingPointService](../Teekum/Teekum/Features/MeetingPoint/Services/MeetingPointService.swift), `SessionStore.activeMeetingPoint` | `PairingMeetingMigrationTests`, `SessionSafetyTests` |
+| Send chat and track recipient ACK | [ChatSheetView](../Teekum/Teekum/Features/Chat/Views/ChatSheetView.swift) | [ChatViewModel](../Teekum/Teekum/Features/Chat/ViewModels/ChatViewModel.swift), [ChatMessageEngine](../Teekum/Teekum/Features/Chat/Services/ChatMessageEngine.swift) and its inbound/outbound/delivery extensions | `ChatSOSMigrationTests`, `ParityContractTests` |
+| SOS hold, receiver alert, sound/haptics and retry | [SOSHoldButtonView](../Teekum/Teekum/Shared/UI/SOSHoldButtonView.swift), [IncomingSOSAlertBannerView](../Teekum/Teekum/Features/SOS/Views/IncomingSOSAlertBannerView.swift) | [SOSViewModel](../Teekum/Teekum/Features/SOS/ViewModels/SOSViewModel.swift), [SOSForwardingEngine](../Teekum/Teekum/Features/SOS/Services/SOSForwardingEngine.swift), [DefaultSOSAudioAlerter](../Teekum/Teekum/Features/SOS/Services/DefaultSOSAudioAlerter.swift) | `ChatSOSMigrationTests`, `ParityContractTests` |
+| Inactivity opt-in and countdown | [InactivitySettingsView](../Teekum/Teekum/Features/SOS/Views/InactivitySettingsView.swift), [InactivityWarningView](../Teekum/Teekum/Features/SOS/Views/InactivityWarningView.swift) | [InactivityGuardService](../Teekum/Teekum/Features/SOS/Services/InactivityGuardService.swift), `SOSViewModel` | `ChatSOSMigrationTests`, `ParityContractTests` |
+| Discovery, framing and carry | [PeerTransportService](../Teekum/Teekum/Core/Transport/PeerTransportService.swift) | `Core/Transport` owns Wi-Fi/BLE links, framing, priority queue and carry | `NetworkMigrationTests`, `ParityContractTests` |
+| Relay and route discovery | [PacketRouter](../Teekum/Teekum/Core/Mesh/PacketRouter.swift) | [RelayPolicyManager](../Teekum/Teekum/Core/Mesh/Relay/RelayPolicyManager.swift), [RouteDiscoveryService](../Teekum/Teekum/Core/Mesh/Routing/RouteDiscoveryService.swift), [SeenPacketCache](../Teekum/Teekum/Core/Mesh/SeenPacketCache.swift) | `NetworkMigrationTests` |
+| Wire bytes, key and sequence | [RawWirePacket](../Teekum/Teekum/Core/Packets/RawWirePacket.swift), [CleartextEnvelope](../Teekum/Teekum/Core/Packets/CleartextEnvelope.swift) | [CryptoService](../Teekum/Teekum/Core/Security/CryptoService.swift), [PacketSequenceAllocator](../Teekum/Teekum/Core/Security/PacketSequenceAllocator.swift) | `ParityContractTests`, `SessionSafetyTests` |
+| Connection diagnostics and packet log | [OrbitSettingsView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitSettingsView.swift) | [PeerTransportService+Diagnostics](../Teekum/Teekum/Core/Transport/PeerTransportService+Diagnostics.swift), [TransportDiagnostics](../Teekum/Teekum/Core/Transport/TransportDiagnostics.swift) | `NetworkMigrationTests` |
+| Live Activity | [LiveActivityManager](../Teekum/Teekum/Core/LiveActivity/LiveActivityManager.swift), [TeekumWidgets](../TeekumWidgets) | `SessionController` drives updates and teardown. Widget verification requires a device. | Device check |
 
-**Not connected:** transport start/stop, inbound routing, crypto/key lifecycle, publisher start/stop, chat/SOS engines, inactivity callbacks, relay policy and route maintenance. TeekumApp does not construct those services. No end-to-end ingestion loop is assembled by the current App files.
+### 3.4 Session Data Flow
 
-**Intended integration:** reviewed service inputs → validation/authentication → accepted domain events/state → SessionStore → observing feature UI. Choose the smallest owner/lifecycle arrangement that existing code needs. Preserve original measurement time separately from receipt time. PacketRouter and engine entry points require review before this can become the real path.
+`GroupPairingView` pushes Agreement. Accepting activates the session and the root shows Orbit. Closing the friends or map modal returns to Orbit. Confirming Leave calls `SessionController.leave()`, which tears down session work and returns to Pairing.
+
+Radio → transport framing → `SessionController` → `PacketRouter` → authenticated callbacks → shared state or feature engine → observing UI. The outgoing location, chat, SOS, meeting and route paths use the shared sequence allocator and crypto before transport queues.
 
 ### 3.5 Four-Developer Collaboration Baseline
 
-These are responsibility slots, not newly assigned GitHub owners. Confirm names/reviewers in each issue.
-
 | Role | Scope | Review boundary |
 | :--- | :--- | :--- |
-| A | Pairing, identity/session/key lifecycle, invite flow, App composition and recovery comparison | B reviews shared protocol/security; feature owners review model changes. |
-| B | Transport, codec, authentication/replay integration, routing/mesh and diagnostics data | A reviews key/session changes; C/D review consumers. |
-| C | Orbit/friends/geographic UI, location/heading, publishing and power integration | A reviews lifecycle; B reviews telemetry/message mapping. |
-| D | Meeting behavior, SOS/inactivity and chat/Finder scope with team | B reviews delivery contracts; C reviews location/UI integration. Rebalance workload explicitly. |
+| A | Pairing, session identity, invites, app composition and recovery | B reviews protocol/security. Feature owners review shared models. |
+| B | Transport, packet/security contracts, mesh and diagnostics data | A reviews key/session changes. C/D review consumers. |
+| C | Orbit, friends, geographic UI, location and power | A reviews lifecycle. B reviews telemetry mapping. |
+| D | Meeting behavior, chat, SOS and inactivity | B reviews delivery contracts. C reviews location/UI integration. |
 
-### 3.6 Mapping & Migration Sequence
-
-1. Freeze the actual legacy repository/branch/commit (or identify accessible evidence). The full legacy baseline was not available for this docs review.
-2. For the assigned feature, compare entry points, helpers, extensions, models, protocols, configuration, lifecycle hooks and errors. Source that was not copied may be missing, deliberately deferred, renamed or replaced: record which, with evidence.
-3. Resolve Section 7 contract blockers before connecting imported services. Do not recreate missing symbols as no-op stubs to get a superficial build.
-4. Adapt one complete slice into the existing Feature-Driven MVVM structure; wire its UI/service/lifecycle and preserve agreed behavior. Copied source and integrated behavior are separate milestones.
-5. Verify the changed slice at the current revision. Legacy tests, historical logs and merged branches do not transfer acceptance. Report unverified areas explicitly.
-
-Use the parity table and handoff format in [agent.md](agent.md#4-documentation-and-handoff). No new shared development log is required.
-
-### 3.7 Orbit Design & UI Slicing
-
-| UI area | Current placement / behavior |
-| :--- | :--- |
-| Header and controls | OrbitMap/Views/Components; map/chevron actions are local navigation, settings/chat/SOS actions remain placeholders. |
-| Scene | OrbitSceneView combines rings, StarfieldView, OrbitBloomView and separate center/peer markers. Heading/positions are fixtures, not a real compass projection. |
-| Friends | FriendListSheet + FriendListViewModel + FriendListMemberView; search, compact age, color display and native leave alert. Imported member fields/identity must be reconciled with these callers. |
-| Shared UI | PrimaryButtonView, SOSHoldButtonView and Theme; the shared hold control emits a callback, not an authenticated delivery result. |
-| Pairing editing | PairingField/FocusState and screen-owned picker visibility support keyboard/color-picker dismissal. Keep this transient state in Views. |
-
-| Navigation | Source-visible method |
-| :--- | :--- |
-| Pairing → Agreement | NavigationStack + navigationDestination(isPresented:). |
-| Agreement → Orbit | Local activation → root session switch; not a real peer join. |
-| Orbit → friends / MainMapView | One optional OrbitModal with fullScreenCover(item:). |
-| Close modal → Orbit | dismiss(); does not leave the group. |
-| Confirm Leave → Pairing | Close panel, then onDismiss calls local session reset. Imported tasks/sockets/keys are not torn down by this path yet. |
-
-Ring distance/orientation, real member placement/color mapping, banner/detail interactions, status/Live Sharing placement and remote idle indication still need contracts. Local inactivity detection is not proof that a remote friend has stopped moving or is in danger.
+Confirm names and reviewers in the issue. See [agent.md](agent.md#4-documentation-and-handoff) for the handoff format and [migration backlog](MIGRATION_BACKLOG.md) for historical scope.
 
 ## 4. Verification Plan
 
-**Baseline review at `796f586`:** static source/configuration and documentation consistency inspection only. No build, unit test, UI test, radio run, battery measurement or legacy parity run was performed for this update. Current source has visible unresolved symbols/model mismatches; do not assume it compiles.
-
-- `TeekumTests/PacketCodecTest.swift` is present. `project.yml` does not declare a test target or test action, and this review did not run it. Some old test declarations still use UInt16 session IDs against UInt32 APIs.
-- The user's workflow reserves UI testing for the developer. Do not create/run UI tests automatically; report manual checks needed. Do not restore previously removed test targets as an incidental migration step.
-- For implemented logic, agree meaningful unit/integration checks with its owner; record the exact revision, command, configuration and result. Test helper source is not a passing test run.
-- Before device work, resolve type/symbol blockers and configuration, then verify invite → session → peers → location/chat/meeting/SOS → leave/rejoin incrementally.
-- Physical-device evidence is required for discovery, disconnect/reconnect, lock/background states, stale GPS, power policy and recipient confirmation. Do not claim venue range, delivery guarantees or battery savings from source inspection.
+- Run the focused XCTest target from the `Teekum` scheme. `TeekumParity` adds the same contract cases against the read-only prototype. The older Swift Testing file remains excluded. See [Session migration](features/session-migration.md#verification) for the executed cases and setup.
+- Keep UI verification manual. Exercise create/join, restore, location and Orbit, chat, meeting, SOS and leave/rejoin on physical iPhones. Use physical devices for Bonjour/BLE, backgrounding, GPS, Live Activity and notification feedback.
+- Record the revision, environment, command and result. Simulator tests establish selected logic contracts. Device runs establish radio and sensor behavior in the tested conditions.
 
 ## 5. Git Workflow
 
@@ -489,24 +171,24 @@ The `f/` branch prefix does not change the conventional commit types below.
 ---
 
 
-## 6. Team Starting Point
-
-Start from existing UI plus **partially migrated, disconnected logic**, not a Hello-world starter and not a finished prototype. The immediate priority is source parity and model/API reconciliation, followed by explicit integration. Reuse existing work where sound; do not automatically rewrite every imported service or assume every missing class should be restored unchanged.
-
-Documentation ownership:
+## 6. Documentation Ownership
 
 | Document | Purpose |
 | :--- | :--- |
-| TechnicalRequirements | Status, source inventory, boundaries, team workflow and open decisions. |
-| agent | Reading order, evidence rules and safe migration handoff. |
-| MIGRATION_BACKLOG | Feature parents and source-comparison/integration tasks; no inferred GitHub completion. |
-| NETWORKING | Imported discovery/transport/mesh behavior and absent runtime wiring. |
-| PAYLOAD_GUIDE | Source-observed packet fields and encoding, including compatibility gaps. |
-| PROTOCOL_SPECIFICATION | Source-observed crypto inputs and security invariants still needing integration/review. |
+| [Technical Requirements](#33-feature-map) | Feature entry points, file ownership, team workflow and verification. |
+| [Developer & Agent Guide](agent.md) | File placement, contracts and handoff. |
+| [Migration Backlog](MIGRATION_BACKLOG.md) | Historical migration tasks and feature scope. |
+| [Networking](NETWORKING.md) | Discovery, transport, mesh and diagnostics. |
+| [Payload Guide](PAYLOAD_GUIDE.md) | V3 field layouts and encoding. |
+| [Protocol Specification](PROTOCOL_SPECIFICATION.md) | Authentication, keys, nonce, sequence, relay and replay. |
+| [Session Migration](features/session-migration.md) | Reference comparison, verification and remaining protocol decisions. |
 
 ## 7. Open Team Decisions
 
-These are the static findings at baseline `796f586`. See the migration note for implemented resolutions and decisions that remain open.
+The [session migration note](features/session-migration.md#remaining-protocol-decisions) tracks open decisions about sender identity, slot collisions, replay, same-SID SOS forwarding and meeting conflict ordering. G1–G12 below record the static findings at the pre-integration baseline `796f586`.
+
+<details>
+<summary>Historical findings at 796f586</summary>
 
 | ID | Finding / decision | Source evidence and next action |
 | :--- | :--- | :--- |
@@ -523,4 +205,5 @@ These are the static findings at baseline `796f586`. See the migration note for 
 | G11 | Relay policy and routing | Imported Mesh includes multiple forwarding paths/policies. Confirm Phase 1 versus later scope, opt-in UX, neighbor eligibility, hop/rate limits and abuse handling; comments marked “approved” are not new team acceptance. |
 | G12 | Missing/deferred feature support and configuration | Recovery storage, Live Activity/Finder/Diagnostics UI and notification service were not located as complete features. Local-network/Bonjour/motion/URL/background configuration and legacy helpers need comparison. Classify unknown/missing/deferred explicitly. |
 
-A new agent must verify these observations against the current files before acting; a later PR can make a finding obsolete. Resolve a finding with source changes, affected-owner review and actual evidence, not by deleting its warning from the docs alone.
+
+</details>

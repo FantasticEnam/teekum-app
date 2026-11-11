@@ -2,7 +2,7 @@
 
 **Last reviewed: 11 November 2026 · Candidate work, not GitHub status synchronization**
 
-> This backlog retains the original `796f586` import snapshot and candidate issues. Read [Session migration](features/session-migration.md) for current connection and verification evidence. This document does not mark GitHub work Done. Source present ≠ adapted ≠ connected ≠ verified.
+> This backlog retains the original `796f586` import snapshot and candidate issues. Use the [Feature Map](TechnicalRequirements.md#33-feature-map) for current paths and [Session migration](features/session-migration.md) for connection and verification evidence. This document does not mark GitHub work Done. Source present ≠ adapted ≠ connected ≠ verified.
 
 Do not restart UI slicing from zero, mark imported engines Done, or recreate existing GitHub issues. Review current source, map existing issues under the parents below and update acceptance criteria. Owners A–D are responsibility slots; confirm actual assignees/reviewers.
 

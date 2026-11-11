@@ -8,15 +8,24 @@
 import SwiftUI
 
 struct InactivitySettingsView: View {
-    @Bindable var guardService: InactivityGuardService
+    @Binding var isEnabled: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("Inactivity Guard", isOn: $guardService.isEnabled)
+            Toggle("Inactivity Guard", isOn: $isEnabled)
                 .tint(.yellowProfile)
             Text("After 3 minutes without detected movement or interaction, a 30-second warning lets you cancel before an SOS is sent.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
+}
+
+#Preview("Inactivity opt-in") {
+    @Previewable @State var isEnabled = false
+
+    Form {
+        InactivitySettingsView(isEnabled: $isEnabled)
+    }
+    .preferredColorScheme(.dark)
 }

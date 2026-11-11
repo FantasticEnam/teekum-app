@@ -25,3 +25,9 @@ struct ChatPresetChipsView: View {
         .padding(.vertical, 8)
     }
 }
+
+#Preview("Preset replies") {
+    ChatPresetChipsView { _ in }
+        .background(.black)
+        .preferredColorScheme(.dark)
+}

@@ -36,3 +36,15 @@ struct SessionLiveActivityView: View {
         .tint(.yellow)
     }
 }
+
+#Preview("Meeting point and SOS") {
+    let attributes = SessionActivityAttributes(sessionId: 0x4321, sessionName: "Festival Crew", userInitials: "DAF")
+
+    VStack(spacing: 12) {
+        SessionLiveActivityView(attributes: attributes, state: .init(directPeerCount: 3,
+            meetingPointName: "Gate 2", meetingPointDistanceMeters: 120, relayStatusText: "Relay active"))
+        SessionLiveActivityView(attributes: attributes, state: .init(directPeerCount: 3, sosSenderInitials: "ADI"))
+    }
+    .background(.black)
+    .preferredColorScheme(.dark)
+}

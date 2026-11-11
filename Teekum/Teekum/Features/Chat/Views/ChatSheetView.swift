@@ -42,3 +42,51 @@ struct ChatSheetView: View {
         .preferredColorScheme(.dark)
     }
 }
+
+#if DEBUG
+#Preview("Group conversation") {
+    @Previewable @State var viewModel = ChatViewModel.preview()
+
+    ChatSheetView(viewModel: viewModel)
+        .task { await viewModel.start() }
+}
+
+extension ChatViewModel {
+    static func preview(draft: String = "") -> ChatViewModel {
+        let session = SessionStore.preview.activeSession
+        let viewModel = ChatViewModel(service: ChatPreviewService(), sessionProvider: { session })
+        viewModel.draftText = draft
+        return viewModel
+    }
+}
+
+actor ChatPreviewService: ChatMessagingService {
+    static let sampleMessages = [
+        ChatMessage(sequenceNumber: 1, senderInitials: "ADI", text: "Meet at Gate 2", isLocalSender: false),
+        ChatMessage(sequenceNumber: 2, senderInitials: "DAF", text: "On my way",
+            recipientStates: [
+                "ADI": .deliveredToRecipient(timestamp: .now, rssi: nil),
+                "HAS": .relayedByMesh(hops: 1, relayPeerId: "NIC")
+            ],
+            deliveryState: .relayedByMesh(hopCount: 1), isLocalSender: true)
+    ]
+
+    let currentBatteryLevel: Float = 1
+    let isLowPowerMode = false
+    let isSurvivalMode = false
+    let timingConfig = MeshTimingConfiguration()
+    private var messages = ChatPreviewService.sampleMessages
+
+    func sendMessage(text: String, targetRecipients: [String]?) -> ChatMessage {
+        let message = ChatMessage(sequenceNumber: UInt32(messages.count + 1),
+            senderInitials: "DAF", text: text, deliveryState: .forwardedToNextHop, isLocalSender: true)
+        messages.append(message)
+        return message
+    }
+
+    func activeMessages() -> [ChatMessage] { messages }
+    func clearHistory() { messages.removeAll() }
+    func setOnMessageUpdated(_ handler: (@Sendable (ChatMessage) -> Void)?) {}
+    func setBatteryLevel(_ level: Float, isLowPowerMode: Bool) {}
+}
+#endif

@@ -74,20 +74,34 @@ final class SessionSafetyTests: XCTestCase {
     @MainActor
     func testDelayedLocationDoesNotReplaceNewerHardwareMeasurementAndLeaveClearsState() {
         let store = SessionStore(activeSession: GroupSession(localInitials: "ALX"))
-        let newer = Date.now.addingTimeInterval(-10)
+        let newer = Date(timeIntervalSince1970: 1_800_000_000)
         let older = newer.addingTimeInterval(-30)
-        store.upsertMember(Member(id: "BOB", lastSeen: newer, coordinate: .init(latitude: 1, longitude: 2),
-            horizontalAccuracy: 5, measurementTimestamp: newer))
-        store.upsertMember(Member(id: "BOB", lastSeen: .now, coordinate: .init(latitude: 3, longitude: 4),
-            horizontalAccuracy: 50, measurementTimestamp: older))
+        let lastReceipt = newer.addingTimeInterval(10)
+        let pingPacket = RawWirePacket(envelope: .init(type: .locationPing, sessionId: 0x1234, sequenceNumber: 1),
+            ciphertext: Data(), authTag: Data())
+        let sosPacket = RawWirePacket(envelope: .init(type: .sos, hopCount: 1, sessionId: 0x1234, sequenceNumber: 2),
+            ciphertext: Data(), authTag: Data())
+
+        store.applyLocationPing(LocationPingPayload(coordinate: .init(latitude: 1, longitude: 2),
+            timestamp: newer, accuracy: 5, senderInitials: "BOB", batteryLevel: 84, heading: 127),
+            inbound: InboundPacket(rawPacket: pingPacket, sourcePeerId: "BOB", receivedAt: newer))
+        store.applyLocationPing(LocationPingPayload(coordinate: .init(latitude: 3, longitude: 4),
+            timestamp: older, accuracy: 50, senderInitials: "BOB", batteryLevel: 84, heading: 0),
+            inbound: InboundPacket(rawPacket: pingPacket, sourcePeerId: "BOB", receivedAt: newer.addingTimeInterval(5)))
+        store.applySOSLocation(SOSPayload(coordinate: .init(latitude: 0, longitude: 0),
+            timestamp: .init(timeIntervalSince1970: 0), accuracy: 255, sosEventId: 1,
+            senderInitials: "BOB", batteryLevel: 83),
+            inbound: InboundPacket(rawPacket: sosPacket, sourcePeerId: "ALX", receivedAt: lastReceipt))
+
         XCTAssertEqual(store.members.first?.coordinate?.latitude, 1)
         XCTAssertEqual(store.members.first?.measurementTimestamp, newer)
         XCTAssertEqual(store.members.first?.horizontalAccuracy, 5)
+        XCTAssertEqual(store.members.first?.lastSeen, lastReceipt)
+        XCTAssertEqual(store.members.first?.isDirectPeer, false)
         store.resetSessionState()
         XCTAssertNil(store.activeSession)
         XCTAssertTrue(store.members.isEmpty)
         XCTAssertNil(store.activeMeetingPoint)
-        XCTAssertNil(store.activeSOSEvent)
     }
 
     func testOrbitProjectionUsesCompassHeadingAndClampsDistantMembers() {

@@ -24,7 +24,12 @@ final class ParityContractTests: XCTestCase {
         XCTAssertEqual(envelope.constructNonce(), Data([0, 0x12, 0x34, 7, 0, 0, 42, 0x31, 0x54, 0x4b, 0x4d, 0x33]))
         XCTAssertEqual(envelope.authenticatedAssociatedData(), Data([0x31, 8, 0, 0, 0x12, 0x34, 7, 0, 0, 42]))
         XCTAssertEqual(try CleartextEnvelope.deserialize(from: envelope.serialize()), envelope)
-        XCTAssertEqual(try PacketCodec.decodeEnvelope(from: envelope.serialize()), envelope)
+        let packet = RawWirePacket(envelope: envelope, ciphertext: Data(repeating: 0x42, count: 30),
+            authTag: Data(repeating: 0x24, count: 16))
+        let wire = try packet.toWireData()
+        XCTAssertEqual(wire.count, 56)
+        XCTAssertEqual(wire.prefix(10), envelope.serialize())
+        XCTAssertEqual(try RawWirePacket.fromWireData(wire), packet)
     }
 
     func testLocationPayloadPreservesMeasurementTimeAndTelemetry() throws {

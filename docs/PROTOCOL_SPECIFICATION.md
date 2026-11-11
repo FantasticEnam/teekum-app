@@ -16,7 +16,7 @@ All offsets are zero-based and inclusive. Multi-byte values are big-endian.
 | 10..39 | 30 ciphertext bytes. |
 | 40..55 | 16 Poly1305 tag bytes. |
 
-`CleartextEnvelope`, `PacketCodec` and `RawWirePacket` are under `Core/Messaging`. Both decode paths preserve the UInt16 contract, including legacy narrowing of a noncanonical upper byte; 24-bit session IDs are not supported. The old 54-byte proposals are not compatibility modes. See [Payload guide](PAYLOAD_GUIDE.md) for actual fields. UWB token exchange remains a type code without a connected payload flow.
+`Core/Packets/RawWirePacket.swift` assembles and parses the frame using `CleartextEnvelope.swift`. Envelope decoding preserves the UInt16 SID contract and the legacy narrowing of a noncanonical upper byte. The old 54-byte proposals are not compatibility modes. See [Payload guide](PAYLOAD_GUIDE.md) for actual fields. UWB token exchange remains a type code without a connected payload flow.
 
 ## Key, AAD and nonce
 
@@ -40,6 +40,6 @@ Member slots still use the prototype's initials-derived eight bits. Two devices 
 - Own-group content is authenticated before shared state, chat/SOS alerts or ACKs. Chat and ACK have a 600-second age bound; duplicates of authenticated chat/SOS can re-ACK without a second presentation. Location updates keep the original measurement time; an older measurement cannot replace a newer one.
 - An SOS measurement timestamp is not the send time. Epoch/255 accuracy denotes the prototype's no-GPS fallback and still produces a receiver alert; the UI does not plot that fallback as a location.
 - Blind foreign relay does not authenticate ciphertext. The prototype's same-SID opaque SOS fallback remains: a failed tag may still be forwarded within hop/dedup rules, but does not enter group state or alert/ACK handling. Review this rule together with SID collisions.
-- `ReplayProtectionFilter` is not called for every packet. The app relies on feature/cache checks; leave clears their in-memory state. In particular, a captured authenticated SOS can be accepted again after that state is cleared if the same key is rejoined. Do not claim persistent replay protection.
+- Replay checks use the router’s `SeenPacketCache` and the feature engines’ deduplication and age rules. Leave clears their in-memory state. In particular, a captured authenticated SOS can be accepted again after that state is cleared if the same key is rejoined. Do not claim persistent replay protection.
 
 Keep actual keys, invite secrets, private location traces and chat contents out of logs and docs. Changes to layout, identity, key/nonce/counter, relay, ACK or retry behavior require protocol review. The test suite records selected verified cases; on-device behavior and remaining trust/replay decisions are separate work.

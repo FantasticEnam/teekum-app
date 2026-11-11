@@ -17,20 +17,20 @@ Leave/rejoin stops the router, cancels the session task and probes, stops publis
 
 ## Discovery and framing
 
-- `Core/Transport/Services/PeerTransportService.swift` and its Discovery/Connection extensions start Bonjour `_teekum._tcp` with peer-to-peer interfaces enabled, TCP keepalive and bounded reconnect. The optional UDP code path exists; the app uses TCP.
+- `Core/Transport/PeerTransportService.swift`, `PeerTransportService+Discovery.swift` and `PeerTransportService+Connection.swift` start Bonjour `_teekum._tcp` with peer-to-peer interfaces enabled, TCP keepalive and bounded reconnect. The optional UDP code path exists; the app uses TCP.
 - Bonjour service identity comes from initials; TXT fields contain SID, name and relay participation. Same-SID results are candidates, not authenticated members. Foreign connections depend on the local and advertised remote relay switches. Lexical initiator selection and fallback are inherited.
 - `StreamMessageFramer` extracts fixed 56-byte frames from partial or coalesced TCP reads. `BLEPeerLink` and `BLEFrameCodec` carry the same frame via Bluetooth fragments. Framing validates structure; payload authentication happens after transport. RSSI is unavailable for the exposed links.
 - `project.yml` declares Bonjour, local network, Bluetooth, camera, location, motion, URL scheme and background configuration. Runtime permissions and iOS suspension still apply. This configuration does not guarantee AWDL choice, background delivery, range or battery performance.
 
 ## Queue, relay and carry
 
-`Core/Messaging/Service/PriorityOutboxQueue.swift` drains urgent SOS/ACK/meeting, FIFO chat, other foreign relay, then coalesced telemetry. Foreign SOS/ACK use the urgent lane; foreign chat uses the chat lane. Queueing and link sends are not recipient confirmation.
+`Core/Transport/PriorityOutboxQueue.swift` drains urgent SOS/ACK/meeting, FIFO chat, other foreign relay, then coalesced telemetry. Foreign SOS/ACK use the urgent lane; foreign chat uses the chat lane. Queueing and link sends are not recipient confirmation.
 
-`PacketRouter` authenticates own-group updates before callbacks. It relays within the existing hop/dedup rules and processes foreign ciphertext without opening it. The inherited opaque SOS fallback for equal SID with failed authentication never produces a local alert or ACK. Foreign relay needs opt-in, sufficient battery and Low Power Mode off; ordinary relay budget is eight per second, with telemetry reservation for reliable traffic. See [Protocol specification](PROTOCOL_SPECIFICATION.md) for residual trust and replay limits.
+`Core/Mesh/PacketRouter.swift` authenticates own-group updates before callbacks. `SessionStore` applies accepted measurements and peer snapshots. It relays within the existing hop/dedup rules and processes foreign ciphertext without opening it. The inherited opaque SOS fallback for equal SID with failed authentication never produces a local alert or ACK. Foreign relay needs opt-in, sufficient battery and Low Power Mode off; ordinary relay budget is eight per second, with telemetry reservation for reliable traffic. See [Protocol specification](PROTOCOL_SPECIFICATION.md) for residual trust and replay limits.
 
 `CarryMessageStore` retains encrypted chat and ACK packets for up to 600 seconds in memory. Custody excludes the inbound peer, increments a received frame's hop once and replays the stored frame on eligible links with the prototype's fast/slow attempt spacing. Leaving clears the store. The app does not persist chat history.
 
-`RouteDiscoveryService` handles authenticated request/response and route invalidation. The maintenance loop triggers the legacy stale-member cadence and staggered route probes; target arrival can burst location pings. Keep route discovery, request timeouts and late callback cancellation within the session lifetime.
+`Core/Mesh/Routing/RouteDiscoveryService.swift` handles authenticated requests, responses and route invalidation. Its extensions sit in the same folder. The maintenance loop triggers the legacy stale-member cadence and staggered route probes; target arrival can burst location pings. Keep route discovery, request timeouts and late callback cancellation within the session lifetime.
 
 ## Verification boundary
 

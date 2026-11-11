@@ -22,7 +22,7 @@ import CryptoKit
 /// 6. Honest Delivery States: Strictly distinguishes local sending, intermediary relay hops (`RELAY_ACK`), and cryptographic friend delivery (`DELIVERED_TO_FRIEND`).
 /// 7. Duplicate Suppression: Received `sosEventId` values are deduplicated to prevent repeated audible sirens or alert flooding.
 /// 8. Bounded Retries: Exactly 3 retransmissions before marking confirmation timeout / searching peers (`SOSForwardingEngine+Retries.swift`).
-public actor SOSForwardingEngine: SOSForwardingManaging {
+public actor SOSForwardingEngine {
     
     // MARK: - Dependencies
     

@@ -49,3 +49,13 @@ struct ChatComposerView: View {
         .padding()
     }
 }
+
+#if DEBUG
+#Preview("Draft message") {
+    @Previewable @State var viewModel = ChatViewModel.preview(draft: "Meet at Gate 2")
+
+    ChatComposerView(viewModel: viewModel)
+        .background(.black)
+        .preferredColorScheme(.dark)
+}
+#endif

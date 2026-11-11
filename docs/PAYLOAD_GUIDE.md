@@ -8,7 +8,7 @@ Use [PROTOCOL_SPECIFICATION.md](PROTOCOL_SPECIFICATION.md) for authentication/no
 
 ## 1. Current Source Baseline
 
-Configuration in `Core/Configuration/TeeKumConfiguration.swift`, exposed through `Core/Messaging/Models/PacketConstant.swift` (PacketConstants), currently declares:
+Configuration in `Core/Configuration/TeeKumConfiguration.swift`, exposed through `Core/Packets/PacketConstants.swift`, currently declares:
 
 | Item | Source value |
 | :--- | :--- |
@@ -20,7 +20,7 @@ Configuration in `Core/Configuration/TeeKumConfiguration.swift`, exposed through
 | Nonce | 12 bytes |
 | Nonce domain tag | Four ASCII bytes, TKM3 |
 
-All source paths are relative to `Teekum/Teekum/`. RawWirePacket and PacketCodec both contain assembly/decode paths; neither can be assumed authoritative over the other without reconciliation.
+All source paths are relative to `Teekum/Teekum/`. `RawWirePacket` assembles and parses the frame. `CleartextEnvelope` owns its ten-byte header.
 
 ```text
 Wire offsets (zero-based, inclusive):
@@ -35,7 +35,7 @@ The previous 54-byte/8-byte-envelope, packed-hop and 29-byte-payload proposals d
 
 ## 2. Cleartext Envelope
 
-Source: `Core/Messaging/Models/CleartextEnvelope.swift` and `Core/Messaging/Service/PacketCodec.swift`.
+See `Core/Packets/CleartextEnvelope.swift` and `Core/Packets/RawWirePacket.swift`.
 
 | Wire bytes | Size | Field / current encoding |
 | :--- | :--- | :--- |
@@ -47,9 +47,9 @@ Source: `Core/Messaging/Models/CleartextEnvelope.swift` and `Core/Messaging/Serv
 | 10..39 | 30 | Ciphertext. |
 | 40..55 | 16 | Poly1305 authentication tag. |
 
-Both decode paths return the prototype UInt16 SID. Noncanonical upper bytes are narrowed as in the prototype; this is not support for 24-bit session IDs.
+The decoder returns a UInt16 SID and narrows noncanonical upper bytes as in the prototype.
 
-The initializer clamps hopLimit to 1...PacketConstants.maxHopLimit (default maximum 15), and hopCount to the limit. Decoders check a positive limit and count ≤ limit, but do not independently reject every configured maximum violation before construction. Separate bytes do not mean the accepted app budget is 255 hops.
+The decoder checks for a positive hop limit and a hop count within that limit. The initializer then clamps the limit to 1...PacketConstants.maxHopLimit (15) and clamps the count to that limit.
 
 | PacketType | Code | Version/type byte | Located payload |
 | :--- | :--- | :--- | :--- |
@@ -74,7 +74,7 @@ The initializer clamps hopLimit to 1...PacketConstants.maxHopLimit (default maxi
 
 ## 4. Current 30-Byte Payloads
 
-Sources are in `Core/Messaging/Models/Payloads/`.
+Sources are in `Core/Packets/Payloads/`.
 
 ### 4.1 LocationPingPayload — 0x01
 
@@ -126,7 +126,7 @@ SOSType currently declares general=0, medical=1, separated=2, security=3 and ina
 | 25 | flags: bit 0 isRightNow; bit 1 anchorToProposerGPS |
 | 26..29 | 4 zero reserved bytes |
 
-There is **no landmarkId wire field** in this imported layout. MeetingAttendance in the UI/domain is distinct from this AttendanceStatus wire enum. MeetingPointService maps the wire enum to UI attendance; reconnect and simultaneous proposals still need device checks. The enum source filename is currently `Core/Models/Enums/AttandanceStatus.swift`.
+There is **no landmarkId wire field** in this imported layout. MeetingAttendance in the UI/domain is distinct from this AttendanceStatus wire enum. MeetingPointService maps the wire enum to UI attendance; reconnect and simultaneous proposals still need device checks. The enum source filename is currently `Core/Packets/Payloads/AttendanceStatus.swift`.
 
 ### 4.4 RouteReqPayload / RouteRespPayload — 0x04 / 0x05
 

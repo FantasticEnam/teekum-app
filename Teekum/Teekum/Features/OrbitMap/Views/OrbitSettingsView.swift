@@ -51,7 +51,10 @@ struct OrbitSettingsView: View {
                         Text("Relaying pauses below 20% battery and in Low Power Mode.").font(.caption)
                     }
                 }
-                if let sos { InactivitySettingsView(guardService: sos.inactivityGuard) }
+                if let sos {
+                    @Bindable var inactivityGuard = sos.inactivityGuard
+                    InactivitySettingsView(isEnabled: $inactivityGuard.isEnabled)
+                }
                 Section("Connection diagnostics") {
                     LabeledContent("Direct peers", value: "\(snapshot?.activeDirectPeers.filter(\.isDirectLink).count ?? 0)")
                     LabeledContent("Packets sent", value: "\(snapshot?.packetsSent ?? 0)")
@@ -159,4 +162,32 @@ struct OrbitSettingsView: View {
             changingRelay = false
         }
     }
+}
+
+#Preview("Connection diagnostics and packet log") {
+    let snapshot = TransportDiagnostics(
+        localPeerId: "DAF",
+        serviceType: "_teekum._tcp",
+        sessionName: "Festival Crew",
+        sessionId: 0x4321,
+        state: .connected(peerCount: 1),
+        activeDirectPeers: [PeerInfo(id: "ADI", displayName: "Adiat")],
+        packetsSent: 1,
+        packetsReceived: 2,
+        obsoletePingsCoalesced: 0,
+        sendErrors: 0,
+        lastError: nil,
+        recentEvents: [],
+        recentPackets: [
+            .init(envelope: .init(type: .chatMessage, sessionId: 0x4321, sequenceNumber: 12),
+                direction: .received, peerId: "ADI", isOutsideGroup: false),
+            .init(envelope: .init(type: .sos, sessionId: 0x1234, sequenceNumber: 19),
+                direction: .received, peerId: "ble-c-13AB", isOutsideGroup: true),
+            .init(envelope: .init(type: .sos, hopCount: 1, sessionId: 0x1234, sequenceNumber: 19),
+                direction: .dispatched, peerId: "ble-p-82CD", isOutsideGroup: true)
+        ]
+    )
+
+    OrbitSettingsView(location: nil, sos: nil, relayPolicy: nil, relayState: .init(mode: .disabled),
+        diagnostics: { snapshot })
 }

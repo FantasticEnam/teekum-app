@@ -38,3 +38,14 @@ struct ChatRecipientStatusView: View {
         }
     }
 }
+
+#Preview("Recipient status") {
+    ChatRecipientStatusView(states: [
+        "ADI": .deliveredToRecipient(timestamp: .now, rssi: nil),
+        "HAS": .relayedByMesh(hops: 1, relayPeerId: "NIC"),
+        "NIC": .deliveryTimedOut
+    ])
+    .padding()
+    .background(Color.blackCard)
+    .preferredColorScheme(.dark)
+}

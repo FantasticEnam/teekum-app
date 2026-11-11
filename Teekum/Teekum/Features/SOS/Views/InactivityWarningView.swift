@@ -25,3 +25,16 @@ struct InactivityWarningView: View {
         }
     }
 }
+
+#Preview("Inactivity countdown") {
+    @Previewable @State var guardService = {
+        let service = InactivityGuardService()
+        service.simulateWarningState(remainingSeconds: 24)
+        return service
+    }()
+
+    InactivityWarningView(guardService: guardService)
+        .padding()
+        .background(.black)
+        .preferredColorScheme(.dark)
+}

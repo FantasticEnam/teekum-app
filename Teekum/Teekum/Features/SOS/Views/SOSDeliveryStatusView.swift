@@ -33,3 +33,15 @@ struct SOSDeliveryStatusView: View {
         }
     }
 }
+
+#Preview("Relay and recipient confirmation") {
+    VStack(spacing: 12) {
+        SOSDeliveryStatusView(state: .relayedAck(relayHopCount: 1, responderId: "NIC"),
+            onRetry: {}, onDismiss: {})
+        SOSDeliveryStatusView(state: .deliveredToFriend(friendId: "ADI", timestamp: .now),
+            onRetry: {}, onDismiss: {})
+    }
+    .padding()
+    .background(.black)
+    .preferredColorScheme(.dark)
+}

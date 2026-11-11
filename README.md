@@ -86,7 +86,7 @@ The standalone project uses `project.yml` and does not require the sibling proto
 
 ## Where to Start Reading the Docs
 
-1. **[TechnicalRequirements.md](docs/TechnicalRequirements.md)** — read Section 1 for product intent, Section 3 for architecture/file placement and the four-developer split, Section 7 for open decisions, and Section 5 for the Git workflow.
+1. Start at the **[Feature Map](docs/TechnicalRequirements.md#33-feature-map)** to find the entry point, logic owner and XCTest for each feature. The Technical Requirements also cover team ownership and Git workflow.
 2. **[agent.md](docs/agent.md)** — read the working rules, owner/reviewer workflow and feature documentation convention before starting implementation.
 3. **Read the technical reference for your scope:** NETWORKING for discovery/transport, PAYLOAD_GUIDE for fields/encoding, and PROTOCOL_SPECIFICATION for cryptography and validation. Resolve conflicting details through the owner/reviewer decisions in Technical Requirements Section 7 before implementing them.
 
@@ -96,11 +96,11 @@ The standalone project uses `project.yml` and does not require the sibling proto
 | :--- | :--- |
 | [TechnicalRequirements.md](docs/TechnicalRequirements.md) | Product intent, stack, Feature-Driven MVVM file tree, four-developer ownership, verification plan, Git workflow and open team decisions. |
 | [agent.md](docs/agent.md) | Developer/agent working rules, feature boundaries, collaboration and documentation handoff. |
-| [NETWORKING.md](docs/NETWORKING.md) | Draft peer discovery, connection lifecycle, framing, queues and diagnostics reference. |
-| [PAYLOAD_GUIDE.md](docs/PAYLOAD_GUIDE.md) | Draft payload field/byte breakdowns, encoding and worked message examples. |
-| [PROTOCOL_SPECIFICATION.md](docs/PROTOCOL_SPECIFICATION.md) | Draft wire/security reference covering AEAD, nonce, AAD, key lifecycle and rejection rules. |
+| [NETWORKING.md](docs/NETWORKING.md) | Peer discovery, connection lifecycle, framing, queues and diagnostics. |
+| [PAYLOAD_GUIDE.md](docs/PAYLOAD_GUIDE.md) | V3 byte layouts, encoding and message examples. |
+| [PROTOCOL_SPECIFICATION.md](docs/PROTOCOL_SPECIFICATION.md) | V3 AEAD, nonce, AAD, key lifecycle and replay rules. |
 
-The technical references retain design material for review; they are not proof of implemented or verified features. Packet size/version, transport and identity/security rules still need reconciliation. Use [Open Team Decisions](docs/TechnicalRequirements.md#7-open-team-decisions) to resolve them with the responsible owners and update the affected references together.
+Use [Session migration](docs/features/session-migration.md) for verification evidence and [Open Team Decisions](docs/TechnicalRequirements.md#7-open-team-decisions) for the remaining protocol questions.
 
 ### Starting Work as a Team
 
@@ -120,15 +120,15 @@ Developers document their delivered scope as work proceeds. Add a concise `docs/
 | Development Team/provisioning is missing | Configure signing for physical devices; use a simulator for the initial UI if no team is available. |
 | Swift language version is unsupported | Check the active Xcode/toolchain; the YAML selects Swift 6 language mode. |
 | Configuration changes disappear | Keep shared configuration in `project.yml`, then regenerate. |
-| QR, maps, permissions or P2P are missing | The starter only displays the initial UI; these features are not implemented in this repository yet. |
+| QR scanning or peer discovery fails | Check the relevant camera, local-network or Bluetooth permission on the iPhone. Use physical phones for radio verification. |
 
 ## Contribution & Verification
 
-Create `feat/*` branches from `develop` and merge changes back through PRs. `develop` runs CI checks only. Promote release candidates to `main` through a PR for TestFlight distribution and App Store release. The four-developer scope and reviewer split are in the Architecture section. Use commit prefixes such as `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, or `test:`. [Git Workflow](docs/TechnicalRequirements.md#5-git-workflow)
+Create `f/ui/*` or `f/logic/*` branches from `develop` and merge changes back through PRs. `develop` runs CI checks only. Promote release candidates to `main` through a PR for TestFlight distribution and App Store release. The four-developer scope and reviewer split are in the Architecture section. Use commit prefixes such as `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, or `test:`. [Git Workflow](docs/TechnicalRequirements.md#5-git-workflow)
 
 Read the requirements and open decisions before adding frameworks, permissions, or protocol changes. Include the scope, rationale and actual verification results in your PR; update the relevant specification or feature note as needed. Do not record group keys or private location data.
 
-`project.yml` currently defines only the app and build scheme; there is no test target. Successful generation or compilation does not mean tests have run. Future radio, location and background testing will require physical iPhones; use the simulator for UI and logic that can be tested without physical radios.
+`project.yml` defines the app, widget and XCTest targets. Run the `Teekum` scheme’s test action for logic checks. Use physical iPhones for radio, location and background verification.
 
 ## License
 

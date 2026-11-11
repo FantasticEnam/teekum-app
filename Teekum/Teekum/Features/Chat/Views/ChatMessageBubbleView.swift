@@ -36,3 +36,16 @@ struct ChatMessageBubbleView: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Sent and received") {
+    VStack(spacing: 16) {
+        ForEach(ChatPreviewService.sampleMessages) { message in
+            ChatMessageBubbleView(message: message)
+        }
+    }
+    .padding()
+    .background(.black)
+    .preferredColorScheme(.dark)
+}
+#endif

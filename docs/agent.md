@@ -6,8 +6,8 @@
 
 ## 1. Read Before Starting
 
-1. [TechnicalRequirements.md](TechnicalRequirements.md#1-project-overview): current state, source inventory and intended product behavior.
-2. [Open Team Decisions](TechnicalRequirements.md#7-open-team-decisions): inspect the actual files behind G1–G12; these findings may change after another PR.
+1. Start at the [Feature Map](TechnicalRequirements.md#33-feature-map) to find the View, ViewModel, service, state owner and relevant XCTest.
+2. Check the [Open Team Decisions](TechnicalRequirements.md#7-open-team-decisions) before changing shared contracts. G1–G12 describe the original import snapshot.
 3. [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.md): identify the feature parent, prerequisite contracts and the precise UI/logic/integration scope.
 4. Read [NETWORKING.md](NETWORKING.md), [PAYLOAD_GUIDE.md](PAYLOAD_GUIDE.md) and [PROTOCOL_SPECIFICATION.md](PROTOCOL_SPECIFICATION.md) as relevant. They describe wire and runtime contracts; they do not prove radio behavior on devices.
 5. Inspect `project.yml`, App/TeekumApp.swift, AppRootView.swift, the touched feature and its connected callers. Use the migration note for the current runtime path and test evidence.
@@ -19,8 +19,8 @@ All source paths in this guide are relative to `Teekum/Teekum/` unless stated ot
 - Minimum target: iOS 27.0. Use SwiftUI, Observation and Feature-Driven MVVM.
 - Features own their UI/ViewModels and feature-only behavior. Core owns shared domain/infrastructure. Shared/UI owns existing reusable presentation; Shared/Formatters.swift contains imported formatting helpers.
 - Views keep focus, modal, selection and interaction state. ViewModels expose feature actions/presentation. Use MainActor for UI-observed state and appropriate isolation for services.
-- Keep SessionStore as the shared roster and meeting-state owner. Preserve the agreed initials/SID contracts and original GPS measurement time.
-- Payload-free enums belong in the owner's Models/Enums directory; structured/associated-value state remains a model. Current file placement/naming is an inventory, not universal architectural approval.
+- Keep SessionStore as the shared roster and meeting-state owner. It applies accepted location and SOS measurements and peer snapshots. Preserve the agreed initials/SID contracts and original GPS measurement time.
+- Place feature-only models and enums under the feature. Put shared session records in `Core/Session` and V3 schemas in `Core/Packets/Payloads`. In Core, keep types, protocols and `Type+Responsibility.swift` extensions together in the owner folder. Keep test-only fixtures in `TeekumTests/Support`.
 - Native navigation stays feature-local: Pairing → Agreement push, local session root switch to Orbit, friends/map modal presentation and dismissal. No mandatory Coordinator, AppDependencies, Repository, UseCase or package split.
 - TeekumApp retains SessionController, which composes dependencies and starts/stops work with the session. Screens do not own radio or publisher lifetime.
 - The intended dependency direction is Features → Core. PacketRouter stays in Core and receives callbacks from App composition; do not add feature dependencies or a second raw inbound consumer.

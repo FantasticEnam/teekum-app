@@ -38,3 +38,20 @@ struct IncomingSOSAlertBannerView: View {
         .accessibilityElement(children: .contain)
     }
 }
+
+#if DEBUG
+#Preview("Incoming SOS") {
+    IncomingSOSAlertBannerView(alert: .preview, onDismiss: {})
+        .padding()
+        .background(.black)
+        .preferredColorScheme(.dark)
+}
+
+extension IncomingSOSAlert {
+    static var preview: IncomingSOSAlert {
+        IncomingSOSAlert(id: 1, senderInitials: "ADI", senderName: "Adiat",
+            emergencyType: .medical, coordinate: .init(latitude: -6.1988, longitude: 106.8225),
+            accuracy: 12, timestamp: .now.addingTimeInterval(-15), batteryLevel: 64)
+    }
+}
+#endif
