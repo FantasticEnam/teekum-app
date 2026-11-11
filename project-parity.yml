@@ -1,0 +1,48 @@
+#  project-parity.yml
+#  Teekum
+#
+#  Created by DIMAS DAFFA ERNANDA on 11/11/26.
+
+include:
+  - project.yml
+
+# Optional reference test target; reads the sibling prototype without modifying it.
+targets:
+  PrototypeReference:
+    type: framework
+    platform: iOS
+    sources:
+      - path: "../TeeKum-Prototype/TeeKum Prototype/Core"
+        excludes: [Messaging/PacketRouter.swift, Notifications, LiveActivity, Transport/SimulatedMeshTransport.swift]
+      - path: "../TeeKum-Prototype/TeeKum Prototype/Shared/UI/Formatters.swift"
+      - path: "../TeeKum-Prototype/TeeKum Prototype/Features/Chat/Services"
+      - path: "../TeeKum-Prototype/TeeKum Prototype/Features/SOS/Services"
+      - path: "../TeeKum-Prototype/TeeKum Prototype/Features/SOS/ViewModels/SOSViewModel.swift"
+    settings:
+      base:
+        SWIFT_VERSION: "5.0"
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo.prototype-reference
+
+  PrototypeParityTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: TeekumTests/ParityContractTests.swift
+    dependencies:
+      - target: Teekum
+      - target: PrototypeReference
+    settings:
+      base:
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) PROTOTYPE_REFERENCE"
+        PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo.prototype-parity-tests
+
+schemes:
+  TeekumParity:
+    build:
+      targets:
+        Teekum: all
+    test:
+      targets:
+        - TeekumTests
+        - PrototypeParityTests

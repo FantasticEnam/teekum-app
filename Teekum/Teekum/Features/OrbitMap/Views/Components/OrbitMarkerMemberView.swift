@@ -10,12 +10,20 @@ import SwiftUI
 struct OrbitMemberMarkerView: View {
     let initials: String
     let color: Color
+    var isSelected = false
     
     var body: some View {
         Circle()
             .fill(color)
             .frame(width: 30, height: 30)
             .shadow(color: color.opacity(0.8), radius: 8)
+            .overlay {
+                if isSelected {
+                    Circle()
+                        .strokeBorder(Color.yellowProfile, lineWidth: 2)
+                        .padding(-4)
+                }
+            }
             .overlay(alignment: .top) {
                 Text(initials)
                     .font(.custom("Charter-Roman", size: 13, relativeTo: .caption))

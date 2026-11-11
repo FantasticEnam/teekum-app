@@ -12,6 +12,8 @@ struct AgreementView: View {
     var mode: PairingMode = .create
     var termsOfUseURL: URL? = nil
     var privacyPolicyURL: URL? = nil
+    var errorMessage: String? = nil
+    var isPublicFestivalMesh = false
     var onAgree: () -> Void = {}
 
     var body: some View {
@@ -24,6 +26,14 @@ struct AgreementView: View {
                     mode: mode,
                     profileColor: form.profileColor.color
                 )
+
+                if isPublicFestivalMesh {
+                    Text("This is a public festival group. Other participants in this group can read your messages and shared location.")
+                        .font(.callout)
+                        .foregroundStyle(Color.yellowProfile)
+                        .multilineTextAlignment(.center)
+                        .padding(.vertical)
+                }
 
                 CardAgreement(
                     title: "Community-Powered Mesh Network",
@@ -51,6 +61,12 @@ struct AgreementView: View {
                     privacyPolicyURL: privacyPolicyURL,
                     onAgree: onAgree
                 )
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                }
             }
             .frame(maxWidth: 400)
             .padding(.horizontal, 42)

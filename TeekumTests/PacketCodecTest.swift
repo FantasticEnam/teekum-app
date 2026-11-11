@@ -414,16 +414,16 @@ struct PacketCodecTests {
             senderInitials: "NIC",
             batteryLevel: 88,
             heading: 120,
-            colorCode: MemberColor.neonPink.rawValue
+            colorCode: MemberColor.reddish.rawValue
         )
         let pingData = ping.serialize()
         #expect(pingData.count == 30)
-        #expect(pingData[17] == MemberColor.neonPink.rawValue)
+        #expect(pingData[17] == MemberColor.reddish.rawValue)
 
         let decodedPing = try LocationPingPayload.deserialize(from: pingData)
-        #expect(decodedPing.colorCode == MemberColor.neonPink.rawValue)
+        #expect(decodedPing.colorCode == MemberColor.reddish.rawValue)
         let resolvedColor = MemberColor.resolve(code: decodedPing.colorCode, initials: decodedPing.senderInitials)
-        #expect(resolvedColor == .neonPink)
+        #expect(resolvedColor == .reddish)
 
         // 2. SOSPayload roundtrip with explicit MemberColor
         let sos = SOSPayload(
@@ -434,16 +434,16 @@ struct PacketCodecTests {
             senderInitials: "ALX",
             emergencyType: .medical,
             batteryLevel: 65,
-            colorCode: MemberColor.electricPurple.rawValue
+            colorCode: MemberColor.orangeSalmon.rawValue
         )
         let sosData = sos.serialize()
         #expect(sosData.count == 30)
-        #expect(sosData[22] == MemberColor.electricPurple.rawValue)
+        #expect(sosData[22] == MemberColor.orangeSalmon.rawValue)
 
         let decodedSOS = try SOSPayload.deserialize(from: sosData)
-        #expect(decodedSOS.colorCode == MemberColor.electricPurple.rawValue)
+        #expect(decodedSOS.colorCode == MemberColor.orangeSalmon.rawValue)
         let resolvedSOSColor = MemberColor.resolve(code: decodedSOS.colorCode, initials: decodedSOS.senderInitials)
-        #expect(resolvedSOSColor == .electricPurple)
+        #expect(resolvedSOSColor == .orangeSalmon)
 
         // 3. Backward Compatibility: Legacy zero-padded packet (colorCode == 0x00)
         let legacyPing = LocationPingPayload(
@@ -472,7 +472,7 @@ struct PacketCodecTests {
 
         // 5. Selectable Palette Integrity
         let selectable = MemberColor.selectableColors
-        #expect(selectable.count == 8)
+        #expect(selectable.count == 9)
         #expect(!selectable.contains(.unset))
     }
 
@@ -492,7 +492,7 @@ struct PacketCodecTests {
             ChatTestCase(initials: "AB", text: "Stage 2"),
             ChatTestCase(initials: "DNA", text: "Beer? Stage 2 - OMW"),
             ChatTestCase(initials: "ALX", text: "12345678901234567890"),
-            ChatTestCase(initials: "SAM", text: ChatMessagePayload.presetBeerLine),
+            ChatTestCase(initials: "SAM", text: ChatMessagePayload.presetRestroom),
             ChatTestCase(initials: "BOB", text: ChatMessagePayload.presetAtMainStage),
             ChatTestCase(initials: "CHA", text: ChatMessagePayload.presetRestroom),
             ChatTestCase(initials: "DAN", text: ChatMessagePayload.presetWhereAreYou),
@@ -645,7 +645,7 @@ struct PacketCodecTests {
     @Test("Chat wire packet 56-byte layout and ChaCha20-Poly1305 AEAD sealing")
     func chatMessageWirePacketRoundtripAndCryptoAEAD() throws {
         let key = SymmetricKey(size: .bits256)
-        let sessionId: UInt16 = 0xCAFE
+        let sessionId: UInt32 = 0xCAFEEE
         let sequenceNumber: UInt32 = CleartextEnvelope.makeSequenceNumber(memberSlot: 5, counter: 101)
 
         let envelope = CleartextEnvelope(
@@ -726,7 +726,7 @@ struct PacketCodecTests {
             senderInitials: "DNA",
             batteryLevel: 92,
             heading: 240,
-            colorCode: MemberColor.skyBlue.rawValue
+            colorCode: MemberColor.sandrift.rawValue
         )
 
         let data = ping.serialize()
@@ -737,7 +737,7 @@ struct PacketCodecTests {
         #expect(InitialsCodec.decode(initialBytes) == "DNA")
         #expect(data[15] == 92)
         #expect(data[16] == 240)
-        #expect(data[17] == MemberColor.skyBlue.rawValue)
+        #expect(data[17] == MemberColor.sandrift.rawValue)
 
         let reservedSlice = data.subdata(in: 18..<30)
         #expect(reservedSlice.count == 12)
@@ -752,7 +752,7 @@ struct PacketCodecTests {
         #expect(decoded.senderInitials == "DNA")
         #expect(decoded.batteryLevel == 92)
         #expect(decoded.heading == 240)
-        #expect(decoded.colorCode == MemberColor.skyBlue.rawValue)
+        #expect(decoded.colorCode == MemberColor.sandrift.rawValue)
 
         let truncated = data.prefix(29)
         #expect(throws: PacketCodecError.bufferUnderflow) {

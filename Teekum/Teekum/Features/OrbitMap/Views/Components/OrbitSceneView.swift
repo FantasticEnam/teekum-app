@@ -6,15 +6,30 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct OrbitSceneView: View {
+    enum Target: Equatable {
+        case member(Member.ID)
+        case meetingPoint(MeetingPoint.ID)
+    }
+
+    let userColor: Color
     var bloomRotation: Angle = .zero
+    var members: [Member] = []
+    var meetingPoint: MeetingPoint?
+    var location: LocationPin?
+    var heading: Double = 0
+    var selectedTarget: Target?
+    var onSelectMember: (Member) -> Void = { _ in }
+    var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
     
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
             let baseSize = min(size.width, size.height)
             let outerRadius = baseSize * 1.55 / 2
+            let markerRadius = Double(baseSize * 0.42)
             
             ZStack {
                 StarfieldView()
@@ -59,35 +74,104 @@ struct OrbitSceneView: View {
                         rotation: bloomRotation
                     )
                     
-                    // shortcut: heading and peer positions are design fixtures; replace during location/projection integration.
-                    OrbitUserMarkerView(heading: .degrees(0))
-                    
-                    OrbitMemberMarkerView(
-                        initials: "HSN",
-                        color: .orangeProfile
-                    )
-                    .offset(
-                        x: -baseSize * 0.28,
-                        y: -baseSize * 0.45
-                    )
-                    
-                    OrbitMemberMarkerView(
-                        initials: "NIC",
-                        color: .peachProfile
-                    )
-                    .offset(
-                        x: baseSize * 0.35,
-                        y: -baseSize * 0.32
-                    )
+                    OrbitUserMarkerView(color: userColor, heading: .degrees(0))
+                        .allowsHitTesting(false)
+
+                    if let location {
+                        ForEach(members) { member in
+                            if let coordinate = member.coordinate {
+                                let projection = OrbitProjection(from: location, to: coordinate, heading: heading, radius: markerRadius)
+                                let isSelected = selectedTarget == .member(member.id)
+                                if isSelected {
+                                    targetLine(to: projection, in: size)
+                                }
+                                memberMarker(member, projection: projection, isSelected: isSelected)
+                            }
+                        }
+
+                        if let meetingPoint {
+                            let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading, radius: markerRadius)
+                            let isSelected = selectedTarget == .meetingPoint(meetingPoint.id)
+                            if isSelected {
+                                targetLine(to: projection, in: size)
+                            }
+                            meetingMarker(meetingPoint, projection: projection, isSelected: isSelected)
+                        }
+                    }
                 }
-                .allowsHitTesting(false)
             }
             .clipped()
         }
         .background(.black)
     }
+
+    private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
+        let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
+        return Button { onSelectMember(member) } label: {
+            OrbitMemberMarkerView(initials: member.initials,
+                color: member.isEmergency ? .alertRed : member.color.swiftUIColor,
+                isSelected: isSelected)
+                .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
+                .opacity(isStale && !isSelected ? 0.5 : 1)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Find \(member.initials), \(projection.distance.formattedDistance())")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .offset(x: projection.x, y: projection.y)
+        .zIndex(isSelected ? 2 : 0)
+    }
+
+    private func meetingMarker(_ point: MeetingPoint, projection: OrbitProjection, isSelected: Bool) -> some View {
+        Button { onSelectMeetingPoint(point.id) } label: {
+            Image(.meetPoint)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 23, height: 34)
+                .background {
+                    if isSelected {
+                        Circle()
+                            .strokeBorder(Color.yellowProfile, lineWidth: 2)
+                            .frame(width: 42, height: 42)
+                    }
+                }
+                .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Meeting point, \(point.name), \(projection.distance.formattedDistance())")
+        .accessibilityHint("Select as your radar target")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .offset(x: projection.x, y: projection.y)
+        .zIndex(isSelected ? 2 : 1)
+    }
+
+    private func distanceLabel(_ projection: OrbitProjection) -> some View {
+        Text("\(projection.isClamped ? "↗ " : "")\(projection.distance.formattedDistance())")
+            .font(.caption2)
+            .foregroundStyle(.white)
+            .fixedSize()
+    }
+
+    private func targetLine(to projection: OrbitProjection, in size: CGSize) -> some View {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        return Path { path in
+            path.move(to: center)
+            path.addLine(to: CGPoint(x: center.x + projection.x, y: center.y + projection.y))
+        }
+        .stroke(Color.yellowProfile, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+        .frame(width: size.width, height: size.height)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .zIndex(-1)
+    }
 }
 
 #Preview {
-    OrbitSceneView()
+    let store = SessionStore.preview
+    OrbitSceneView(userColor: .yellowProfile, members: store.members, meetingPoint: store.activeMeetingPoint,
+        location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
+        selectedTarget: .member("ADI"))
 }
