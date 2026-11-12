@@ -156,4 +156,30 @@ final class PairingMeetingMigrationTests: XCTestCase {
         service.checkExpiration()
         XCTAssertNil(store.activeMeetingPoint)
     }
+
+    func testDuplicateProposeAndUnchangedAttendanceAreIgnored() throws {
+        let store = SessionStore(activeSession: GroupSession(localInitials: "ADI"))
+        let service = MeetingPointService(sessionStore: store)
+        let coordinate = CLLocationCoordinate2D(latitude: -6.2, longitude: 106.8)
+        let proposal = MeetingUpdatePayload(
+            coordinate: coordinate, action: .propose, attendanceStatus: .attending,
+            meetingPointId: 42, senderInitials: "NIC"
+        )
+        XCTAssertTrue(service.applyInboundUpdate(proposal))
+        service.respond(status: .attending)
+        XCTAssertEqual(store.activeMeetingPoint?.attendance[.fromInitials("ADI")], .accepted)
+
+        // Re-receiving the same meetingPointId must not reset attendance or return true.
+        XCTAssertFalse(service.applyInboundUpdate(proposal))
+        XCTAssertEqual(store.activeMeetingPoint?.proposerInitials, "NIC")
+        XCTAssertEqual(store.activeMeetingPoint?.attendance[.fromInitials("ADI")], .accepted)
+
+        // First RSVP from BOB applies; repeating the same RSVP is ignored.
+        let bobRSVP = MeetingUpdatePayload(
+            coordinate: coordinate, action: .accept, attendanceStatus: .attending,
+            meetingPointId: 42, senderInitials: "BOB"
+        )
+        XCTAssertTrue(service.applyInboundUpdate(bobRSVP))
+        XCTAssertFalse(service.applyInboundUpdate(bobRSVP))
+    }
 }

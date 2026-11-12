@@ -311,7 +311,14 @@ final class SessionController {
             }, onMeetingUpdate: { [weak self] update in
                 guard let self, generation == current, meeting.applyInboundUpdate(update) else { return }
                 if update.senderInitials != store.activeSession?.localInitials {
-                    notifications.notify(title: "Meeting point", body: "\(update.senderInitials) updated the group rendezvous.")
+                    switch update.action {
+                    case .propose:
+                        notifications.notify(title: "Meeting point", body: "\(update.senderInitials) updated the group rendezvous.")
+                    case .cancel:
+                        notifications.notify(title: "Meeting point", body: "\(update.senderInitials) cancelled the group rendezvous.")
+                    case .accept, .decline:
+                        break
+                    }
                 }
             }, onChat: { [weak self] inbound in
                 guard let self, generation == current,
@@ -327,6 +334,7 @@ final class SessionController {
         let current = generation
         let connected = Set(peers.filter(\.isDirectLink).map(\.id))
         let disconnected = directPeers.subtracting(connected)
+        let newlyConnected = connected.subtracting(directPeers)
         directPeers = connected
         for peer in disconnected {
             await routes.handleNeighborDisconnected(peerId: peer)
@@ -335,6 +343,8 @@ final class SessionController {
         store.applyPeerSnapshot(peers, connected: connected)
         if !connected.isEmpty {
             location.publishCurrentState()
+        }
+        if !newlyConnected.isEmpty {
             await meeting.syncActiveMeetingPointToPeers()
         }
     }
