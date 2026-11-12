@@ -94,7 +94,12 @@ struct OrbitMapView: View {
                 .padding(.horizontal)
             }
         }
-        .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
+        .overlay {
+            if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
+        }
+        .overlay(alignment: .top) {
+            OrbitFeedbackView(sos: sos, notifications: notifications)
+        }
         .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         .disabled(isLeavingGroup)
         .onChange(of: meetingPoint?.id) { _, id in
@@ -120,6 +125,7 @@ struct OrbitMapView: View {
             if let chat {
                 ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
                     .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
+                    .overlay { SOSEdgeGlowView(sos: sos) }
             }
         }
         .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
@@ -176,6 +182,7 @@ struct OrbitMapView: View {
                 }
             } }
             .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
+            .overlay { SOSEdgeGlowView(sos: sos) }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         }
     }

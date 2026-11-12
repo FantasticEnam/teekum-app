@@ -503,12 +503,12 @@ struct PacketCodecTests {
             ChatTestCase(initials: "AB", text: "Stage 2"),
             ChatTestCase(initials: "DNA", text: "Beer? Stage 2 - OMW"),
             ChatTestCase(initials: "ALX", text: "12345678901234567890"),
-            ChatTestCase(initials: "SAM", text: ChatMessagePayload.presetRestroom),
-            ChatTestCase(initials: "BOB", text: ChatMessagePayload.presetAtMainStage),
-            ChatTestCase(initials: "CHA", text: ChatMessagePayload.presetRestroom),
-            ChatTestCase(initials: "DAN", text: ChatMessagePayload.presetWhereAreYou),
-            ChatTestCase(initials: "EVE", text: ChatMessagePayload.presetOnMyWay),
-            ChatTestCase(initials: "FRANK", text: ChatMessagePayload.presetLost)
+            ChatTestCase(initials: "SAM", text: ChatMessagePayload.presetINeedHelp),
+            ChatTestCase(initials: "BOB", text: ChatMessagePayload.presetWhereAreYou),
+            ChatTestCase(initials: "CHA", text: ChatMessagePayload.presetImSafe),
+            ChatTestCase(initials: "DAN", text: ChatMessagePayload.presetAtTheShelter),
+            ChatTestCase(initials: "EVE", text: ChatMessagePayload.presetIveArrived),
+            ChatTestCase(initials: "FRANK", text: ChatMessagePayload.presetOnMyWay)
         ]
     )
     func chatMessagePayloadSerializationRoundtrip(testCase: ChatTestCase) throws {

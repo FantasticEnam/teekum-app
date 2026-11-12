@@ -31,29 +31,16 @@ struct OrbitSceneView: View {
             let outerRadius = baseSize * 1.55 / 2
             let markerRadius = Double(baseSize * 0.42)
             
-            ZStack {
-                StarfieldView()
-                
-                RadialGradient(
-                    stops: [
-                        .init(
-                            color: .clear,
-                            location: 0
-                        ),
-                        .init(
-                            color: .black.opacity(0.15),
-                            location: 0.65
-                        ),
-                        .init(
-                            color: .black.opacity(0.75),
-                            location: 1
-                        )
-                    ],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: outerRadius
-                )
-            }
+            RadialGradient(
+                stops: [
+                    .init(color: Color(hex: 0x131313), location: 0),
+                    .init(color: Color(hex: 0x161616), location: 0.85),
+                    .init(color: .black, location: 1)
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: outerRadius * 1.12
+            )
             .frame(width: size.width, height: size.height)
             .overlay {
                 ZStack {
@@ -109,15 +96,16 @@ struct OrbitSceneView: View {
         let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
         return Button { onSelectMember(member) } label: {
             OrbitMemberMarkerView(initials: member.initials,
-                color: member.isEmergency ? .alertRed : member.color.swiftUIColor,
-                isSelected: isSelected)
+                color: member.color.swiftUIColor, isSelected: isSelected,
+                isEmergency: member.isEmergency)
                 .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
-                .opacity(isStale && !isSelected ? 0.5 : 1)
+                .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Find \(member.initials), \(projection.distance.formattedDistance())")
+        .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .offset(x: projection.x, y: projection.y)
         .zIndex(isSelected ? 2 : 0)
