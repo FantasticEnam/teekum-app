@@ -17,12 +17,12 @@ final class LiveActivityManager {
         await stop()
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let attributes = SessionActivityAttributes(sessionId: session.sessionId,
-            sessionName: session.sessionName, userInitials: session.localInitials)
+            sessionName: session.sessionName, userInitials: session.localInitials, userColorCode: session.localColorCode)
         activityID = try? Activity.request(attributes: attributes,
             content: ActivityContent(state: .init(), staleDate: .now.addingTimeInterval(30)), pushType: nil).id
     }
 
-    func update(peerCount: Int, meeting: MeetingPoint?, location: LocationPin?, sosSender: String?, relay: RelayPolicyState) async {
+    func update(peerCount: Int, unreadCount: Int, meeting: MeetingPoint?, location: LocationPin?, sosSender: String?, relay: RelayPolicyState) async {
         guard let activityID else { return }
         let distance = meeting.flatMap { point in location.map { Int($0.distance(to: point.coordinate)) } }
         var state = SessionActivityAttributes.ContentState(directPeerCount: peerCount,

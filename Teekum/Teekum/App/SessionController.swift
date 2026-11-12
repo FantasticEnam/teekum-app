@@ -270,7 +270,7 @@ final class SessionController {
                 location.hasStalePeers = stale
                 if stale { location.triggerCadenceEvaluation() }
             }
-            await liveActivity.update(peerCount: snapshot.activeDirectPeers.filter(\.isDirectLink).count,
+            await liveActivity.update(peerCount: snapshot.activeDirectPeers.filter(\.isDirectLink).count, unreadCount: chat.unreadCount,
                 meeting: store.activeMeetingPoint, location: location.currentLocation,
                 sosSender: sos.incomingAlert?.senderInitials ?? (sos.deliveryState == .idle ? nil : session.localInitials),
                 relay: relayState)

@@ -56,6 +56,8 @@ targets:
     sources:
       - path: TeekumWidgets
       - path: Teekum/Teekum/Core/LiveActivity/SessionActivityAttributes.swift
+      - path: Teekum/Teekum/Core/Session/MemberColor.swift
+      - path: Teekum/Teekum/Shared/UI/Theme.swift
     info:
       path: Config/Widgets-Info.plist
       properties:
