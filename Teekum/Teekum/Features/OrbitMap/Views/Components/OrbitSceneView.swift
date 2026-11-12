@@ -31,29 +31,16 @@ struct OrbitSceneView: View {
             let outerRadius = baseSize * 1.55 / 2
             let markerRadius = Double(baseSize * 0.42)
             
-            ZStack {
-                StarfieldView()
-                
-                RadialGradient(
-                    stops: [
-                        .init(
-                            color: .clear,
-                            location: 0
-                        ),
-                        .init(
-                            color: .black.opacity(0.15),
-                            location: 0.65
-                        ),
-                        .init(
-                            color: .black.opacity(0.75),
-                            location: 1
-                        )
-                    ],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: outerRadius
-                )
-            }
+            RadialGradient(
+                stops: [
+                    .init(color: Color(hex: 0x131313), location: 0),
+                    .init(color: Color(hex: 0x161616), location: 0.85),
+                    .init(color: .black, location: 1)
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: outerRadius * 1.12
+            )
             .frame(width: size.width, height: size.height)
             .overlay {
                 ZStack {
