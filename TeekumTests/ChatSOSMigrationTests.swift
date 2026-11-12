@@ -199,7 +199,7 @@ final class ChatSOSMigrationTests: XCTestCase {
     }
 
     private func chatPacket(crypto: CryptoService, date: Date, hopCount: UInt8 = 0) async throws -> RawWirePacket {
-        let payload = ChatMessagePayload(senderInitials: "ALX", timestamp: date, text: "At Main Stage")
+        let payload = ChatMessagePayload(senderInitials: "ALX", timestamp: date, text: ChatMessagePayload.presetAtTheShelter)
         return try await sealed(crypto: crypto, payload: payload.serialize(), type: .chatMessage,
             sequence: 0x01000001, hopCount: hopCount)
     }
