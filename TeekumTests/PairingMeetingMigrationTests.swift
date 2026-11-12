@@ -113,11 +113,7 @@ final class PairingMeetingMigrationTests: XCTestCase {
         XCTAssertTrue(service.proposeMeetingPoint(coordinate: coordinate))
         let point = try XCTUnwrap(store.activeMeetingPoint)
         XCTAssertTrue(service.canSetMeetingPoint(by: "ADI"))
-        XCTAssertFalse(service.canSetMeetingPoint(by: "NIC"))
-        XCTAssertFalse(service.applyInboundUpdate(MeetingUpdatePayload(
-            coordinate: coordinate, action: .propose, attendanceStatus: .attending,
-            meetingPointId: point.id + 1, senderInitials: "NIC"
-        )))
+        XCTAssertTrue(service.canSetMeetingPoint(by: "NIC"))
         XCTAssertFalse(service.applyInboundUpdate(MeetingUpdatePayload(
             coordinate: coordinate, action: .cancel, attendanceStatus: .attending,
             meetingPointId: point.id, senderInitials: "NIC"
@@ -129,6 +125,21 @@ final class PairingMeetingMigrationTests: XCTestCase {
         XCTAssertEqual(store.activeMeetingPoint?.attendance[.fromInitials("NIC")], .arrived)
         XCTAssertTrue(service.cancelMeetingPoint())
         XCTAssertNil(store.activeMeetingPoint)
+    }
+    
+    func testNewMeetingPointReplacesExistingPoint() throws {
+        let store = SessionStore(activeSession: GroupSession(localInitials: "ADI"))
+        let service = MeetingPointService(sessionStore: store)
+        let coordinate = CLLocationCoordinate2D(latitude: -6.2, longitude: 106.8)
+        XCTAssertTrue(service.proposeMeetingPoint(coordinate: coordinate))
+        let firstPoint = try XCTUnwrap(store.activeMeetingPoint)
+
+        XCTAssertTrue(service.applyInboundUpdate(MeetingUpdatePayload(
+            coordinate: coordinate, action: .propose, attendanceStatus: .attending,
+            meetingPointId: firstPoint.id + 1, senderInitials: "NIC"
+        )))
+        XCTAssertEqual(store.activeMeetingPoint?.id, firstPoint.id + 1)
+        XCTAssertEqual(store.activeMeetingPoint?.proposerInitials, "NIC")
     }
 
     func testMeetingArrivalAndOneHourExpiryMatchPrototype() throws {

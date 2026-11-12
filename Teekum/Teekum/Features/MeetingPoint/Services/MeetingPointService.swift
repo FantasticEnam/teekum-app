@@ -37,8 +37,7 @@ public final class MeetingPointService {
 
     public func canSetMeetingPoint(by initials: String) -> Bool {
         checkExpiration()
-        guard let point = sessionStore.activeMeetingPoint else { return true }
-        return point.proposerInitials == InitialsCodec.sanitize(initials)
+        return sessionStore.hasActiveSession
     }
 
     @discardableResult
@@ -50,8 +49,7 @@ public final class MeetingPointService {
         arrivalRadiusMeters: Double = 25
     ) -> Bool {
         guard let session = sessionStore.activeSession,
-              CLLocationCoordinate2DIsValid(coordinate),
-              canSetMeetingPoint(by: session.localInitials) else { return false }
+              CLLocationCoordinate2DIsValid(coordinate) else { return false }
         let point = MeetingPoint(
             name: "\(session.localInitials)'s Meeting Point",
             coordinate: coordinate,
@@ -114,8 +112,6 @@ public final class MeetingPointService {
         switch update.action {
         case .propose:
             checkExpiration()
-            if let existing = sessionStore.activeMeetingPoint,
-               existing.proposerInitials != update.senderInitials { return false }
             let point = MeetingPoint(
                 id: update.meetingPointId,
                 name: "\(update.senderInitials)'s Meeting Point",
