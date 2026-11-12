@@ -30,10 +30,10 @@ public actor ForwardingRateLimiter: ForwardingBudgetManaging {
     
     public init(
         clock: MeshClock = SystemMeshClock(),
-        ordinaryCapacity: Double = TeeKumConfiguration.Timing.ordinaryRelayBurstCapacity,
-        ordinaryRefillRate: Double = TeeKumConfiguration.Timing.ordinaryRelayRateLimit,
+        ordinaryCapacity: Double = MeepoConfiguration.Timing.ordinaryRelayBurstCapacity,
+        ordinaryRefillRate: Double = MeepoConfiguration.Timing.ordinaryRelayRateLimit,
         sosCapacity: Double = 8.0,
-        sosRefillRate: Double = TeeKumConfiguration.Timing.urgentSOSRateLimit
+        sosRefillRate: Double = MeepoConfiguration.Timing.urgentSOSRateLimit
     ) {
         self.clock = clock
         self.ordinaryCapacity = ordinaryCapacity

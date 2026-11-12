@@ -39,12 +39,12 @@ nonisolated public struct CadenceConfiguration: Equatable, Sendable {
     public var staleRecoveryTimeout: TimeInterval
     
     public init(
-        movingInterval: TimeInterval = TeeKumConfiguration.Timing.locationMovingInterval,
-        stationaryInterval: TimeInterval = TeeKumConfiguration.Timing.locationStationaryInterval,
-        distantPeerInterval: TimeInterval = TeeKumConfiguration.Timing.distantPeerInterval,
-        survivalInterval: TimeInterval = TeeKumConfiguration.Timing.survivalInterval,
-        staleThreshold: TimeInterval = TeeKumConfiguration.Timing.stalePeerThreshold,
-        stalePeerThreshold: TimeInterval = TeeKumConfiguration.Timing.stalePeerThreshold,
+        movingInterval: TimeInterval = MeepoConfiguration.Timing.locationMovingInterval,
+        stationaryInterval: TimeInterval = MeepoConfiguration.Timing.locationStationaryInterval,
+        distantPeerInterval: TimeInterval = MeepoConfiguration.Timing.distantPeerInterval,
+        survivalInterval: TimeInterval = MeepoConfiguration.Timing.survivalInterval,
+        staleThreshold: TimeInterval = MeepoConfiguration.Timing.stalePeerThreshold,
+        stalePeerThreshold: TimeInterval = MeepoConfiguration.Timing.stalePeerThreshold,
         staleRecoveryInterval: TimeInterval = 2.0,
         staleRouteReqDelay: TimeInterval = 15.0,
         staleRecoveryTimeout: TimeInterval = 60.0

@@ -1,5 +1,5 @@
 //
-//  TeeKumConfiguration.swift
+//  MeepoConfiguration.swift
 //  Teekum
 //
 //  Created by Nicho on 05/11/26.
@@ -11,7 +11,7 @@ import Foundation
 ///
 /// Every configurable knob, cadences, network thresholds, hop limits, battery cutoffs,
 /// retry parameters, and UI timings are unified in this single file for rapid testing and field tuning.
-nonisolated public enum TeeKumConfiguration {
+nonisolated public enum MeepoConfiguration {
     
     // MARK: - 1. Wire Protocol & Network Topology Parameters
     public enum Network {

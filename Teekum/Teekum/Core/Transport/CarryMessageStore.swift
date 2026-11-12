@@ -62,8 +62,8 @@ nonisolated struct CarryMessageStore {
             for peer in peers where !entry.sources.contains(peer) {
                 let attempt = entry.attempts[peer]
                 let last = attempt?.lastSentAt ?? .distantPast
-                let delay = (attempt?.count ?? 0) < TeeKumConfiguration.Chat.carryFastAttemptLimit
-                    ? TeeKumConfiguration.Chat.carryFastRetryInterval : TeeKumConfiguration.Chat.carrySlowRetryInterval
+                let delay = (attempt?.count ?? 0) < MeepoConfiguration.Chat.carryFastAttemptLimit
+                    ? MeepoConfiguration.Chat.carryFastRetryInterval : MeepoConfiguration.Chat.carrySlowRetryInterval
                 if now.timeIntervalSince(last) >= delay,
                    priority < bestPriority || (priority == bestPriority && last < oldest) {
                     bestPriority = priority

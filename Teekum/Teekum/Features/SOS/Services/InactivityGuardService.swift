@@ -73,15 +73,15 @@ public final class InactivityGuardService {
     // MARK: - Configuration Knobs
     
     public var stillnessThresholdSeconds: TimeInterval {
-        TeeKumConfiguration.SOS.inactivityStillnessDuration
+        MeepoConfiguration.SOS.inactivityStillnessDuration
     }
     
     public var warningCountdownSeconds: TimeInterval {
-        TeeKumConfiguration.SOS.inactivityWarningCountdown
+        MeepoConfiguration.SOS.inactivityWarningCountdown
     }
     
     public var motionThresholdG: Double {
-        TeeKumConfiguration.SOS.inactivityMotionThreshold
+        MeepoConfiguration.SOS.inactivityMotionThreshold
     }
     
     public var isWarningActive: Bool {

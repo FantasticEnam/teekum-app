@@ -80,7 +80,7 @@ public struct Member: Identifiable, Equatable, Hashable, Sendable {
     }
     
     /// Determines whether the member's last seen time is older than the given threshold.
-    public func isStale(threshold: TimeInterval = TeeKumConfiguration.Timing.stalePeerThreshold) -> Bool {
+    public func isStale(threshold: TimeInterval = MeepoConfiguration.Timing.stalePeerThreshold) -> Bool {
         Date().timeIntervalSince(lastSeen) > threshold
     }
     
