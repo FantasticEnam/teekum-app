@@ -13,6 +13,7 @@ struct SessionActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: SessionActivityAttributes.self) { context in
             SessionLiveActivityView(attributes: context.attributes, state: context.state)
+                .background(.black)
                 .activityBackgroundTint(.black)
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
@@ -38,6 +39,18 @@ struct SessionActivityWidget: Widget {
     using: SessionActivityAttributes(sessionId: 0x4321, sessionName: "Festival Crew", userInitials: "DAF")) {
     SessionActivityWidget()
 } contentStates: {
+    SessionActivityAttributes.ContentState()
+    SessionActivityAttributes.ContentState(directPeerCount: 3, meetingPointName: "Gate 2",
+        meetingPointDistanceMeters: 120, relayStatusText: "Relay active")
+    SessionActivityAttributes.ContentState(directPeerCount: 3, sosSenderInitials: "ADI",
+        relayStatusText: "Relay active")
+}
+
+#Preview("Dynamic Island Expanded", as: .dynamicIsland(.expanded),
+    using: SessionActivityAttributes(sessionId: 0x4321, sessionName: "Festival Crew", userInitials: "DAF")) {
+    SessionActivityWidget()
+} contentStates: {
+    SessionActivityAttributes.ContentState()
     SessionActivityAttributes.ContentState(directPeerCount: 3, meetingPointName: "Gate 2",
         meetingPointDistanceMeters: 120, relayStatusText: "Relay active")
     SessionActivityAttributes.ContentState(directPeerCount: 3, sosSenderInitials: "ADI",

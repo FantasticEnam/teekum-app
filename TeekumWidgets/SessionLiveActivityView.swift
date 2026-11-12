@@ -5,46 +5,127 @@
 //  Created by DIMAS DAFFA ERNANDA on 11/11/26.
 //
 
+import ActivityKit
 import SwiftUI
+import WidgetKit
 
 struct SessionLiveActivityView: View {
     let attributes: SessionActivityAttributes
     let state: SessionActivityAttributes.ContentState
-
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
             HStack {
-                Text(attributes.sessionName).font(.headline)
+                Label {
+                    Text("Meepo")
+                        .font(.custom("Charter-Bold", size: 12, relativeTo: .caption))
+                } icon: {
+                    Image("MeetPoint")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(accentColor)
                 Spacer()
-                Label("\(state.directPeerCount)", systemImage: "person.2")
-                if let url = URL(string: "meepo://session") { Link("Leave", destination: url) }
+                Text(state.relayStatusText)
+                    .font(.custom("Charter-Bold", size: 12, relativeTo: .caption))
+                    .foregroundStyle(accentColor)
             }
-            if let sender = state.sosSenderInitials {
-                Label("SOS from \(sender)", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                if let url = URL(string: "meepo://sos") { Link("Find friend", destination: url) }
-            } else if let meeting = state.meetingPointName {
-                Text(meeting)
-                if let meters = state.meetingPointDistanceMeters { Text("\(meters) m away").font(.caption) }
-                if let url = URL(string: "meepo://meeting") { Link("Open map", destination: url) }
+            
+            Divider()
+                .overlay(.white.opacity(0.2))
+            
+            // Main Content
+            HStack(spacing: 14) {
+                // User Color
+                ZStack {
+                    Circle()
+                        .fill(circleFillColor)
+                    Text(circleInitials)
+                        .font(.custom("Charter-Bold", size: 16, relativeTo: .headline))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .frame(width: 56, height: 56)
+                // Judul grup & subjudul state (Default / Meeting Point / SOS)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(attributes.sessionName)
+                        .font(.custom("Charter-Bold", size: 22, relativeTo: .title2))
+                        .lineLimit(1)
+                    Text(subtitleText)
+                        .font(.custom("Charter-Bold", size: 14, relativeTo: .subheadline))
+                        .foregroundStyle(state.sosSenderInitials == nil ? .white.opacity(0.85) : .red)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                // Section Jumlah teman
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(accentColor)
+                        .frame(width: 6, height: 6)
+                    Text("\(state.directPeerCount) \(state.directPeerCount == 1 ? "Friend" : "Friends")")
+                        .font(.custom("Charter-Bold", size: 12, relativeTo: .caption))
+                        .foregroundStyle(accentColor)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.white.opacity(0.14), in: Capsule())
+                .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 1))
             }
-            Text(state.relayStatusText).font(.caption)
-            Text("Updated \(state.lastUpdated, style: .relative) ago").font(.caption2)
         }
         .padding()
         .foregroundStyle(.white)
         .tint(.yellow)
     }
+    
+    private var accentColor: Color {
+        state.sosSenderInitials == nil ? .yellow : .red
+    }
+    
+    private var subtitleText: String {
+        if state.sosSenderInitials != nil {
+            return "Emergency SOS"
+        }
+        if let meeting = state.meetingPointName {
+            if let meters = state.meetingPointDistanceMeters {
+                return "\(meeting) • \(meters) m"
+            }
+            return meeting
+        }
+        return "YOU"
+    }
+    
+    private var userColor: Color {
+        MemberColor.resolve(code: attributes.userColorCode, initials: attributes.userInitials).swiftUIColor
+    }
+    
+    private var circleInitials: String {
+        state.sosSenderInitials ?? attributes.userInitials
+    }
+    
+    private var circleFillColor: Color {
+        state.sosSenderInitials == nil ? userColor : .red
+    }
+    
+    private var circleGlowColor: Color {
+        state.sosSenderInitials == nil ? userColor : .red
+    }
+    
+    private var circleTextColor: Color {
+        state.sosSenderInitials == nil ? .black.opacity(0.85) : .white
+    }
 }
 
-#Preview("Meeting point and SOS") {
-    let attributes = SessionActivityAttributes(sessionId: 0x4321, sessionName: "Festival Crew", userInitials: "DAF")
-
-    VStack(spacing: 12) {
-        SessionLiveActivityView(attributes: attributes, state: .init(directPeerCount: 3,
-            meetingPointName: "Gate 2", meetingPointDistanceMeters: 120, relayStatusText: "Relay active"))
-        SessionLiveActivityView(attributes: attributes, state: .init(directPeerCount: 3, sosSenderInitials: "ADI"))
-    }
-    .background(.black)
-    .preferredColorScheme(.dark)
+#Preview("Live Activity View", as: .content,
+         using: SessionActivityAttributes(sessionId: 0x4321, sessionName: "Festival Crew", userInitials: "DAF")) {
+    SessionActivityWidget()
+} contentStates: {
+    SessionActivityAttributes.ContentState()
+    SessionActivityAttributes.ContentState(directPeerCount: 3, meetingPointName: "Gate 2",
+                                           meetingPointDistanceMeters: 120, relayStatusText: "Relay active")
+    SessionActivityAttributes.ContentState(directPeerCount: 3, sosSenderInitials: "ADI",
+                                           relayStatusText: "Relay active")
 }

@@ -17,7 +17,7 @@ final class LiveActivityManager {
         await stop()
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let attributes = SessionActivityAttributes(sessionId: session.sessionId,
-            sessionName: session.sessionName, userInitials: session.localInitials)
+            sessionName: session.sessionName, userInitials: session.localInitials, userColorCode: session.localColorCode)
         activityID = try? Activity.request(attributes: attributes,
             content: ActivityContent(state: .init(), staleDate: .now.addingTimeInterval(30)), pushType: nil).id
     }
