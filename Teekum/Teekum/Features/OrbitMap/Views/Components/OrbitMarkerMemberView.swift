@@ -11,6 +11,7 @@ struct OrbitMemberMarkerView: View {
     let initials: String
     let color: Color
     var isSelected = false
+    var isEmergency = false
     
     var body: some View {
         Circle()
@@ -25,26 +26,34 @@ struct OrbitMemberMarkerView: View {
                 }
             }
             .overlay(alignment: .top) {
-                Text(initials)
-                    .font(.custom("Charter-Roman", size: 13, relativeTo: .caption))
-//                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.black, in: .rect(cornerRadius: 6))
-                    .fixedSize()
-                    .offset(y: -40)
+                VStack(spacing: -2) {
+                    Text(initials)
+                        .font(.custom("Charter-Roman", size: 13, relativeTo: .caption))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(isEmergency ? Color.alertRed : .black, in: .rect(cornerRadius: 6))
+                    if isEmergency {
+                        Image(systemName: "triangle.fill")
+                            .font(.system(size: 10))
+                            .rotationEffect(.degrees(180))
+                            .foregroundStyle(Color.alertRed)
+                    }
+                }
+                .fixedSize()
+                .shadow(color: isEmergency ? .alertRed.opacity(0.65) : .clear, radius: 12)
+                .alignmentGuide(.top) { $0[.bottom] + (isEmergency ? 1 : 12) }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Member \(initials)")
     }
 }
 
-#Preview {
-    OrbitMemberMarkerView(
-        initials: "ALX",
-        color: .peachProfile
-    )
+#Preview("Normal and SOS markers") {
+    HStack(spacing: 64) {
+        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile)
+        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile, isEmergency: true)
+    }
     .padding(80)
     .background(.black)
 }

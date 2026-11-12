@@ -11,19 +11,21 @@ public struct ChatMessagePayload: Equatable, Sendable {
     public static let maxTextBytes: Int = 20
     public static let reservedBytesCount: Int = 3
     
-    // MARK: - Festival Preset Quick-Tap Chips (Independent Status Transmission)
-    public static let presetAtMainStage = "At Main Stage"
-    public static let presetRestroom = "Restroom"
+    // MARK: - Quick Replies
+    public static let presetINeedHelp = "I need help"
     public static let presetWhereAreYou = "Where are you?"
+    public static let presetImSafe = "I'm safe"
+    public static let presetAtTheShelter = "At the shelter"
+    public static let presetIveArrived = "I've arrived"
     public static let presetOnMyWay = "On my way"
-    public static let presetLost = "I'm Lost"
     
     public static let standardPresets: [String] = [
-        presetAtMainStage,
-        presetRestroom,
+        presetINeedHelp,
         presetWhereAreYou,
-        presetOnMyWay,
-        presetLost
+        presetImSafe,
+        presetAtTheShelter,
+        presetIveArrived,
+        presetOnMyWay
     ]
     
     public var senderInitials: String // 1..3 uppercase characters A-Z
