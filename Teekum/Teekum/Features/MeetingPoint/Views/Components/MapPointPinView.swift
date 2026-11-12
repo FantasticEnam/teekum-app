@@ -35,8 +35,8 @@ public struct MapPointPinView: View {
             Image("MeetPoint")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 23, height: 34)
-                .shadow(color: .black.opacity(0.3) ,radius: 3)
+                .frame(width: 34, height: 34)
+                .shadow(color: .black.opacity(0.1) ,radius: 3)
         }
     }
 }

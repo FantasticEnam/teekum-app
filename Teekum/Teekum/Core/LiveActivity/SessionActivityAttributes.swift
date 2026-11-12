@@ -12,6 +12,7 @@ import Foundation
 struct SessionActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable, Sendable {
         var directPeerCount = 0
+        var unreadMessageCount = 0
         var meetingPointName: String?
         var meetingPointDistanceMeters: Int?
         var sosSenderInitials: String?
