@@ -109,15 +109,16 @@ struct OrbitSceneView: View {
         let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
         return Button { onSelectMember(member) } label: {
             OrbitMemberMarkerView(initials: member.initials,
-                color: member.isEmergency ? .alertRed : member.color.swiftUIColor,
-                isSelected: isSelected)
+                color: member.color.swiftUIColor, isSelected: isSelected,
+                isEmergency: member.isEmergency)
                 .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
-                .opacity(isStale && !isSelected ? 0.5 : 1)
+                .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Find \(member.initials), \(projection.distance.formattedDistance())")
+        .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .offset(x: projection.x, y: projection.y)
         .zIndex(isSelected ? 2 : 0)
