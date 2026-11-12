@@ -26,6 +26,10 @@ final class SOSViewModel {
     var onIncomingAlert: (@MainActor (IncomingSOSAlert) -> Void)?
     var onIncomingAlertDismissed: (@MainActor (String) -> Void)?
 
+    var showsEdgeGlow: Bool {
+        incomingAlert != nil || deliveryState.stage != .idle
+    }
+
     init(
         engine: SOSForwardingEngine,
         locationService: any LocationServiceProtocol,

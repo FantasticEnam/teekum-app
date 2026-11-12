@@ -139,6 +139,40 @@ final class ChatSOSMigrationTests: XCTestCase {
         XCTAssertEqual(audio.stopCount, 1)
     }
 
+    @MainActor
+    func testEdgeGlowFollowsReceivedAndSentSOSUntilDismissed() async throws {
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
+        let crypto = CryptoService()
+        let engine = SOSForwardingEngine(transport: MessagingTestTransport(), cryptoService: crypto,
+            sessionProvider: { session })
+        let model = SOSViewModel(engine: engine, locationService: LocationService(isLiveSharingEnabled: false),
+            sessionProvider: { session })
+        await model.start()
+        XCTAssertFalse(model.showsEdgeGlow)
+
+        let received = XCTestExpectation(description: "Receiver displays the SOS alert")
+        model.onIncomingAlert = { _ in received.fulfill() }
+        let payload = SOSPayload(coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+            timestamp: Date(timeIntervalSince1970: 0), accuracy: 255, sosEventId: 77,
+            senderInitials: "ALX", batteryLevel: 85)
+        let envelope = CleartextEnvelope(type: .sos, sessionId: session.sessionId, sequenceNumber: 0x01000001)
+        let wire = try await crypto.sealToWireBytes(payload: payload.serialize(), envelope: envelope,
+            using: SymmetricKey(data: session.symmetricKeyData))
+        let packet = try RawWirePacket.fromWireData(wire)
+        try await engine.handleInboundSOSPacket(rawPacket: packet, fromPeerId: "ALX")
+        let result = await XCTWaiter.fulfillment(of: [received], timeout: 2)
+        XCTAssertEqual(result, .completed)
+        XCTAssertTrue(model.showsEdgeGlow)
+        model.dismissIncomingAlert()
+        XCTAssertFalse(model.showsEdgeGlow)
+
+        model.triggerSOS()
+        XCTAssertTrue(model.showsEdgeGlow)
+        model.dismissDeliveryStatus()
+        XCTAssertFalse(model.showsEdgeGlow)
+        await model.stop()
+    }
+
     func testSOSACKWithoutActiveEventDoesNotClaimDelivery() async throws {
         let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "ALX")
         let crypto = CryptoService()
