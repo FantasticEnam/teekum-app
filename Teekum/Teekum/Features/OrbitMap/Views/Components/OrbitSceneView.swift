@@ -62,7 +62,7 @@ struct OrbitSceneView: View {
                         rotation: bloomRotation
                     )
                     
-                    OrbitUserMarkerView(color: userColor, heading: .degrees(0), isEmergency: isUserSOSActive)
+                    OrbitUserMarkerView(color: userColor, heading: .degrees(0), isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil)
                         .allowsHitTesting(false)
 
                     if let location {
@@ -71,7 +71,7 @@ struct OrbitSceneView: View {
                                 let projection = OrbitProjection(from: location, to: coordinate, heading: heading, radius: markerRadius)
                                 let isSelected = selectedTarget == .member(member.id)
                                 if isSelected {
-                                    targetLine(to: projection, in: size)
+                                    targetLine(to: projection, in: size, isEmergency: member.isEmergency)
                                 }
                                 memberMarker(member, projection: projection, isSelected: isSelected)
                             }
@@ -144,13 +144,13 @@ struct OrbitSceneView: View {
             .fixedSize()
     }
 
-    private func targetLine(to projection: OrbitProjection, in size: CGSize) -> some View {
+    private func targetLine(to projection: OrbitProjection, in size: CGSize, isEmergency: Bool = false) -> some View {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         return Path { path in
             path.move(to: center)
             path.addLine(to: CGPoint(x: center.x + projection.x, y: center.y + projection.y))
         }
-        .stroke(Color.yellowProfile, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+        .stroke(isEmergency ? Color.alertRedFire : Color.yellowProfile, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
         .frame(width: size.width, height: size.height)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -158,9 +158,40 @@ struct OrbitSceneView: View {
     }
 }
 
-#Preview {
+#Preview("1. Selected Normal (Kuning)") {
     let store = SessionStore.preview
-    OrbitSceneView(userColor: .yellowProfile, members: store.members, meetingPoint: store.activeMeetingPoint,
+    OrbitSceneView(
+        userColor: .yellowProfile,
+        members: store.members,
+        meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
-        selectedTarget: .member("ADI"))
+        selectedTarget: .member("ADI") // Kotak nama kuning, teks hitam, garis putus-putus kuning
+    )
+}
+
+#Preview("2. Friend SOS Active (Merah)") {
+    let store = SessionStore.preview
+    var sosMembers = store.members
+    if let index = sosMembers.firstIndex(where: { $0.id == "ADI" }) {
+        sosMembers[index].isEmergency = true
+    }
+
+    return OrbitSceneView(
+        userColor: .yellowProfile,
+        members: sosMembers,
+        meetingPoint: store.activeMeetingPoint,
+        location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
+        selectedTarget: .member("ADI") // Kotak merah, teks putih (bukan hitam), panah merah
+    )
+}
+
+#Preview("3. My SOS Active") {
+    let store = SessionStore.preview
+    OrbitSceneView(
+        userColor: .yellowProfile,
+        members: store.members,
+        meetingPoint: store.activeMeetingPoint,
+        location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
+        isUserSOSActive: true // Titik tengah user sendiri berwarna merah
+    )
 }
