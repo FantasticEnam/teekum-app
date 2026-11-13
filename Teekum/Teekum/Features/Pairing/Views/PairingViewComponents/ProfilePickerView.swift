@@ -19,7 +19,6 @@ struct ProfilePickerView: View {
                     } label: {
                         Circle()
                             .fill(swatch.color)
-                            .shadow(color: swatch.color.opacity(0.6), radius: 4)
                             .frame(width: 40, height: 40)
                             .overlay {
                                 if selectedColor == swatch {

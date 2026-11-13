@@ -29,7 +29,6 @@ struct GroupPairingProfileView: View {
             Circle()
                 .fill(profileColor.color)
                 .frame(width: 116, height: 116)
-                .shadow(color: profileColor.color.opacity(0.45), radius: 8)
                 .overlay(alignment: .bottomTrailing) {
                     Button("Edit profile color", systemImage: "square.and.pencil", action: editProfilePhoto)
                         .labelStyle(.iconOnly)

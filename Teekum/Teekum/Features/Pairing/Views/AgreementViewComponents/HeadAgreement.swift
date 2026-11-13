@@ -25,7 +25,7 @@ struct HeadAgreement: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, 2)
 
-            Text("Stay connected with your friends, even in the middle of the crowd. Here’s how Teekum keeps your group connected")
+            Text("Stay connected. Here’s how Teekum keeps your group connected")
                 .font(.custom("Charter-Italic", size: 11, relativeTo: .caption))
                 .foregroundStyle(secondaryText)
         }
