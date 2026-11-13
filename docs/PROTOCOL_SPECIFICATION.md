@@ -8,7 +8,7 @@ All offsets are zero-based and inclusive. Multi-byte values are big-endian.
 
 | Bytes | Field |
 | :--- | :--- |
-| 0 | Version 3 in the high nibble; packet type in the low nibble. |
+| 0 | Version in the high nibble (current app uses `0x01`); packet type in the low nibble. |
 | 1 | Hop limit, UInt8. |
 | 2 | Hop count, UInt8. |
 | 3..5 | 24-bit session ID (`0x000001...0xFFFFFF`) in a three-byte big-endian field. |
@@ -39,6 +39,7 @@ Member slots still use the prototype's initials-derived eight bits. Two devices 
 - Hop count is mutable. The tag cannot establish the actual distance or prevent a forwarder from changing hop count. Budget, hop and dedup rules are separate controls.
 - Own-group content is authenticated before shared state, chat/SOS alerts or ACKs. Chat and ACK have a 600-second age bound; duplicates of authenticated chat/SOS can re-ACK without a second presentation. Location updates keep the original measurement time; an older measurement cannot replace a newer one.
 - An SOS measurement timestamp is not the send time. Epoch/255 accuracy denotes the prototype's no-GPS fallback and still produces a receiver alert; the UI does not plot that fallback as a location.
+- SOS resolution (`0x09`) uses the same 56-byte frame and sequence allocator. A valid group tag, matching sender slot, sender initials and original event ID are required to clear that event. Resolution received before its SOS suppresses a later alert for that event during the same session. The shared group key still permits a holder to impersonate a member. Older builds reject the new packet type.
 - Blind foreign relay does not authenticate ciphertext. The prototype's same-SID opaque SOS fallback remains: a failed tag may still be forwarded within hop/dedup rules, but does not enter group state or alert/ACK handling. Review this rule together with SID collisions.
 - Replay checks use the router’s `SeenPacketCache` and the feature engines’ deduplication and age rules. Leave clears their in-memory state. In particular, a captured authenticated SOS can be accepted again after that state is cleared if the same key is rejoined. Do not claim persistent replay protection.
 

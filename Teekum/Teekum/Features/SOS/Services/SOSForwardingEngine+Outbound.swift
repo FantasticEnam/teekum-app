@@ -12,6 +12,28 @@ import CryptoKit
 // MARK: - Outbound SOS Dispatch & Route Selection
 
 extension SOSForwardingEngine {
+    func resolveOutgoingSOS(eventId: UInt32) async throws {
+        guard let session = sessionProvider?(), activeSOSEventId == eventId else {
+            throw TransportError.sessionInvalid
+        }
+        let generation = sessionGeneration
+        let outgoing = outgoingGeneration
+        let payload = SOSResolvedPayload(senderInitials: session.localInitials, eventId: eventId)
+        let sequence = try await nextSequenceNumber(for: session)
+        let envelope = CleartextEnvelope(type: .sosResolved, hopLimit: PacketConstants.sosHopLimit,
+            sessionId: session.sessionId, sequenceNumber: sequence)
+        let wire = try await cryptoService.sealToWireBytes(
+            payload: payload.serialize(), envelope: envelope, using: SymmetricKey(data: session.symmetricKeyData)
+        )
+        try Task.checkCancellation()
+        guard generation == sessionGeneration, outgoing == outgoingGeneration, sessionProvider?() != nil else {
+            throw TransportError.sessionInvalid
+        }
+        try await transport.broadcastFrame(wire)
+        guard generation == sessionGeneration, outgoing == outgoingGeneration else { return }
+        cancelOutgoingSOS()
+    }
+
     
     /// High-level entry point to dispatch an emergency SOS alert.
     /// Selects known usable route if available, otherwise executes bounded flooding fallback.
@@ -29,6 +51,8 @@ extension SOSForwardingEngine {
         guard let session = sessionProvider?() else {
             throw TransportError.sessionInvalid
         }
+        let seq = try await nextSequenceNumber(for: session)
+        guard generation == sessionGeneration, outgoing == outgoingGeneration else { throw TransportError.sessionInvalid }
         
         let eventId = UInt32.random(in: 1...UInt32.max)
         self.activeSOSEventId = eventId
@@ -54,10 +78,6 @@ extension SOSForwardingEngine {
         } else {
             updateDeliveryState(.localSending)
         }
-        
-        guard generation == sessionGeneration, outgoing == outgoingGeneration else { throw TransportError.sessionInvalid }
-        let seq = try await nextSequenceNumber(for: session)
-        guard generation == sessionGeneration, outgoing == outgoingGeneration else { throw TransportError.sessionInvalid }
         
         let envelope = CleartextEnvelope(
             version: PacketConstants.protocolVersion,

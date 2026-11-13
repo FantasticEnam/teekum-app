@@ -60,6 +60,11 @@ public final class SessionStore {
 
     // MARK: - State Mutations
 
+    func setEmergency(_ isEmergency: Bool, for initials: Member.ID) {
+        guard let index = members.firstIndex(where: { $0.id == initials }) else { return }
+        members[index].isEmergency = isEmergency
+    }
+
     func applyLocationPing(_ ping: LocationPingPayload, inbound: InboundPacket) {
         let existing = members.first { $0.id == ping.senderInitials }
         upsertMember(Member(id: ping.senderInitials, lastSeen: inbound.receivedAt, coordinate: ping.coordinate,

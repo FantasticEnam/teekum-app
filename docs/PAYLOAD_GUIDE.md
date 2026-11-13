@@ -12,7 +12,7 @@ Configuration in `Core/Configuration/TeeKumConfiguration.swift`, exposed through
 
 | Item | Source value |
 | :--- | :--- |
-| Protocol version | 0x03 |
+| Protocol version | 0x01 in the current app; 0x03 in the frozen prototype |
 | Wire frame | 56 bytes |
 | Cleartext envelope | 10 bytes |
 | Plaintext/ciphertext payload | 30 bytes |
@@ -39,7 +39,7 @@ See `Core/Packets/CleartextEnvelope.swift` and `Core/Packets/RawWirePacket.swift
 
 | Wire bytes | Size | Field / current encoding |
 | :--- | :--- | :--- |
-| 0 | 1 | High nibble version 3; low nibble PacketType. |
+| 0 | 1 | High nibble protocol version; low nibble PacketType. |
 | 1 | 1 | hopLimit, separate UInt8. |
 | 2 | 1 | hopCount, separate UInt8. |
 | 3..5 | 3 | 24-bit sessionId (`0x000001...0xFFFFFF`) in three bytes, big-endian (`UInt32` masked to `0x00FFFFFF`). |
@@ -53,14 +53,15 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 
 | PacketType | Code | Version/type byte | Located payload |
 | :--- | :--- | :--- | :--- |
-| locationPing | 0x01 | 0x31 | LocationPingPayload |
-| sos | 0x02 | 0x32 | SOSPayload |
-| meetingUpdate | 0x03 | 0x33 | MeetingUpdatePayload |
-| routeReq | 0x04 | 0x34 | RouteReqPayload |
-| routeResp | 0x05 | 0x35 | RouteRespPayload |
-| ack | 0x06 | 0x36 | ACKPayload |
-| chatMessage | 0x07 | 0x37 | ChatMessagePayload |
-| uwbTokenExchange | 0x08 | 0x38 | Enum case exists; no dedicated payload implementation/complete UWB flow located. |
+| locationPing | 0x01 | 0x11 | LocationPingPayload |
+| sos | 0x02 | 0x12 | SOSPayload |
+| meetingUpdate | 0x03 | 0x13 | MeetingUpdatePayload |
+| routeReq | 0x04 | 0x14 | RouteReqPayload |
+| routeResp | 0x05 | 0x15 | RouteRespPayload |
+| ack | 0x06 | 0x16 | ACKPayload |
+| chatMessage | 0x07 | 0x17 | ChatMessagePayload |
+| uwbTokenExchange | 0x08 | 0x18 | Enum case exists; no dedicated payload implementation/complete UWB flow located. |
+| sosResolved | 0x09 | 0x19 | SOSResolvedPayload |
 
 ## 3. Field Encoding
 
@@ -109,6 +110,16 @@ Sources are in `Core/Packets/Payloads/`.
 | 23..29 | 7 zero reserved bytes |
 
 SOSType currently declares general=0, medical=1, separated=2, security=3 and inactivity=4. A declared inactivity code is not an enabled/validated automatic safety feature. UI hold currently uses 1.5 s; configuration contains 3 s. Those values do not change byte layout and still need product reconciliation.
+
+#### SOSResolvedPayload — 0x09
+
+| Payload bytes | Field |
+| :--- | :--- |
+| 0..3 | Original SOS event ID, nonzero UInt32, big-endian |
+| 4..5 | Original sender initials, encoded with `InitialsCodec` |
+| 6..29 | Reserved, written as zero |
+
+Only the sender's explicit confirmation queues this frame. The recipient can dismiss the alert and stop its sound while the Orbit name bubble stays red. The packet uses the existing bounded carry window and has no delivery ACK of its own.
 
 ### 4.3 MeetingUpdatePayload — 0x03
 
@@ -173,7 +184,7 @@ The strict chat decoder additionally requires exactly 30 bytes and zero reserved
 
 ## 5. Shared XCTest Envelope Vector
 
-`ParityContractTests` checks the following vector on the prototype and destination. This is an envelope and nonce, not a complete encrypted packet:
+`ParityContractTests` compares both builds against this frozen prototype envelope and nonce. The current app uses `0x11` in place of `0x31` in the envelope, nonce, and AAD.
 
 ```text
 version=3, type=locationPing, hopLimit=8, hopCount=2
@@ -187,7 +198,7 @@ sequenceNumber=(7 << 24) | 42 = 0x0700002A
 00 12 34 07 00 00 2A 31 54 4B 4D 33
 ```
 
-Both `Teekum` and prototype decode paths round-trip 16-bit contract vectors such as `0x1234`, while `Teekum` encodes and decodes the full 24-bit SID (`0x000001...0xFFFFFF`); AAD masks hop count without changing the other canonical bytes.
+Both builds round-trip the SID `0x1234` using their respective protocol versions. `Teekum` encodes and decodes the full 24-bit SID (`0x000001...0xFFFFFF`). AAD masks hop count without changing the other canonical bytes.
 
 A valid encrypted fixture must declare test-only key/input data and use the actual CryptoKit implementation to produce ciphertext/tag. No fabricated authentication tags or copied historical pass counts belong in acceptance evidence.
 

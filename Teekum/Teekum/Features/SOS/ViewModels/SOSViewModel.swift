@@ -18,16 +18,24 @@ final class SOSViewModel {
     private var generation = UUID()
     private var dispatchTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
+    private var showsDeliveryDetails = true
+    private var didOfferNearbyHelp = false
+    private var lastEmergencyType: SOSType = .general
+    private var incomingEvents: Set<SOSResolvedPayload> = []
 
     let inactivityGuard: InactivityGuardService
     private(set) var deliveryState: SOSDeliveryState = .idle
     private(set) var incomingAlert: IncomingSOSAlert?
     private(set) var isSending = false
+    private(set) var outgoingEventId: UInt32?
+    private(set) var asksAboutHelp = false
+    private(set) var isResolving = false
+    private(set) var resolutionError: String?
     var onIncomingAlert: (@MainActor (IncomingSOSAlert) -> Void)?
-    var onIncomingAlertDismissed: (@MainActor (String) -> Void)?
+    var onIncomingSOSResolved: (@MainActor (String) -> Void)?
 
     var showsEdgeGlow: Bool {
-        incomingAlert != nil || deliveryState.stage != .idle
+        incomingAlert != nil || isSending || outgoingEventId != nil || deliveryState.stage != .idle
     }
 
     init(
@@ -52,16 +60,16 @@ final class SOSViewModel {
         await engine.setCallbacks(
             onDeliveryStateChanged: { [weak self] state in
                 Task { @MainActor [weak self] in
-                    guard let self, generation == current else { return }
+                    guard let self, generation == current, showsDeliveryDetails,
+                          isSending || outgoingEventId != nil else { return }
                     deliveryState = state
                 }
             },
             onIncomingAlertTriggered: { [weak self] alert in
-                Task { @MainActor [weak self] in
-                    guard let self, generation == current else { return }
-                    incomingAlert = alert
-                    onIncomingAlert?(alert)
-                }
+                guard let self, generation == current else { return }
+                incomingEvents.insert(SOSResolvedPayload(senderInitials: alert.senderInitials, eventId: alert.id))
+                incomingAlert = alert
+                onIncomingAlert?(alert)
             }
         )
     }
@@ -75,29 +83,39 @@ final class SOSViewModel {
         inactivityGuard.isEnabled = false
         isSending = false
         incomingAlert = nil
+        incomingEvents.removeAll()
+        outgoingEventId = nil
+        asksAboutHelp = false
+        didOfferNearbyHelp = false
+        isResolving = false
+        resolutionError = nil
         deliveryState = .idle
         await engine.setCallbacks()
         await engine.reset()
     }
 
     func triggerSOS(emergencyType: SOSType = .general) {
-        guard sessionProvider() != nil, !isSending else { return }
+        guard sessionProvider() != nil, !isSending, outgoingEventId == nil else { return }
         recordUserInteraction()
         let current = generation
         let location = locationService.getLatestLocationForSOS()
         let battery = locationService.currentBatteryLevel.asBatteryPercentage
         isSending = true
+        lastEmergencyType = emergencyType
+        showsDeliveryDetails = true
         deliveryState = .localSending
         dispatchTask = Task { [weak self] in
-            guard let self else { return }
+            guard let self, generation == current, !Task.isCancelled else { return }
             do {
-                _ = try await engine.dispatchSOS(
+                let eventId = try await engine.dispatchSOS(
                     emergencyType: emergencyType,
                     location: location?.coordinate ?? CLLocationCoordinate2D(latitude: 0, longitude: 0),
                     accuracy: location?.rawAccuracyByte ?? 255,
                     timestamp: location?.timestamp ?? Date(timeIntervalSince1970: 0),
                     batteryPct: battery
                 )
+                guard generation == current, !Task.isCancelled else { return }
+                outgoingEventId = eventId
             } catch {
                 guard generation == current, !Task.isCancelled else { return }
                 deliveryState = .failed(reason: error.localizedDescription)
@@ -108,26 +126,97 @@ final class SOSViewModel {
     }
 
     func dismissIncomingAlert() {
-        if let incomingAlert { onIncomingAlertDismissed?(incomingAlert.senderInitials) }
-        incomingAlert = nil
+        guard let incomingAlert else { return }
+        let event = SOSResolvedPayload(senderInitials: incomingAlert.senderInitials, eventId: incomingAlert.id)
+        self.incomingAlert = nil
         recordUserInteraction()
-        feedbackTask?.cancel()
-        feedbackTask = Task { await engine.dismissIncomingAlert() }
+        Task { await engine.dismissIncomingAlert(matching: event) }
+    }
+
+    func acceptResolution(_ event: SOSResolvedPayload) async {
+        let current = generation
+        await engine.acceptResolution(event)
+        guard generation == current, incomingEvents.remove(event) != nil else { return }
+        if incomingAlert?.id == event.eventId, incomingAlert?.senderInitials == event.senderInitials {
+            incomingAlert = nil
+        }
+        if !incomingEvents.contains(where: { $0.senderInitials == event.senderInitials }) {
+            onIncomingSOSResolved?(event.senderInitials)
+        }
+    }
+
+    func checkForNearbyHelp(members: [Member], now: Date = .now) {
+        let radius: CLLocationDistance = 10
+        let maxAge = MeepoConfiguration.Timing.stalePeerThreshold
+        guard outgoingEventId != nil, !didOfferNearbyHelp, !isResolving,
+              !asksAboutHelp, let local = locationService.currentLocation,
+              (0...maxAge).contains(now.timeIntervalSince(local.timestamp)),
+              (0...radius).contains(local.horizontalAccuracy),
+              CLLocationCoordinate2DIsValid(local.coordinate),
+              let localInitials = sessionProvider()?.localInitials else { return }
+
+        let hasNearbyFriend = members.contains { member in
+            guard member.id != localInitials,
+                  let time = member.measurementTimestamp,
+                  (0...maxAge).contains(now.timeIntervalSince(time)),
+                  let accuracy = member.horizontalAccuracy, (0...radius).contains(accuracy),
+                  let coordinate = member.coordinate, CLLocationCoordinate2DIsValid(coordinate) else { return false }
+            return local.distance(to: coordinate) <= radius
+        }
+        guard hasNearbyFriend else { return }
+        didOfferNearbyHelp = true
+        askAboutHelp()
+    }
+
+    func askAboutHelp() {
+        guard outgoingEventId != nil, !isResolving else { return }
+        recordUserInteraction()
+        asksAboutHelp = true
+    }
+
+    func keepSOSActive() {
+        asksAboutHelp = false
+        resolutionError = nil
+    }
+
+    func confirmHelpReceived() {
+        guard let eventId = outgoingEventId, asksAboutHelp, !isResolving else { return }
+        recordUserInteraction()
+        isResolving = true
+        resolutionError = nil
+        let current = generation
+        dispatchTask = Task { [weak self] in
+            guard let self, generation == current, !Task.isCancelled else { return }
+            do {
+                try await engine.resolveOutgoingSOS(eventId: eventId)
+                guard generation == current, !Task.isCancelled else { return }
+                outgoingEventId = nil
+                asksAboutHelp = false
+                didOfferNearbyHelp = false
+                deliveryState = .idle
+            } catch {
+                guard generation == current, !Task.isCancelled else { return }
+                resolutionError = "Couldn’t queue the SOS update. Try again."
+            }
+            isResolving = false
+        }
     }
 
     func retrySOS() {
+        guard !isSending, !isResolving else { return }
+        guard outgoingEventId != nil else {
+            triggerSOS(emergencyType: lastEmergencyType)
+            return
+        }
+        showsDeliveryDetails = true
         recordUserInteraction()
         feedbackTask?.cancel()
         feedbackTask = Task { await engine.triggerRetryNow() }
     }
 
     func dismissDeliveryStatus() {
+        showsDeliveryDetails = false
         deliveryState = .idle
-        dispatchTask?.cancel()
-        dispatchTask = nil
-        isSending = false
-        feedbackTask?.cancel()
-        feedbackTask = Task { await engine.cancelOutgoingSOS() }
     }
 
     func recordUserInteraction() {

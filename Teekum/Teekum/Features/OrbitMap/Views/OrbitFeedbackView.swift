@@ -18,7 +18,12 @@ struct OrbitFeedbackView: View {
                     IncomingSOSAlertBannerView(alert: alert, onDismiss: sos.dismissIncomingAlert)
                 }
                 InactivityWarningView(guardService: sos.inactivityGuard)
-                SOSDeliveryStatusView(state: sos.deliveryState, onRetry: sos.retrySOS, onDismiss: sos.dismissDeliveryStatus)
+                if sos.asksAboutHelp {
+                    SOSHelpConfirmationView(isSending: sos.isResolving, error: sos.resolutionError,
+                        onConfirm: sos.confirmHelpReceived, onKeepActive: sos.keepSOSActive)
+                } else {
+                    SOSDeliveryStatusView(state: sos.deliveryState, onRetry: sos.retrySOS, onDismiss: sos.dismissDeliveryStatus)
+                }
             }
             if let message = notifications?.message {
                 Text(message)

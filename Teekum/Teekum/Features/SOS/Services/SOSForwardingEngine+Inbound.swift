@@ -58,9 +58,11 @@ extension SOSForwardingEngine {
         
         // GPS measurement age is not the time of the emergency; preserve legacy no-fix SOS reception.
         let eventId = payload.sosEventId
+        let event = SOSResolvedPayload(senderInitials: payload.senderInitials, eventId: eventId)
+        guard eventId != 0, !resolvedSOSEvents.contains(event) else { return }
         
         // 6. Duplicate Suppression Check
-        if seenSOSEventIds.contains(eventId) {
+        if !seenSOSEvents.insert(event).inserted {
             totalDuplicatesSuppressedCount += 1
             // Duplicate arrived (e.g. over an alternate multi-hop path):
             // Re-emit delivery ACK so sender's retry timer resolves,
@@ -70,7 +72,6 @@ extension SOSForwardingEngine {
         }
         
         // 7. First-Time Trusted Reception
-        seenSOSEventIds.insert(eventId)
         totalReceivedCount += 1
         
         // Sound Siren & Haptics
@@ -89,9 +90,15 @@ extension SOSForwardingEngine {
             receivedAt: clock.now()
         )
         self.activeIncomingAlert = alert
-        onIncomingAlertTriggered?(alert)
+        await onIncomingAlertTriggered?(alert)
         
         // 8. Multi-Hop Return ACK Routing
+        guard generation == sessionGeneration else { return }
         try await sendDeliveryACK(for: rawPacket, status: .deliveredToFriend)
+    }
+
+    func acceptResolution(_ event: SOSResolvedPayload) {
+        resolvedSOSEvents.insert(event)
+        dismissIncomingAlert(matching: event)
     }
 }

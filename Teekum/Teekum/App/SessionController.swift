@@ -70,15 +70,12 @@ final class SessionController {
         meeting = MeetingPointService(sessionStore: store, cryptoService: crypto, transport: transport,
             sequenceAllocator: sequences)
         sos.onIncomingAlert = { [weak self] alert in
-            guard let self else { return }
-            if let index = store.members.firstIndex(where: { $0.id == alert.senderInitials }) {
-                store.members[index].isEmergency = true
-            }
+            guard let self, holder.session != nil else { return }
+            store.setEmergency(true, for: alert.senderInitials)
             notifications.notify(title: "SOS from \(alert.senderInitials)", body: alert.emergencyType.title, showBanner: false)
         }
-        sos.onIncomingAlertDismissed = { [weak store] initials in
-            guard let store, let index = store.members.firstIndex(where: { $0.id == initials }) else { return }
-            store.members[index].isEmergency = false
+        sos.onIncomingSOSResolved = { [weak store] initials in
+            store?.setEmergency(false, for: initials)
         }
     }
 
@@ -265,6 +262,7 @@ final class SessionController {
             }
             meeting.checkExpiration()
             if let coordinate = location.currentLocation?.coordinate { meeting.checkArrival(userLocation: coordinate) }
+            sos.checkForNearbyHelp(members: store.visibleMembers)
             let stale = store.members.contains { $0.isWithinStaleRecoveryWindow() }
             if location.hasStalePeers != stale {
                 location.hasStalePeers = stale
@@ -272,7 +270,7 @@ final class SessionController {
             }
             await liveActivity.update(peerCount: snapshot.activeDirectPeers.filter(\.isDirectLink).count, unreadCount: chat.unreadCount,
                 meeting: store.activeMeetingPoint, location: location.currentLocation,
-                sosSender: sos.incomingAlert?.senderInitials ?? (sos.deliveryState == .idle ? nil : session.localInitials),
+                sosSender: sos.outgoingEventId != nil ? session.localInitials : store.members.first(where: \.isEmergency)?.id,
                 relay: relayState)
             guard generation == current else { break }
             let now = Date.now
@@ -327,6 +325,9 @@ final class SessionController {
                 if let message = outcome.deliveredMessage, !chat.isChatSheetPresented {
                     notifications.notify(title: message.senderInitials, body: message.text)
                 }
+            }, onSOSResolved: { [weak self] event in
+                guard let self, generation == current else { return }
+                await sos.acceptResolution(event)
             })
     }
 

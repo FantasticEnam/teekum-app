@@ -154,6 +154,7 @@ struct OrbitSettingsView: View {
         case .ack: "ACK"
         case .chatMessage: "Chat"
         case .uwbTokenExchange: "UWB token"
+        case .sosResolved: "SOS resolved"
         }
     }
 

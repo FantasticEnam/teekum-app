@@ -95,7 +95,7 @@ extension PeerTransportService {
                 throw TransportError.rateLimitExceeded("Urgent SOS forwarding budget exceeded")
             }
         } else {
-            let allowed = packetType == .chatMessage || packetType == .ack
+            let allowed = [.chatMessage, .ack, .sosResolved].contains(packetType)
                 ? await rateLimiter.consumeOrdinaryToken() : await rateLimiter.consumeTelemetryToken()
             guard allowed else {
                 throw TransportError.rateLimitExceeded("Ordinary relay budget exhausted")
@@ -125,8 +125,11 @@ extension PeerTransportService {
             throw TransportError.invalidPacketSize
         }
         
-        rememberForCarry(data)
+        let isSOSResolution = (data[data.startIndex] & 0x0F) == PacketType.sosResolved.rawValue
+        if !isSOSResolution { rememberForCarry(data) }
         try outbox.enqueue(data: data, destinationPeerId: nil, isRelay: false)
+        // A failed resolution enqueue leaves the SOS active, so don't retain it for later sending.
+        if isSOSResolution { rememberForCarry(data) }
         triggerOutboxFlush()
     }
     
