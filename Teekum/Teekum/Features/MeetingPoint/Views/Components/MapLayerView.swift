@@ -9,7 +9,9 @@ import SwiftUI
 import MapKit
 
 public struct MapLayerView: View {
+    @State private var selectedMember: Member?
     @Bindable var viewModel: MeetingPointViewModel
+    var location: LocationService? = nil
     
     // State untuk mode Satelit
     @State private var isSatellite: Bool = false
@@ -32,7 +34,24 @@ public struct MapLayerView: View {
                 Map(position: $cameraPosition) {
                     // Current user point
                     UserAnnotation()
-                    
+
+                    // Member Points (Teman)
+                    ForEach(viewModel.members) { member in
+                        if let coordinate = member.coordinate {
+                            Annotation(member.name, coordinate: coordinate) {
+                                OrbitMemberMarkerView(
+                                    initials: member.initials,
+                                    color: member.color.swiftUIColor,
+                                    isSelected: selectedMember?.id == member.id,
+                                    isEmergency: member.isEmergency
+                                )
+                                .onTapGesture {
+                                    selectedMember = member
+                                }
+                            }
+                        }
+                    }
+
                     // Pin Aktif
                     if let active = viewModel.activeMapPoint {
                         Annotation(active.name, coordinate: active.coordinate) {
@@ -42,7 +61,7 @@ public struct MapLayerView: View {
                                 }
                         }
                     }
-                    
+
                     // Pin Kandidat
                     if let candidate = viewModel.candidateCoordinate {
                         Annotation("Meeting Point", coordinate: candidate) {
@@ -74,6 +93,9 @@ public struct MapLayerView: View {
             mapFloatingButtons
                 .padding(.trailing, 16)
                 .padding(.bottom, 60)
+        }
+        .fullScreenCover(item: $selectedMember) { member in
+                    FriendFinderView(member: member, location: location)
         }
     }
     
