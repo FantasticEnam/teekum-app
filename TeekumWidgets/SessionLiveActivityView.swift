@@ -101,7 +101,7 @@ struct SessionSummaryRow: View {
         if state.unreadMessageCount > 0 {
             return ("message.fill", "\(state.unreadMessageCount) Unread")
         }
-        return ("person.2.fill", "\(state.directPeerCount) \(state.directPeerCount == 1 ? "Friend" : "Friends")")
+        return ("person.2.fill", "\(state.directPeerCount) \(state.directPeerCount == 1 ? "Person" : "People")")
     }
 }
 
