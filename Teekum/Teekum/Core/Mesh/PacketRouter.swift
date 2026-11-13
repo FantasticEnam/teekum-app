@@ -97,8 +97,10 @@ public final class PacketRouter {
 
         case .meetingUpdate:
             guard let update = try? MeetingUpdatePayload.deserialize(from: decrypted) else { return }
+            let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: raw))
+            guard !duplicate, isActive else { return }
             onMeetingUpdate(update)
-            await relayMeshPacketIfNeeded(inbound, for: session)
+            await relayMeshPacketIfNeeded(inbound, for: session, skipSeenCheck: true)
 
         case .routeReq:
             guard let wireData = try? raw.toWireData() else { return }
@@ -126,12 +128,14 @@ public final class PacketRouter {
         }
     }
 
-    public func relayMeshPacketIfNeeded(_ inbound: InboundPacket, for session: GroupSession) async {
+    public func relayMeshPacketIfNeeded(_ inbound: InboundPacket, for session: GroupSession, skipSeenCheck: Bool = false) async {
         let envelope = inbound.rawPacket.envelope
         guard isActive, envelope.hopCount < envelope.hopLimit,
               envelope.memberSlot != session.memberSlot else { return }
-        let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: inbound.rawPacket))
-        guard !duplicate, isActive else { return }
+        if !skipSeenCheck {
+            let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: inbound.rawPacket))
+            guard !duplicate, isActive else { return }
+        }
         var packet = inbound.rawPacket
         packet.envelope.hopCount += 1
         guard let data = try? packet.toWireData() else { return }

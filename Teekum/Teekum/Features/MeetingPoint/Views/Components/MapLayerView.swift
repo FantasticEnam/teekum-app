@@ -138,4 +138,7 @@ public struct MapLayerView: View {
     }()
 
     MapLayerView(viewModel: viewModel)
+        .preferredColorScheme(.dark)
 }
+
+
