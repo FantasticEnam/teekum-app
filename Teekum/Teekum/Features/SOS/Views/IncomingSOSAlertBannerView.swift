@@ -10,30 +10,45 @@ import SwiftUI
 struct IncomingSOSAlertBannerView: View {
     let alert: IncomingSOSAlert
     let onDismiss: () -> Void
+    @ScaledMetric(relativeTo: .title) private var warningIconSize = 42
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("SOS from \(alert.senderName)", systemImage: "exclamationmark.triangle.fill")
-                .font(.headline)
-            Text(alert.emergencyType.title).font(.subheadline)
-            if alert.timestamp.timeIntervalSince1970 > 0 {
-                HStack {
-                    Text("Location measured")
-                    Text(alert.timestamp, style: .relative)
-                    Text("ago · ±\(alert.accuracy)m")
+        VStack(spacing: 14) {
+            HStack(spacing: 14) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: warningIconSize))
+                    .foregroundStyle(Color.yellowProfile)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Emergency Alert!")
+                        .font(.custom("Charter-Bold", size: 19, relativeTo: .headline))
+                        .accessibilityAddTraits(.isHeader)
+                    if alert.timestamp.timeIntervalSince1970 > 0 {
+                        Text("**\(alert.senderInitials)** has sent an SOS request. Head to their location and check on them!")
+                    } else {
+                        Text("**\(alert.senderInitials)** has sent an SOS request. Their location is unavailable.")
+                    }
                 }
-                .font(.caption)
-            } else {
-                Text("Location unavailable").font(.caption)
+                .font(.custom("Charter-Roman", size: 14, relativeTo: .subheadline))
+                .fixedSize(horizontal: false, vertical: true)
             }
-            Button("Dismiss alert", action: onDismiss)
-                .buttonStyle(.borderedProminent)
-                .tint(.white)
-                .foregroundStyle(.black)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+
+            Button(action: onDismiss) {
+                Text("I’ll be there!")
+                    .font(.custom("Charter-Bold", size: 17, relativeTo: .headline))
+                    .foregroundStyle(Color.alertRed)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(.white, in: .capsule)
+                    .contentShape(.capsule)
+            }
+            .buttonStyle(.plain)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(Color.alertRed, in: .rect(cornerRadius: 20))
+        .background(Color.alertRed, in: .rect(cornerRadius: 30))
         .foregroundStyle(.white)
         .accessibilityElement(children: .contain)
     }
