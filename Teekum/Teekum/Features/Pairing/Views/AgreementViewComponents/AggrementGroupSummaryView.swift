@@ -71,6 +71,6 @@ struct AgreementGroupSummaryView: View {
 }
 
 #Preview("Group Summary") {
-    AgreementGroupSummaryView(groupName: "FANTASIX", initials: "NIC")
+    AgreementGroupSummaryView(groupName: "Meepo Group", initials: "NIC")
         
 }
