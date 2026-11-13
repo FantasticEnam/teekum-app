@@ -35,7 +35,7 @@ nonisolated struct CarryMessageStore {
     mutating func remember(_ data: Data, isForeign: Bool, excludingPeerId: String? = nil, now: Date = Date()) {
         purge(now: now)
         guard let packet = try? RawWirePacket.fromWireData(data),
-              packet.envelope.type == .chatMessage || packet.envelope.type == .ack else { return }
+              [.chatMessage, .ack, .sosResolved].contains(packet.envelope.type) else { return }
         let key = identity(data)
         // Retries and loops must not extend custody or reset the hop budget.
         if entries[key] != nil {

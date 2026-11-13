@@ -135,19 +135,16 @@ struct FriendListSheet: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .background {
-                Color.clear
-                    .contentShape(.rect)
-                    .onTapGesture { isSearchFocused = false }
-            }
+            .contentShape(.rect)
+            .simultaneousGesture(TapGesture().onEnded { isSearchFocused = false })
             
-            PrimaryButtonView(title: "Leave Group") {
-                isSearchFocused = false
-                confirmLeave = true
+            if !isSearchFocused {
+                PrimaryButtonView(title: "Leave Group") {
+                    confirmLeave = true
+                }
+                .padding(.horizontal, 40)
+                .padding(.vertical, 16)
             }
-            .padding(.horizontal, 40)
-            .padding(.top, 16)
-            .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
@@ -176,6 +173,19 @@ struct FriendListSheet: View {
 #Preview {
     FriendListSheet(
         sessionStore: .preview,
+        onAddFriend: {},
+        onSelectMember: { _ in },
+        onLeaveGroup: {}
+    )
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Friend with active SOS") {
+    let store = SessionStore.preview
+    store.setEmergency(true, for: "ADI")
+
+    return FriendListSheet(
+        sessionStore: store,
         onAddFriend: {},
         onSelectMember: { _ in },
         onLeaveGroup: {}

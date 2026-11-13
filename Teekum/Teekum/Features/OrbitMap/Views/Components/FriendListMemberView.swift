@@ -33,6 +33,16 @@ struct FriendListMemberView: View {
                 .minimumScaleFactor(0.6)
                 .frame(width: avatarSize, height: avatarSize)
                 .background(color, in: .circle)
+                .padding(3)
+                .overlay {
+                    if member.isEmergency {
+                        Circle()
+                            .strokeBorder(Color.redProfile, lineWidth: 2)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
 
             if let date = member.measurementTimestamp {
                 TimelineView(.periodic(from: date, by: 1)) { timeline in
@@ -56,7 +66,7 @@ struct FriendListMemberView: View {
 
 }
 
-#Preview("Seconds, minutes, and no location") {
+#Preview("Location age and active SOS") {
     HStack(alignment: .top, spacing: 16) {
         FriendListMemberView(
             member: Member(
@@ -66,7 +76,7 @@ struct FriendListMemberView: View {
         )
         FriendListMemberView(
             member: Member(
-                id: "AYU", measurementTimestamp: .now.addingTimeInterval(-125)
+                id: "AYU", isEmergency: true, measurementTimestamp: .now.addingTimeInterval(-125)
             ),
             color: .orangeProfile
         )

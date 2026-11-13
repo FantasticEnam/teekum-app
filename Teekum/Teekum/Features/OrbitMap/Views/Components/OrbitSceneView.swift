@@ -21,6 +21,7 @@ struct OrbitSceneView: View {
     var location: LocationPin?
     var heading: Double = 0
     var selectedTarget: Target?
+    var isUserSOSActive = false
     var onSelectMember: (Member) -> Void = { _ in }
     var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
     
@@ -61,7 +62,7 @@ struct OrbitSceneView: View {
                         rotation: bloomRotation
                     )
                     
-                    OrbitUserMarkerView(color: userColor, heading: .degrees(0))
+                    OrbitUserMarkerView(color: userColor, heading: .degrees(0), isEmergency: isUserSOSActive)
                         .allowsHitTesting(false)
 
                     if let location {

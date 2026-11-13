@@ -47,7 +47,9 @@ public actor SOSForwardingEngine {
     
     // MARK: - Ingestion & Duplicate Suppression
     
-    public internal(set) var seenSOSEventIds: Set<UInt32> = []
+    var seenSOSEvents: Set<SOSResolvedPayload> = []
+    // shortcut: resolution history lasts for this session; persist it if same-group rejoin must reject old alerts.
+    var resolvedSOSEvents: Set<SOSResolvedPayload> = []
     public internal(set) var activeIncomingAlert: IncomingSOSAlert?
     public internal(set) var isSirenActive: Bool = false
     
@@ -76,7 +78,7 @@ public actor SOSForwardingEngine {
     // MARK: - State Change Handlers
     
     var onDeliveryStateChanged: (@Sendable (SOSDeliveryState) -> Void)?
-    var onIncomingAlertTriggered: (@Sendable (IncomingSOSAlert) -> Void)?
+    var onIncomingAlertTriggered: (@MainActor @Sendable (IncomingSOSAlert) -> Void)?
     
     // MARK: - Initialization
     
@@ -91,7 +93,7 @@ public actor SOSForwardingEngine {
         sessionProvider: (@Sendable () -> GroupSession?)? = nil,
         audioAlerter: SOSAudioAlerting? = nil,
         onDeliveryStateChanged: (@Sendable (SOSDeliveryState) -> Void)? = nil,
-        onIncomingAlertTriggered: (@Sendable (IncomingSOSAlert) -> Void)? = nil
+        onIncomingAlertTriggered: (@MainActor @Sendable (IncomingSOSAlert) -> Void)? = nil
     ) {
         self.transport = transport
         self.cryptoService = cryptoService
@@ -108,7 +110,7 @@ public actor SOSForwardingEngine {
     
     public func setCallbacks(
         onDeliveryStateChanged: (@Sendable (SOSDeliveryState) -> Void)? = nil,
-        onIncomingAlertTriggered: (@Sendable (IncomingSOSAlert) -> Void)? = nil
+        onIncomingAlertTriggered: (@MainActor @Sendable (IncomingSOSAlert) -> Void)? = nil
     ) {
         self.onDeliveryStateChanged = onDeliveryStateChanged
         self.onIncomingAlertTriggered = onIncomingAlertTriggered
@@ -137,12 +139,19 @@ public actor SOSForwardingEngine {
         isSirenActive = false
         audioAlerter?.stopEmergencyAlertFeedback()
     }
+
+    func dismissIncomingAlert(matching event: SOSResolvedPayload) {
+        guard activeIncomingAlert?.id == event.eventId,
+              activeIncomingAlert?.senderInitials == event.senderInitials else { return }
+        dismissIncomingAlert()
+    }
     
     public func reset() {
         sessionGeneration = UUID()
         cancelOutgoingSOS()
         dismissIncomingAlert()
-        seenSOSEventIds.removeAll()
+        seenSOSEvents.removeAll()
+        resolvedSOSEvents.removeAll()
         measurementProvider = nil
     }
 

@@ -24,6 +24,23 @@ struct OrbitMapView: View {
 
     private var meetingPoint: MeetingPoint? { viewModel.sessionStore.activeMeetingPoint }
     private var visibleMembers: [Member] { viewModel.sessionStore.visibleMembers }
+    private var isSOSActive: Bool { sos?.outgoingEventId != nil }
+
+    private var orbitScene: some View {
+        OrbitSceneView(
+            userColor: viewModel.localProfileColor.swiftUIColor,
+            bloomRotation: .degrees(-(location?.currentHeading ?? 0)),
+            members: visibleMembers,
+            meetingPoint: meetingPoint,
+            location: location?.currentLocation,
+            heading: location?.currentHeading ?? 0,
+            selectedTarget: selectedTarget,
+            isUserSOSActive: isSOSActive,
+            onSelectMember: openFinder,
+            onSelectMeetingPoint: selectMeetingPoint
+        )
+        .ignoresSafeArea()
+    }
 
     private var selectedMember: Member? {
         guard case .member(let id) = selectedTarget else { return nil }
@@ -52,13 +69,7 @@ struct OrbitMapView: View {
                 Color.black
                     .ignoresSafeArea()
 
-                OrbitSceneView(userColor: viewModel.localProfileColor.swiftUIColor,
-                    bloomRotation: .degrees(-(location?.currentHeading ?? 0)),
-                    members: visibleMembers, meetingPoint: meetingPoint,
-                    location: location?.currentLocation, heading: location?.currentHeading ?? 0,
-                    selectedTarget: selectedTarget, onSelectMember: openFinder,
-                    onSelectMeetingPoint: selectMeetingPoint)
-                    .ignoresSafeArea()
+                orbitScene
 
                 VStack(alignment: .leading) {
                     OrbitHeaderView(groupName: viewModel.groupName,
@@ -88,7 +99,8 @@ struct OrbitMapView: View {
                         },
                         onChat: openChat,
                         unreadCount: chat?.unreadCount ?? 0,
-                        bottomInset: geometry.safeAreaInsets.bottom
+                        bottomInset: geometry.safeAreaInsets.bottom,
+                        onActiveSOS: isSOSActive ? { sos?.askAboutHelp() } : nil
                     )
                 }
                 .padding(.horizontal)
@@ -128,6 +140,7 @@ struct OrbitMapView: View {
                     .overlay { SOSEdgeGlowView(sos: sos) }
             }
         }
+        .allowsHitTesting(activeModal != .invite)
         .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
             Group { switch modal {
             case .mapPoint:
@@ -169,13 +182,21 @@ struct OrbitMapView: View {
                     relayState: relayState, memberContactLog: { viewModel.sessionStore.memberContactLog },
                     diagnostics: diagnostics)
             case .invite:
-                if let session = viewModel.sessionStore.activeSession {
-                    NavigationStack {
-                        GroupQRCodeView(session: session)
-                            .padding()
-                            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close", systemImage: "xmark") { activeModal = nil } } }
+                NavigationStack {
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        if let session = viewModel.sessionStore.activeSession {
+                            GroupQRCodeView(session: session)
+                                .padding()
+                        }
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close", systemImage: "xmark") { activeModal = nil }
+                        }
                     }
                 }
+                .presentationBackground(.black)
             case .finder(let id):
                 if let member = visibleMembers.first(where: { $0.id == id }) {
                     FriendFinderView(member: member, location: location)

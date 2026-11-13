@@ -783,14 +783,14 @@ struct PacketCodecTests {
     @Test(
         "Regression test across all 8 PacketTypes",
         arguments: [
-            PacketTypeMapping(type: .locationPing, rawByte: 0x01, byte0: 0x31),
-            PacketTypeMapping(type: .sos, rawByte: 0x02, byte0: 0x32),
-            PacketTypeMapping(type: .meetingUpdate, rawByte: 0x03, byte0: 0x33),
-            PacketTypeMapping(type: .routeReq, rawByte: 0x04, byte0: 0x34),
-            PacketTypeMapping(type: .routeResp, rawByte: 0x05, byte0: 0x35),
-            PacketTypeMapping(type: .ack, rawByte: 0x06, byte0: 0x36),
-            PacketTypeMapping(type: .chatMessage, rawByte: 0x07, byte0: 0x37),
-            PacketTypeMapping(type: .uwbTokenExchange, rawByte: 0x08, byte0: 0x38)
+            PacketTypeMapping(type: .locationPing, rawByte: 0x01, byte0: 0x11),
+            PacketTypeMapping(type: .sos, rawByte: 0x02, byte0: 0x12),
+            PacketTypeMapping(type: .meetingUpdate, rawByte: 0x03, byte0: 0x13),
+            PacketTypeMapping(type: .routeReq, rawByte: 0x04, byte0: 0x14),
+            PacketTypeMapping(type: .routeResp, rawByte: 0x05, byte0: 0x15),
+            PacketTypeMapping(type: .ack, rawByte: 0x06, byte0: 0x16),
+            PacketTypeMapping(type: .chatMessage, rawByte: 0x07, byte0: 0x17),
+            PacketTypeMapping(type: .sosResolved, rawByte: 0x08, byte0: 0x18)
         ]
     )
     func packetTypesRegression(mapping: PacketTypeMapping) throws {

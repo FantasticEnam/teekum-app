@@ -13,10 +13,23 @@ struct OrbitControlsView: View {
     var onChat: () -> Void = {}
     var unreadCount = 0
     var bottomInset: CGFloat = 0
+    var onActiveSOS: (() -> Void)?
     
     var body: some View {
         HStack {
-            SOSHoldButton(onHoldCompleted: onSOS)
+            if let onActiveSOS {
+                Button("SOS", action: onActiveSOS)
+                    .font(.custom("Charter-Roman", size: 25, relativeTo: .title2).bold())
+                    .foregroundStyle(.white)
+                    .frame(width: 64, height: 64)
+                    .background(Color.alertRed, in: .circle)
+                    .glassEffect(.regular.tint(.alertRed).interactive(), in: .circle)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("SOS active")
+                    .accessibilityHint("Opens the confirmation to end the SOS")
+            } else {
+                SOSHoldButton(onHoldCompleted: onSOS)
+            }
         
             Spacer()
             

@@ -11,25 +11,36 @@ struct ChatSheetView: View {
     let viewModel: ChatViewModel
     let sessionStore: SessionStore
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var isComposerFocused: Bool
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if viewModel.messages.isEmpty {
-                    ContentUnavailableView("Group chat", systemImage: "bubble.left.and.bubble.right", description: Text("Send a short message to your group."))
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 16) {
-                            ForEach(viewModel.messages) { message in
-                                ChatMessageBubbleView(message: message, profileColor: sessionStore.profileColor)
+                Group {
+                    if viewModel.messages.isEmpty {
+                        ContentUnavailableView("Group chat", systemImage: "bubble.left.and.bubble.right", description: Text("Send a short message to your group."))
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 16) {
+                                ForEach(viewModel.messages) { message in
+                                    ChatMessageBubbleView(message: message, profileColor: sessionStore.profileColor)
+                                }
                             }
+                            .padding()
                         }
-                        .padding()
+                        .defaultScrollAnchor(.bottom)
+                        .scrollDismissesKeyboard(.interactively)
                     }
-                    .defaultScrollAnchor(.bottom)
                 }
-                ChatPresetChipsView(onSelect: viewModel.updateDraft)
-                ChatComposerView(viewModel: viewModel)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(.rect)
+                .simultaneousGesture(TapGesture().onEnded { isComposerFocused = false })
+
+                ChatPresetChipsView { text in
+                    viewModel.updateDraft(text)
+                    isComposerFocused = false
+                }
+                ChatComposerView(viewModel: viewModel, isFocused: $isComposerFocused)
             }
             .background(.black)
             .navigationTitle("Group chat")

@@ -133,14 +133,14 @@ final class ChatSOSMigrationTests: XCTestCase {
         XCTAssertEqual(audio.stopCount, 0)
         await engine.reset()
         let cleared = await engine.activeIncomingAlert
-        let seen = await engine.seenSOSEventIds
+        let seen = await engine.seenSOSEvents
         XCTAssertNil(cleared)
         XCTAssertTrue(seen.isEmpty)
         XCTAssertEqual(audio.stopCount, 1)
     }
 
     @MainActor
-    func testEdgeGlowFollowsReceivedAndSentSOSUntilDismissed() async throws {
+    func testDismissingSOSFeedbackKeepsEmergencyUntilMatchingResolution() async throws {
         let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
         let crypto = CryptoService()
         let engine = SOSForwardingEngine(transport: MessagingTestTransport(), cryptoService: crypto,
@@ -151,7 +151,15 @@ final class ChatSOSMigrationTests: XCTestCase {
         XCTAssertFalse(model.showsEdgeGlow)
 
         let received = XCTestExpectation(description: "Receiver displays the SOS alert")
-        model.onIncomingAlert = { _ in received.fulfill() }
+        let store = SessionStore(members: [Member(id: "ALX")])
+        model.onIncomingAlert = { alert in
+            store.setEmergency(true, for: alert.senderInitials)
+            received.fulfill()
+        }
+        model.onIncomingSOSResolved = { initials in
+            XCTAssertEqual(initials, "ALX")
+            store.setEmergency(false, for: initials)
+        }
         let payload = SOSPayload(coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0),
             timestamp: Date(timeIntervalSince1970: 0), accuracy: 255, sosEventId: 77,
             senderInitials: "ALX", batteryLevel: 85)
@@ -159,17 +167,94 @@ final class ChatSOSMigrationTests: XCTestCase {
         let wire = try await crypto.sealToWireBytes(payload: payload.serialize(), envelope: envelope,
             using: SymmetricKey(data: session.symmetricKeyData))
         let packet = try RawWirePacket.fromWireData(wire)
+        await model.acceptResolution(.init(senderInitials: "ALX", eventId: 76))
+        var alreadyResolved = payload
+        alreadyResolved.sosEventId = 76
+        let delayedWire = try await crypto.sealToWireBytes(payload: alreadyResolved.serialize(), envelope:
+            CleartextEnvelope(type: .sos, sessionId: session.sessionId, sequenceNumber: 0x01000002),
+            using: SymmetricKey(data: session.symmetricKeyData))
+        try await engine.handleInboundSOSPacket(rawPacket: RawWirePacket.fromWireData(delayedWire), fromPeerId: "ALX")
+        XCTAssertNil(model.incomingAlert)
+        XCTAssertFalse(store.members[0].isEmergency)
+
         try await engine.handleInboundSOSPacket(rawPacket: packet, fromPeerId: "ALX")
         let result = await XCTWaiter.fulfillment(of: [received], timeout: 2)
         XCTAssertEqual(result, .completed)
         XCTAssertTrue(model.showsEdgeGlow)
         model.dismissIncomingAlert()
         XCTAssertFalse(model.showsEdgeGlow)
+        XCTAssertTrue(store.members[0].isEmergency)
+
+        await model.acceptResolution(.init(senderInitials: "NIC", eventId: 77))
+        XCTAssertTrue(store.members[0].isEmergency)
+        await model.acceptResolution(.init(senderInitials: "ALX", eventId: 77))
+        XCTAssertFalse(store.members[0].isEmergency)
+        try await engine.handleInboundSOSPacket(rawPacket: packet, fromPeerId: "ALX")
+        XCTAssertNil(model.incomingAlert)
 
         model.triggerSOS()
         XCTAssertTrue(model.showsEdgeGlow)
         model.dismissDeliveryStatus()
+        XCTAssertTrue(model.showsEdgeGlow)
+        await model.stop()
+    }
+
+    @MainActor
+    func testSenderConfirmsHelpOnlyAfterNearbyPromptOrManualAction() async throws {
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
+        let crypto = CryptoService()
+        let transport = MessagingTestTransport()
+        let engine = SOSForwardingEngine(transport: transport, cryptoService: crypto, sessionProvider: { session })
+        let location = LocationService(isLiveSharingEnabled: false)
+        let model = SOSViewModel(engine: engine, locationService: location, sessionProvider: { session })
+        await model.start()
+        let now = Date.now
+        let coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+        location.currentLocation = LocationPin(coordinate: coordinate, horizontalAccuracy: 4, timestamp: now)
+        model.triggerSOS()
+        for _ in 0..<100 where model.isSending { try await Task.sleep(for: .milliseconds(10)) }
+        let eventId = try XCTUnwrap(model.outgoingEventId)
+        let far = Member(id: "FAR", coordinate: .init(latitude: 0.0002, longitude: 0),
+            horizontalAccuracy: 4, measurementTimestamp: now)
+        var nearby = Member(id: "ALX", coordinate: .init(latitude: 0.00005, longitude: 0),
+            horizontalAccuracy: 4, measurementTimestamp: now.addingTimeInterval(-31))
+        model.checkForNearbyHelp(members: [far, nearby], now: now)
+        XCTAssertFalse(model.asksAboutHelp)
+        nearby.measurementTimestamp = now
+        nearby.horizontalAccuracy = 20
+        model.checkForNearbyHelp(members: [nearby], now: now)
+        XCTAssertFalse(model.asksAboutHelp)
+        nearby.horizontalAccuracy = 4
+        model.checkForNearbyHelp(members: [nearby], now: now)
+        XCTAssertTrue(model.asksAboutHelp)
+        model.keepSOSActive()
+        model.checkForNearbyHelp(members: [nearby], now: now)
+        XCTAssertFalse(model.asksAboutHelp)
+        XCTAssertEqual(model.outgoingEventId, eventId)
+
+        location.currentLocation = nil
+        model.askAboutHelp()
+        await transport.failNextResolutionEnqueue()
+        model.confirmHelpReceived()
+        for _ in 0..<100 where model.isResolving { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNotNil(model.resolutionError)
+        XCTAssertEqual(model.outgoingEventId, eventId)
+
+        model.confirmHelpReceived()
+        for _ in 0..<100 where model.isResolving { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNil(model.outgoingEventId)
         XCTAssertFalse(model.showsEdgeGlow)
+        let broadcasts = await transport.broadcasts
+        let wire = try XCTUnwrap(broadcasts.last)
+        XCTAssertEqual(wire.count, 56)
+        XCTAssertEqual(wire.first, 0x18)
+        let opened = try await crypto.openWireBytes(wire, using: SymmetricKey(data: session.symmetricKeyData))
+        XCTAssertEqual(opened.envelope.type, .sosResolved)
+        XCTAssertEqual(opened.envelope.memberSlot, session.memberSlot)
+        XCTAssertEqual(try SOSResolvedPayload.deserialize(from: opened.payload),
+            SOSResolvedPayload(senderInitials: "BOB", eventId: eventId))
+        let engineEventId = await engine.activeSOSEventId
+        XCTAssertNil(engineEventId)
         await model.stop()
     }
 
@@ -219,13 +304,21 @@ private actor MessagingTestTransport: MeshTransport {
     nonisolated let neighborEvents = AsyncStream<NeighborEvent> { _ in }
     nonisolated let transportErrors = AsyncStream<TransportError> { _ in }
     private(set) var broadcasts: [Data] = []
+    private var shouldFailResolution = false
+    func failNextResolutionEnqueue() { shouldFailResolution = true }
     func start(serviceType: String, session: GroupSession) async throws {}
     func stop() async {}
     func sendFrame(_ data: Data, to peerId: String) async throws -> SendOutcome {
         broadcasts.append(data)
         return SendOutcome(destinationPeerId: peerId, packetType: .chatMessage, isSuccess: true)
     }
-    func broadcastFrame(_ data: Data) async throws { broadcasts.append(data) }
+    func broadcastFrame(_ data: Data) async throws {
+        if shouldFailResolution, try RawWirePacket.fromWireData(data).envelope.type == .sosResolved {
+            shouldFailResolution = false
+            throw TransportError.queueFull("Test outbox")
+        }
+        broadcasts.append(data)
+    }
     func forwardFrame(_ data: Data, to nextHopPeerId: String) async throws -> SendOutcome {
         try await sendFrame(data, to: nextHopPeerId)
     }

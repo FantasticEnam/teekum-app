@@ -10,6 +10,7 @@ import SwiftUI
 struct OrbitUserMarkerView: View {
     let color: Color
     var heading: Angle? = nil
+    var isEmergency = false
 
     var body: some View {
         Circle()
@@ -35,16 +36,14 @@ struct OrbitUserMarkerView: View {
                     .fontWeight(.semibold)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(.black, in: .rect(cornerRadius: 6))
+                    .background(isEmergency ? Color.alertRed : .black, in: .rect(cornerRadius: 6))
                     .fixedSize()
                     .offset(y: 40)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Your position")
             .accessibilityValue(
-                heading == nil
-                    ? "Direction unavailable"
-                    : "Direction available"
+                isEmergency ? "SOS active" : (heading == nil ? "Direction unavailable" : "Direction available")
             )
     }
 }

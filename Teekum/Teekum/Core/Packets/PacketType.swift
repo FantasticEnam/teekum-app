@@ -15,5 +15,5 @@ public enum PacketType: UInt8, CaseIterable, Sendable {
     case routeResp     = 0x05
     case ack           = 0x06
     case chatMessage   = 0x07
-    case uwbTokenExchange = 0x08
+    case sosResolved   = 0x08
 }

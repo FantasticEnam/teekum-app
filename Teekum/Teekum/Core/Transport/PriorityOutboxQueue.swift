@@ -155,7 +155,7 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
         
         // Reliable foreign traffic keeps its packet priority. Group membership must
         // not demote an ACK/SOS behind routine foreign location traffic.
-        if isRelay && packetType != .sos && packetType != .ack && packetType != .chatMessage {
+        if isRelay && ![.sos, .ack, .chatMessage, .sosResolved].contains(packetType) {
             // Communal Stranger Relay Lane (Ring buffer FIFO: 32 max)
             if strangerRelayLane.count >= maxRelayCapacity {
                 // Drop oldest unforwarded packet (drop-head)
@@ -176,7 +176,7 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
             return item
         }
         
-        let isUrgent = (packetType == .sos || packetType == .ack || packetType == .meetingUpdate || packetType == .uwbTokenExchange)
+        let isUrgent = [.sos, .ack, .meetingUpdate, .sosResolved].contains(packetType)
         
         if isUrgent {
             guard urgentLane.count < maxUrgentCapacity else {
