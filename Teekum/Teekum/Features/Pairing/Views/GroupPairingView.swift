@@ -60,7 +60,7 @@ struct GroupPairingView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .controlSize(.large)
-                .font(.custom("Charter-Bold", size: 14, relativeTo: .subheadline))
+                .font(.custom("Futura", size: 14, relativeTo: .subheadline))
                 .frame(minHeight: 44)
                 .padding(.bottom, isEditingCreateForm ? 12 : 24)
             }
@@ -70,7 +70,7 @@ struct GroupPairingView: View {
             VStack(spacing: 0) {
                 if viewModel.mode == .join {
                     Text("Align QR code in frame")
-                        .font(.custom("Charter-Bold", size: 22, relativeTo: .title2))
+                        .font(.custom("Helvetica", size: 22, relativeTo: .title2))
                         .padding(.bottom, 10)
                     QRScannerView(
                         isEnabled: viewModel.form.hasValidInitials && !isShowingAgreement,
@@ -85,7 +85,8 @@ struct GroupPairingView: View {
                     GroupQRCodeView(session: session, isDraft: true)
                 } else {
                     Text("Group Name")
-                        .font(.custom("Charter-Black", size: 22, relativeTo: .title2))
+                        .font(.custom("Futura", size: 20, relativeTo: .title3))
+                        .bold()
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.bottom, 10)
                     GroupNameField(
@@ -110,7 +111,7 @@ struct GroupPairingView: View {
                     Button(action: pasteInviteFromClipboard) {
                         HStack(spacing: 8) {
                             Text("Paste link or shared message…")
-                                .font(.custom("Charter-Roman", size: 13, relativeTo: .caption))
+                                .font(.custom("Futura", size: 13, relativeTo: .caption))
                                 .multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
                             Image(systemName: "doc.on.clipboard")
@@ -129,7 +130,7 @@ struct GroupPairingView: View {
 
                 PrimaryButtonView(
                     title: viewModel.mode == .join ? "Join Group" :
-                        (viewModel.isShowingQR ? "Create Group" : "Generate QR"),
+                        (viewModel.isShowingQR ? "Join Group" : "Create Group"),
                     action: performPrimaryAction
                 )
                 .disabled(!viewModel.canPerformPrimaryAction)

@@ -32,7 +32,7 @@ struct OrbitUserMarkerView: View {
             }
             .overlay(alignment: .bottom) {
                 Text("YOU")
-                    .font(.custom("Charter-Roman", size: 13, relativeTo: .caption))
+                    .font(.custom("Futura", size: 13, relativeTo: .caption))
                     .fontWeight(.semibold)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)

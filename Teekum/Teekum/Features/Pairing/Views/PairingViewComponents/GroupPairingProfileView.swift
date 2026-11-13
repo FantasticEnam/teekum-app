@@ -45,7 +45,7 @@ struct GroupPairingProfileView: View {
             } else {
                 Text("Your Initial")
                     .padding(.top, 20)
-                    .font(.custom("Charter-Black", size: 14, relativeTo: .subheadline))
+                    .font(.custom("Futura", size: 17, relativeTo: .headline))
                     .bold()
                     .foregroundStyle(Color.white)
                     .padding(.bottom, 6)
@@ -54,7 +54,7 @@ struct GroupPairingProfileView: View {
                     HStack(spacing: 4) {
                         ForEach(0..<3) { index in
                             Text(initial(at: index))
-                                .font(.custom("Charter-Bold", size: 20, relativeTo: .title3))
+                                .font(.custom("Futura", size: 20, relativeTo: .title3))
                                 .foregroundStyle(.white)
                                 .frame(width: 36, height: 40)
                                 .background {

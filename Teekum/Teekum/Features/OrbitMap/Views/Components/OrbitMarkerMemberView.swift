@@ -29,7 +29,7 @@ struct OrbitMemberMarkerView: View {
             .overlay(alignment: .top) {
                 VStack(spacing: -2) {
                     Text(initials)
-                        .font(.custom("Charter-Roman", size: 13, relativeTo: .caption))
+                        .font(.custom("Futura", size: 13, relativeTo: .caption))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)

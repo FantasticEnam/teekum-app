@@ -22,7 +22,7 @@ struct IncomingSOSAlertBannerView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Emergency Alert!")
-                        .font(.custom("Charter-Bold", size: 19, relativeTo: .headline))
+                        .font(.custom("Futura", size: 19, relativeTo: .headline))
                         .accessibilityAddTraits(.isHeader)
                     if alert.timestamp.timeIntervalSince1970 > 0 {
                         Text("**\(alert.senderInitials)** has sent an SOS request. Head to their location and check on them!")
@@ -30,7 +30,7 @@ struct IncomingSOSAlertBannerView: View {
                         Text("**\(alert.senderInitials)** has sent an SOS request. Their location is unavailable.")
                     }
                 }
-                .font(.custom("Charter-Roman", size: 14, relativeTo: .subheadline))
+                .font(.custom("Futura", size: 14, relativeTo: .subheadline))
                 .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -38,7 +38,7 @@ struct IncomingSOSAlertBannerView: View {
 
             Button(action: onDismiss) {
                 Text("I’ll be there!")
-                    .font(.custom("Charter-Bold", size: 17, relativeTo: .headline))
+                    .font(.custom("Futura", size: 17, relativeTo: .headline))
                     .foregroundStyle(Color.alertRed)
                     .padding(.vertical, 10)
                     .frame(maxWidth: .infinity, minHeight: 44)
