@@ -17,7 +17,6 @@ struct HeadAgreement: View {
             Circle()
                 .fill(profileColor)
                 .frame(width: 80, height: 80)
-                .shadow(color: profileColor.opacity(0.5), radius: 7)
                 .accessibilityHidden(true)
 
             Text("Together, Beyond the Signal")
