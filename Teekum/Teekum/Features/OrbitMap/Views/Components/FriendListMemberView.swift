@@ -19,7 +19,7 @@ struct FriendListMemberView: View {
             Text(member.initials)
                 .font(
                     .custom(
-                        "Charter-Bold",
+                        "Futura",
                         size: 26,
                         relativeTo: .title2
                     )
@@ -33,8 +33,18 @@ struct FriendListMemberView: View {
                 .minimumScaleFactor(0.6)
                 .frame(width: avatarSize, height: avatarSize)
                 .background(color, in: .circle)
+                .padding(3)
+                .overlay {
+                    if member.isEmergency {
+                        Circle()
+                            .strokeBorder(Color.redProfile, lineWidth: 2)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
 
-            if let date = member.latestLocation?.timestamp {
+            if let date = member.measurementTimestamp {
                 TimelineView(.periodic(from: date, by: 1)) { timeline in
                     let label = FriendListViewModel.locationAgeLabel(from: date, relativeTo: timeline.date)
 
@@ -56,32 +66,22 @@ struct FriendListMemberView: View {
 
 }
 
-#Preview("Seconds, minutes, and no location") {
+#Preview("Location age and active SOS") {
     HStack(alignment: .top, spacing: 16) {
         FriendListMemberView(
             member: Member(
-                initials: "NIC",
-                latestLocation: LocationSample(
-                    latitude: 0, longitude: 0,
-                    horizontalAccuracy: 5,
-                    timestamp: .now.addingTimeInterval(-25)
-                )
+                id: "NIC", measurementTimestamp: .now.addingTimeInterval(-25)
             ),
             color: .peachProfile
         )
         FriendListMemberView(
             member: Member(
-                initials: "AYU",
-                latestLocation: LocationSample(
-                    latitude: 0, longitude: 0,
-                    horizontalAccuracy: 5,
-                    timestamp: .now.addingTimeInterval(-125)
-                )
+                id: "AYU", isEmergency: true, measurementTimestamp: .now.addingTimeInterval(-125)
             ),
             color: .orangeProfile
         )
         FriendListMemberView(
-            member: Member(initials: "ADI"),
+            member: Member(id: "ADI"),
             color: .whiteProfile
         )
     }

@@ -21,17 +21,6 @@ struct FriendListSheet: View {
     @ScaledMetric(relativeTo: .title2)
     private var cellWidth = 66
     
-    // temporary palette, share the color contract with orbit markers during integration.
-    private static let colors: [Color] = [
-        .peachProfile,
-        .orangeProfile,
-        .redProfile,
-        .greyProfile,
-        .whiteProfile,
-        .blueProfile,
-        .creamProfile
-    ]
-    
     init(
         sessionStore: SessionStore,
         onAddFriend: @escaping () -> Void,
@@ -134,13 +123,11 @@ struct FriendListSheet: View {
                             } label: {
                                 FriendListMemberView(
                                     member: member,
-                                    color: Self.colors[
-                                        Int(member.id.memberSlot)
-                                        % Self.colors.count
-                                    ]
+                                    color: member.color.swiftUIColor
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityHint("Show this friend on the Orbit radar")
                         }
                     }
                     .padding(.horizontal, 32)
@@ -148,19 +135,16 @@ struct FriendListSheet: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .background {
-                Color.clear
-                    .contentShape(.rect)
-                    .onTapGesture { isSearchFocused = false }
-            }
+            .contentShape(.rect)
+            .simultaneousGesture(TapGesture().onEnded { isSearchFocused = false })
             
-            PrimaryButtonView(title: "Leave Group") {
-                isSearchFocused = false
-                confirmLeave = true
+            if !isSearchFocused {
+                PrimaryButtonView(title: "Leave Group") {
+                    confirmLeave = true
+                }
+                .padding(.horizontal, 40)
+                .padding(.vertical, 16)
             }
-            .padding(.horizontal, 40)
-            .padding(.top, 16)
-            .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
@@ -189,6 +173,19 @@ struct FriendListSheet: View {
 #Preview {
     FriendListSheet(
         sessionStore: .preview,
+        onAddFriend: {},
+        onSelectMember: { _ in },
+        onLeaveGroup: {}
+    )
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Friend with active SOS") {
+    let store = SessionStore.preview
+    store.setEmergency(true, for: "ADI")
+
+    return FriendListSheet(
+        sessionStore: store,
         onAddFriend: {},
         onSelectMember: { _ in },
         onLeaveGroup: {}

@@ -10,11 +10,26 @@ import SwiftUI
 struct OrbitControlsView: View {
     let onSOS: () -> Void
     let onExpand: () -> Void
+    var onChat: () -> Void = {}
+    var unreadCount = 0
     var bottomInset: CGFloat = 0
+    var onActiveSOS: (() -> Void)?
     
     var body: some View {
         HStack {
-            SOSHoldButton(onHoldCompleted: onSOS)
+            if let onActiveSOS {
+                Button("SOS", action: onActiveSOS)
+                    .font(.custom("Futura", size: 25, relativeTo: .title2).bold())
+                    .foregroundStyle(.white)
+                    .frame(width: 64, height: 64)
+                    .background(Color.alertRed, in: .circle)
+                    .glassEffect(.regular.tint(.alertRed).interactive(), in: .circle)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("SOS active")
+                    .accessibilityHint("Opens the confirmation to end the SOS")
+            } else {
+                SOSHoldButton(onHoldCompleted: onSOS)
+            }
         
             Spacer()
             
@@ -39,9 +54,7 @@ struct OrbitControlsView: View {
             
             Spacer()
             
-            Button {
-                print("Message Tapped")
-            } label: {
+            Button(action: onChat) {
                 Image(systemName: "message.fill")
                     .font(.system(size: 30, weight: .semibold))
 //                    .frame(width: 62, height: 62)
@@ -50,6 +63,16 @@ struct OrbitControlsView: View {
             .buttonBorderShape(.circle)
             .controlSize(.large)
             .accessibilityLabel("Open Group Chat")
+            .accessibilityValue("\(unreadCount) unread messages")
+            .overlay(alignment: .topTrailing) {
+                if unreadCount > 0 {
+                    Text("\(unreadCount)")
+                        .font(.caption2.bold())
+                        .padding(5)
+                        .background(Color.alertRed, in: .circle)
+                        .accessibilityHidden(true)
+                }
+            }
         }
 
     }

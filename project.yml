@@ -22,17 +22,66 @@ targets:
     platform: iOS
     sources:
       - path: Teekum/Teekum
+    info:
+      path: Config/Info.plist
+      properties:
+        NSBonjourServices: ["_teekum._tcp", "_teekum._udp"]
+        UIBackgroundModes: [location, bluetooth-central, bluetooth-peripheral]
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.fantasticenam.meepo
+            CFBundleURLSchemes: [teekum]
+    dependencies:
+      - target: TeekumWidgets
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_NSCameraUsageDescription: "Use the camera to preview a group QR code when joining a group."
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Show your location on the map when choosing a group meeting point."
-        INFOPLIST_KEY_CFBundleDisplayName: Teekum
+        INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "Share your location with your group during an active session."
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Discover nearby phones and exchange encrypted group messages without internet."
+        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "Exchange encrypted messages with nearby phones without internet."
+        INFOPLIST_KEY_NSMotionUsageDescription: "Adjust location updates to your movement and monitor inactivity when you choose to enable it."
+        INFOPLIST_KEY_CFBundleDisplayName: Meepo
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+
+  TeekumWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: TeekumWidgets
+      - path: Teekum/Teekum/Core/LiveActivity/SessionActivityAttributes.swift
+      - path: Teekum/Teekum/Core/Session/MemberColor.swift
+      - path: Teekum/Teekum/Shared/UI/Theme.swift
+    info:
+      path: Config/Widgets-Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+
+  TeekumTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: TeekumTests
+        excludes: [PacketCodecTest.swift, TeekumTests-Bridging-Header.h]
+    dependencies:
+      - target: Teekum
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo.tests
 
 schemes:
   Teekum:
@@ -41,3 +90,7 @@ schemes:
         Teekum: all
     run:
       config: Debug
+    test:
+      targets:
+        - TeekumTests
+      gatherCoverageData: false

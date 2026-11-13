@@ -8,48 +8,48 @@
 import SwiftUI
 
 struct GroupPairingInviteView: View {
+    let session: GroupSession
+    @State private var qrImage: UIImage?
+
     var body: some View {
+        let inviteURL = session.inviteURL()
         VStack(spacing: 0) {
             Text("Scan this barcode to join private\ngroup with zero cell reception")
-                .font(.custom("Charter-Roman", size: 12, relativeTo: .caption))
+                .font(.custom("Futura", size: 12, relativeTo: .caption))
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
                 .padding(.bottom, 12)
+                .fixedSize(horizontal: false, vertical: true)
 
-            // Static artwork
-            Image("pairing_qr_placeholder")
-                .resizable()
-                .interpolation(.none)
-                .scaledToFit()
-                .frame(width: 166, height: 166)
-                .accessibilityLabel("Group invitation QR code placeholder")
-                .padding(.bottom, 20)
-
-            Button(action: shareInviteLink) {
-                Text("Share Invite Link")
-                    .font(.custom("Charter-Bold", size: 14, relativeTo: .subheadline))
-                    .frame(minWidth: 180, minHeight: 32)
-                    .background(Color(white: 0.11), in: Capsule())
+            if let qrImage {
+                Image(uiImage: qrImage)
+                    .resizable()
+                    .interpolation(.none)
+                    .scaledToFit()
+                    .frame(maxWidth: 166, maxHeight: 166)
+                    .padding(10)
+                    .background(.white)
+                    .accessibilityLabel("Group invitation QR code")
+            } else {
+                Label("QR unavailable", systemImage: "qrcode")
+                    .frame(maxHeight: 186)
             }
-            .buttonStyle(.plain)
+
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 16)
-        .padding(.vertical, 20)
-        .frame(maxWidth: .infinity, minHeight: 300)
+        .padding(.vertical, 14)
+        .frame(maxWidth: 255)
         .background {
             RoundedRectangle(cornerRadius: 14)
                 .strokeBorder(Color(white: 0.28), lineWidth: 1)
         }
-    }
-
-    private func shareInviteLink() {
-        // UI only. Invite sharing will be connected separately.
+        .task(id: inviteURL) { qrImage = QRCodeGenerator.image(for: inviteURL) }
     }
 }
 
 #Preview {
-    GroupPairingInviteView()
+    GroupPairingInviteView(session: GroupSession(localInitials: "NIC"))
         .padding(42)
         .background(.black)
         .preferredColorScheme(.dark)

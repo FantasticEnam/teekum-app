@@ -21,7 +21,7 @@ struct PrimaryButtonView: View {
                         .accessibilityHidden(true)
                 }
             }
-            .font(.custom("Charter-Bold", size: 16, relativeTo: .headline))
+            .font(.custom("Futura", size: 16, relativeTo: .headline))
             .foregroundStyle(.black)
             .frame(maxWidth: .infinity, minHeight: 50)
             .background(Color.yellowProfile, in: Capsule())

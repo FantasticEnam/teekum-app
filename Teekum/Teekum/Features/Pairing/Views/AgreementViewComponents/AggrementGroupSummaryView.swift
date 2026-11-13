@@ -29,16 +29,16 @@ struct AgreementGroupSummaryView: View {
         HStack(spacing: 9) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("GROUP SETUP")
-                    .font(.custom("Charter-Bold", size: 9, relativeTo: .caption2))
+                    .font(.custom("Futura", size: 9, relativeTo: .caption2))
                     .foregroundStyle(secondaryText)
 
                 Text(summaryTitle)
-                    .font(.custom("Charter-Roman", size: 14, relativeTo: .subheadline))
+                    .font(.custom("Futura", size: 14, relativeTo: .subheadline))
 
                 Text(mode == .create
                      ? "You’re about to create a group as its host."
                      : "You’re about to join a group as a member.")
-                    .font(.custom("Charter-Roman", size: 8, relativeTo: .caption2))
+                    .font(.custom("Futura", size: 8, relativeTo: .caption2))
                     .foregroundStyle(secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -50,9 +50,9 @@ struct AgreementGroupSummaryView: View {
 
             VStack(spacing: 1) {
                 Text(mode == .create ? "Host Initials" : "Your Initials")
-                    .font(.custom("Charter-Roman", size: 8, relativeTo: .caption2))
+                    .font(.custom("Futura", size: 8, relativeTo: .caption2))
                 Text("[ \(initials) ]")
-                    .font(.custom("Charter-Roman", size: 18, relativeTo: .headline))
+                    .font(.custom("Futura", size: 18, relativeTo: .headline))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -71,6 +71,6 @@ struct AgreementGroupSummaryView: View {
 }
 
 #Preview("Group Summary") {
-    AgreementGroupSummaryView(groupName: "FANTASIX", initials: "NIC")
+    AgreementGroupSummaryView(groupName: "Meepo Group", initials: "NIC")
         
 }

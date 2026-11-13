@@ -24,9 +24,9 @@ struct CardAgreement: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.custom("Charter-Bold", size: 12, relativeTo: .subheadline))
+                    .font(.custom("Futura", size: 12, relativeTo: .subheadline))
                 Text(description)
-                    .font(.custom("Charter-Roman", size: 8.5, relativeTo: .caption2))
+                    .font(.custom("Futura", size: 8.5, relativeTo: .caption2))
                     .foregroundStyle(secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

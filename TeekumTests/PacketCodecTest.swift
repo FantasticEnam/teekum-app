@@ -32,6 +32,17 @@ struct PacketCodecTests {
 
         let decoded = try CleartextEnvelope.deserialize(from: data)
         #expect(decoded == original)
+
+        for sid: UInt32 in [0x000001, 0x7E3AF5, 0xFFFFFF] {
+            let sidEnv = CleartextEnvelope(type: .chatMessage, hopLimit: 8, hopCount: 1, sessionId: sid, sequenceNumber: 99)
+            #expect(try CleartextEnvelope.deserialize(from: sidEnv.serialize()) == sidEnv)
+        }
+
+        var overwide = CleartextEnvelope(type: .locationPing, sessionId: 0x12345678, sequenceNumber: 1)
+        #expect(overwide.sessionId == 0x345678)
+        overwide.sessionId = 0xAABBCCDD
+        #expect(overwide.sessionId == 0xBBCCDD)
+        #expect(try CleartextEnvelope.deserialize(from: overwide.serialize()) == overwide)
     }
 
     // MARK: - Test 2: Envelope Validation & Error Handling
@@ -414,16 +425,16 @@ struct PacketCodecTests {
             senderInitials: "NIC",
             batteryLevel: 88,
             heading: 120,
-            colorCode: MemberColor.neonPink.rawValue
+            colorCode: MemberColor.reddish.rawValue
         )
         let pingData = ping.serialize()
         #expect(pingData.count == 30)
-        #expect(pingData[17] == MemberColor.neonPink.rawValue)
+        #expect(pingData[17] == MemberColor.reddish.rawValue)
 
         let decodedPing = try LocationPingPayload.deserialize(from: pingData)
-        #expect(decodedPing.colorCode == MemberColor.neonPink.rawValue)
+        #expect(decodedPing.colorCode == MemberColor.reddish.rawValue)
         let resolvedColor = MemberColor.resolve(code: decodedPing.colorCode, initials: decodedPing.senderInitials)
-        #expect(resolvedColor == .neonPink)
+        #expect(resolvedColor == .reddish)
 
         // 2. SOSPayload roundtrip with explicit MemberColor
         let sos = SOSPayload(
@@ -434,16 +445,16 @@ struct PacketCodecTests {
             senderInitials: "ALX",
             emergencyType: .medical,
             batteryLevel: 65,
-            colorCode: MemberColor.electricPurple.rawValue
+            colorCode: MemberColor.orangeSalmon.rawValue
         )
         let sosData = sos.serialize()
         #expect(sosData.count == 30)
-        #expect(sosData[22] == MemberColor.electricPurple.rawValue)
+        #expect(sosData[22] == MemberColor.orangeSalmon.rawValue)
 
         let decodedSOS = try SOSPayload.deserialize(from: sosData)
-        #expect(decodedSOS.colorCode == MemberColor.electricPurple.rawValue)
+        #expect(decodedSOS.colorCode == MemberColor.orangeSalmon.rawValue)
         let resolvedSOSColor = MemberColor.resolve(code: decodedSOS.colorCode, initials: decodedSOS.senderInitials)
-        #expect(resolvedSOSColor == .electricPurple)
+        #expect(resolvedSOSColor == .orangeSalmon)
 
         // 3. Backward Compatibility: Legacy zero-padded packet (colorCode == 0x00)
         let legacyPing = LocationPingPayload(
@@ -472,7 +483,7 @@ struct PacketCodecTests {
 
         // 5. Selectable Palette Integrity
         let selectable = MemberColor.selectableColors
-        #expect(selectable.count == 8)
+        #expect(selectable.count == 9)
         #expect(!selectable.contains(.unset))
     }
 
@@ -492,12 +503,12 @@ struct PacketCodecTests {
             ChatTestCase(initials: "AB", text: "Stage 2"),
             ChatTestCase(initials: "DNA", text: "Beer? Stage 2 - OMW"),
             ChatTestCase(initials: "ALX", text: "12345678901234567890"),
-            ChatTestCase(initials: "SAM", text: ChatMessagePayload.presetBeerLine),
-            ChatTestCase(initials: "BOB", text: ChatMessagePayload.presetAtMainStage),
-            ChatTestCase(initials: "CHA", text: ChatMessagePayload.presetRestroom),
-            ChatTestCase(initials: "DAN", text: ChatMessagePayload.presetWhereAreYou),
-            ChatTestCase(initials: "EVE", text: ChatMessagePayload.presetOnMyWay),
-            ChatTestCase(initials: "FRANK", text: ChatMessagePayload.presetLost)
+            ChatTestCase(initials: "SAM", text: ChatMessagePayload.presetINeedHelp),
+            ChatTestCase(initials: "BOB", text: ChatMessagePayload.presetWhereAreYou),
+            ChatTestCase(initials: "CHA", text: ChatMessagePayload.presetImSafe),
+            ChatTestCase(initials: "DAN", text: ChatMessagePayload.presetAtTheShelter),
+            ChatTestCase(initials: "EVE", text: ChatMessagePayload.presetIveArrived),
+            ChatTestCase(initials: "FRANK", text: ChatMessagePayload.presetOnMyWay)
         ]
     )
     func chatMessagePayloadSerializationRoundtrip(testCase: ChatTestCase) throws {
@@ -645,7 +656,7 @@ struct PacketCodecTests {
     @Test("Chat wire packet 56-byte layout and ChaCha20-Poly1305 AEAD sealing")
     func chatMessageWirePacketRoundtripAndCryptoAEAD() throws {
         let key = SymmetricKey(size: .bits256)
-        let sessionId: UInt16 = 0xCAFE
+        let sessionId: UInt32 = 0xCAFEEE
         let sequenceNumber: UInt32 = CleartextEnvelope.makeSequenceNumber(memberSlot: 5, counter: 101)
 
         let envelope = CleartextEnvelope(
@@ -726,7 +737,7 @@ struct PacketCodecTests {
             senderInitials: "DNA",
             batteryLevel: 92,
             heading: 240,
-            colorCode: MemberColor.skyBlue.rawValue
+            colorCode: MemberColor.sandrift.rawValue
         )
 
         let data = ping.serialize()
@@ -737,7 +748,7 @@ struct PacketCodecTests {
         #expect(InitialsCodec.decode(initialBytes) == "DNA")
         #expect(data[15] == 92)
         #expect(data[16] == 240)
-        #expect(data[17] == MemberColor.skyBlue.rawValue)
+        #expect(data[17] == MemberColor.sandrift.rawValue)
 
         let reservedSlice = data.subdata(in: 18..<30)
         #expect(reservedSlice.count == 12)
@@ -752,7 +763,7 @@ struct PacketCodecTests {
         #expect(decoded.senderInitials == "DNA")
         #expect(decoded.batteryLevel == 92)
         #expect(decoded.heading == 240)
-        #expect(decoded.colorCode == MemberColor.skyBlue.rawValue)
+        #expect(decoded.colorCode == MemberColor.sandrift.rawValue)
 
         let truncated = data.prefix(29)
         #expect(throws: PacketCodecError.bufferUnderflow) {
@@ -772,14 +783,14 @@ struct PacketCodecTests {
     @Test(
         "Regression test across all 8 PacketTypes",
         arguments: [
-            PacketTypeMapping(type: .locationPing, rawByte: 0x01, byte0: 0x31),
-            PacketTypeMapping(type: .sos, rawByte: 0x02, byte0: 0x32),
-            PacketTypeMapping(type: .meetingUpdate, rawByte: 0x03, byte0: 0x33),
-            PacketTypeMapping(type: .routeReq, rawByte: 0x04, byte0: 0x34),
-            PacketTypeMapping(type: .routeResp, rawByte: 0x05, byte0: 0x35),
-            PacketTypeMapping(type: .ack, rawByte: 0x06, byte0: 0x36),
-            PacketTypeMapping(type: .chatMessage, rawByte: 0x07, byte0: 0x37),
-            PacketTypeMapping(type: .uwbTokenExchange, rawByte: 0x08, byte0: 0x38)
+            PacketTypeMapping(type: .locationPing, rawByte: 0x01, byte0: 0x11),
+            PacketTypeMapping(type: .sos, rawByte: 0x02, byte0: 0x12),
+            PacketTypeMapping(type: .meetingUpdate, rawByte: 0x03, byte0: 0x13),
+            PacketTypeMapping(type: .routeReq, rawByte: 0x04, byte0: 0x14),
+            PacketTypeMapping(type: .routeResp, rawByte: 0x05, byte0: 0x15),
+            PacketTypeMapping(type: .ack, rawByte: 0x06, byte0: 0x16),
+            PacketTypeMapping(type: .chatMessage, rawByte: 0x07, byte0: 0x17),
+            PacketTypeMapping(type: .sosResolved, rawByte: 0x08, byte0: 0x18)
         ]
     )
     func packetTypesRegression(mapping: PacketTypeMapping) throws {

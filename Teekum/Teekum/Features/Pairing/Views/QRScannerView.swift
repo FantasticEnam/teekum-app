@@ -6,9 +6,11 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct QRScannerView: View {
     var isEnabled = false
+    var onCodeScanned: @MainActor @Sendable (String) -> Void = { _ in }
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
@@ -16,32 +18,38 @@ struct QRScannerView: View {
     @State private var cameraMessage: String?
 
     var body: some View {
-        ZStack {
-            Color.black
-            if isEnabled {
-                CameraPreviewView(session: scanner.session)
-                    .accessibilityLabel("Camera preview")
-                if let cameraMessage {
-                    VStack(spacing: 12) {
-                        Text(cameraMessage)
-                        Button("Open Settings", action: openSettings)
-                            .foregroundStyle(Color.yellowProfile)
-                    }
-                    .font(.custom("Charter-Roman", size: 14, relativeTo: .body))
-                    .multilineTextAlignment(.center)
-                    .padding(24)
-                    .background(.black.opacity(0.8))
+        Group {
+            if isEnabled, let cameraMessage {
+                VStack(spacing: 8) {
+                    Text(cameraMessage)
+                    Button("Open Settings", action: openSettings)
+                        .foregroundStyle(Color.yellowProfile)
                 }
-            } else {
+                .padding(8)
+                .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
+            } else if !isEnabled {
                 Text("Enter your initials to enable the camera.")
-                    .font(.custom("Charter-Roman", size: 14, relativeTo: .body))
-                    .multilineTextAlignment(.center)
-                    .padding(24)
                     .opacity(0.5)
+            } else {
+                Color.clear
             }
         }
+        .font(.custom("Futura", size: 14, relativeTo: .body))
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .foregroundStyle(.white)
-        .frame(height: 300)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: 255, maxHeight: 255)
+        .background {
+            if isEnabled {
+                CameraPreviewView(session: scanner.session)
+                    .accessibilityLabel("Group QR code scanner")
+            } else {
+                Color.black
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay {
             RoundedRectangle(cornerRadius: 14)
@@ -52,7 +60,7 @@ struct QRScannerView: View {
                 scanner.stop()
                 return
             }
-            let message = await scanner.start()
+            let message = await scanner.start(onCodeScanned: onCodeScanned)
             guard !Task.isCancelled else { return }
             cameraMessage = message
         }

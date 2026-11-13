@@ -8,16 +8,15 @@
 import SwiftUI
 
 struct OrbitUserMarkerView: View {
+    let color: Color
     var heading: Angle? = nil
+    var isEmergency = false
 
     var body: some View {
         Circle()
-            .fill(Color.greyProfile)
+            .fill(color)
             .frame(width: 30, height: 30)
-            .shadow(
-                color: Color.greyProfile.opacity(1),
-                radius: 8
-            )
+            .shadow(color: color, radius: 8)
             .overlay {
                 if let heading {
                     Image(systemName: "location.north.fill")
@@ -33,26 +32,24 @@ struct OrbitUserMarkerView: View {
             }
             .overlay(alignment: .bottom) {
                 Text("YOU")
-                    .font(.custom("Charter-Roman", size: 13, relativeTo: .caption))
+                    .font(.custom("Futura", size: 13, relativeTo: .caption))
                     .fontWeight(.semibold)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(.black, in: .rect(cornerRadius: 6))
+                    .background(isEmergency ? Color.alertRed : .black, in: .rect(cornerRadius: 6))
                     .fixedSize()
                     .offset(y: 40)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Your position")
             .accessibilityValue(
-                heading == nil
-                    ? "Direction unavailable"
-                    : "Direction available"
+                isEmergency ? "SOS active" : (heading == nil ? "Direction unavailable" : "Direction available")
             )
     }
 }
 
 #Preview {
-    OrbitUserMarkerView(heading: .degrees(0))
+    OrbitUserMarkerView(color: .yellowProfile, heading: .degrees(0))
         .padding(100)
         .background(.black)
 }
