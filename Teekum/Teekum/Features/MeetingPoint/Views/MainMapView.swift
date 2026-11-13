@@ -10,16 +10,18 @@ import MapKit
 
 public struct MainMapView: View {
     @State private var viewModel: MeetingPointViewModel
+    var location: LocationService? = nil
     @Environment(\.dismiss) private var dismiss
 
-    public init(sessionStore: SessionStore, meetingService: MeetingPointService? = nil) {
-        _viewModel = State(initialValue: MeetingPointViewModel(sessionStore: sessionStore, meetingService: meetingService))
+    public init(sessionStore: SessionStore, meetingService: MeetingPointService? = nil, location: LocationService? = nil) {
+            _viewModel = State(initialValue: MeetingPointViewModel(sessionStore: sessionStore, meetingService: meetingService))
+            self.location = location
     }
     
     public var body: some View {
         ZStack(alignment: .bottom){
             // MAP Section
-            MapLayerView(viewModel: viewModel)
+            MapLayerView(viewModel: viewModel, location: location)
             
             VStack {
                 HStack {
