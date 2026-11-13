@@ -136,9 +136,6 @@ public final class PacketRouter {
             guard isActive else { return }
             await onChat(inbound)
             await relayMeshPacketIfNeeded(inbound, for: session)
-
-        case .uwbTokenExchange:
-            break
         }
     }
 

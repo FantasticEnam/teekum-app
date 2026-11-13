@@ -60,8 +60,7 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 | routeResp | 0x05 | 0x15 | RouteRespPayload |
 | ack | 0x06 | 0x16 | ACKPayload |
 | chatMessage | 0x07 | 0x17 | ChatMessagePayload |
-| uwbTokenExchange | 0x08 | 0x18 | Enum case exists; no dedicated payload implementation/complete UWB flow located. |
-| sosResolved | 0x09 | 0x19 | SOSResolvedPayload |
+| sosResolved | 0x08 | 0x18 | SOSResolvedPayload |
 
 ## 3. Field Encoding
 
@@ -111,7 +110,7 @@ Sources are in `Core/Packets/Payloads/`.
 
 SOSType currently declares general=0, medical=1, separated=2, security=3 and inactivity=4. A declared inactivity code is not an enabled/validated automatic safety feature. UI hold currently uses 1.5 s; configuration contains 3 s. Those values do not change byte layout and still need product reconciliation.
 
-#### SOSResolvedPayload — 0x09
+#### SOSResolvedPayload — 0x08
 
 | Payload bytes | Field |
 | :--- | :--- |
@@ -207,5 +206,5 @@ A valid encrypted fixture must declare test-only key/input data and use the actu
 1. Compare with the frozen legacy revision; record unknown/missing payload helpers and behaviors. The current source inventory cannot prove full migration.
 2. Resolve SID width, unique identity/counter/key lifecycle and all consumers together. Do not silently enable the old 54-byte proposal or reuse reserved bytes without compatibility review.
 3. Validate untrusted bounds, timestamps, enum/initials decoding, padding and UTF-8 at the agreed boundary before mutating state. Serialization helpers are not a complete security pipeline.
-4. Verify actual roundtrips across both existing codec/envelope paths, SID boundary values, boundary coordinates, wrong sizes, all packet types and authenticated tampering. UWB is currently an enum without a complete payload flow; do not claim eight working feature payloads.
+4. Verify actual roundtrips across both existing codec/envelope paths, SID boundary values, boundary coordinates, wrong sizes, all packet types and authenticated tampering.
 5. Record tests actually run at the current revision. Use the focused XCTest and optional parity targets. UI testing remains developer-managed.

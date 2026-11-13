@@ -179,3 +179,16 @@ struct FriendListSheet: View {
     )
     .preferredColorScheme(.dark)
 }
+
+#Preview("Friend with active SOS") {
+    let store = SessionStore.preview
+    store.setEmergency(true, for: "ADI")
+
+    return FriendListSheet(
+        sessionStore: store,
+        onAddFriend: {},
+        onSelectMember: { _ in },
+        onLeaveGroup: {}
+    )
+    .preferredColorScheme(.dark)
+}

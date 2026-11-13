@@ -176,7 +176,7 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
             return item
         }
         
-        let isUrgent = [.sos, .ack, .meetingUpdate, .uwbTokenExchange, .sosResolved].contains(packetType)
+        let isUrgent = [.sos, .ack, .meetingUpdate, .sosResolved].contains(packetType)
         
         if isUrgent {
             guard urgentLane.count < maxUrgentCapacity else {

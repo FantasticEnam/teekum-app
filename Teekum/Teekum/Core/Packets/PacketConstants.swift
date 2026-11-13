@@ -21,9 +21,6 @@ nonisolated public enum PacketConstants {
     public static var chatHopLimit: UInt8 {
         get { MeepoConfiguration.Network.chatHopLimit }
     }
-    public static var uwbHopLimit: UInt8 {
-        get { MeepoConfiguration.Network.uwbHopLimit }
-    }
     public static var maxHopLimit: UInt8 {
         get { MeepoConfiguration.Network.maxHopLimit }
     }

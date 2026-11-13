@@ -52,9 +52,6 @@ nonisolated public enum MeepoConfiguration {
         /// Tuneable independently to control text propagation radius and conserve festival airtime (default: 8).
         public static let chatHopLimit: UInt8 = 8
         
-        /// Strict 1-hop limit for Ultra-Wideband token exchange packets (default: 1).
-        public static let uwbHopLimit: UInt8 = 1
-        
         /// High-reach hop limit for Group Rendezvous / Meeting Point updates (Type 0x03) (default: 15).
         public static let meetingPointHopLimit: UInt8 = 15
         
@@ -198,15 +195,6 @@ nonisolated public enum MeepoConfiguration {
     public enum Navigation {
         /// Outer polar boundary radius rendered on Tactical Radar (default: 60.0m).
         public static let tacticalRadarRangeMeters: Double = 60.0
-        
-        /// Proximity threshold where Tactical Radar transitions to Ultra-Wideband (default: 6.0m).
-        public static let uwbTransitionDistanceMeters: Double = 6.0
-        
-        /// Maximum physical range of Apple Ultra-Wideband U1/U2 chips (default: 8.0m).
-        public static let uwbMaxRangingDistanceMeters: Double = 8.0
-        
-        /// Inactivity timeout before an idle UWB session is torn down to preserve battery (default: 30.0s).
-        public static let uwbSessionTimeoutSeconds: Double = 30.0
         
         /// Field of view angle for attendee heading vision cones on map (default: 50.0 degrees).
         public static let visionConeFOV: Double = 50.0

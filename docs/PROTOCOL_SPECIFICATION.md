@@ -16,7 +16,7 @@ All offsets are zero-based and inclusive. Multi-byte values are big-endian.
 | 10..39 | 30 ciphertext bytes. |
 | 40..55 | 16 Poly1305 tag bytes. |
 
-`Core/Packets/RawWirePacket.swift` assembles and parses the frame using `CleartextEnvelope.swift`. Envelope encoding and decoding use the full 24-bit SID (`UInt32` masked to `0x00FFFFFF`); note that the frozen `f4c6393` prototype uses a 16-bit `UInt16` SID with byte 3 zeroed, so session IDs `> 0xFFFF` (including `defaultSessionId = 0x7E3AF5`) do not wire-interoperate with unmodified `f4c6393` builds. The old 54-byte proposals are not compatibility modes. See [Payload guide](PAYLOAD_GUIDE.md) for actual fields. UWB token exchange remains a type code without a connected payload flow.
+`Core/Packets/RawWirePacket.swift` assembles and parses the frame using `CleartextEnvelope.swift`. Envelope encoding and decoding use the full 24-bit SID (`UInt32` masked to `0x00FFFFFF`); note that the frozen `f4c6393` prototype uses a 16-bit `UInt16` SID with byte 3 zeroed, so session IDs `> 0xFFFF` (including `defaultSessionId = 0x7E3AF5`) do not wire-interoperate with unmodified `f4c6393` builds. The old 54-byte proposals are not compatibility modes. See [Payload guide](PAYLOAD_GUIDE.md) for actual fields.
 
 ## Key, AAD and nonce
 
@@ -39,7 +39,7 @@ Member slots still use the prototype's initials-derived eight bits. Two devices 
 - Hop count is mutable. The tag cannot establish the actual distance or prevent a forwarder from changing hop count. Budget, hop and dedup rules are separate controls.
 - Own-group content is authenticated before shared state, chat/SOS alerts or ACKs. Chat and ACK have a 600-second age bound; duplicates of authenticated chat/SOS can re-ACK without a second presentation. Location updates keep the original measurement time; an older measurement cannot replace a newer one.
 - An SOS measurement timestamp is not the send time. Epoch/255 accuracy denotes the prototype's no-GPS fallback and still produces a receiver alert; the UI does not plot that fallback as a location.
-- SOS resolution (`0x09`) uses the same 56-byte frame and sequence allocator. A valid group tag, matching sender slot, sender initials and original event ID are required to clear that event. Resolution received before its SOS suppresses a later alert for that event during the same session. The shared group key still permits a holder to impersonate a member. Older builds reject the new packet type.
+- SOS resolution (`0x08`) uses the same 56-byte frame and sequence allocator. A valid group tag, matching sender slot, sender initials and original event ID are required to clear that event. Resolution received before its SOS suppresses a later alert for that event during the same session. The shared group key still permits a holder to impersonate a member. Builds using the previous SOS resolution code (`0x09`) cannot synchronize resolution with this build.
 - Blind foreign relay does not authenticate ciphertext. The prototype's same-SID opaque SOS fallback remains: a failed tag may still be forwarded within hop/dedup rules, but does not enter group state or alert/ACK handling. Review this rule together with SID collisions.
 - Replay checks use the router’s `SeenPacketCache` and the feature engines’ deduplication and age rules. Leave clears their in-memory state. In particular, a captured authenticated SOS can be accepted again after that state is cleared if the same key is rejoined. Do not claim persistent replay protection.
 

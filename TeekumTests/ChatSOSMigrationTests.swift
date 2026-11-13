@@ -247,6 +247,7 @@ final class ChatSOSMigrationTests: XCTestCase {
         let broadcasts = await transport.broadcasts
         let wire = try XCTUnwrap(broadcasts.last)
         XCTAssertEqual(wire.count, 56)
+        XCTAssertEqual(wire.first, 0x18)
         let opened = try await crypto.openWireBytes(wire, using: SymmetricKey(data: session.symmetricKeyData))
         XCTAssertEqual(opened.envelope.type, .sosResolved)
         XCTAssertEqual(opened.envelope.memberSlot, session.memberSlot)
