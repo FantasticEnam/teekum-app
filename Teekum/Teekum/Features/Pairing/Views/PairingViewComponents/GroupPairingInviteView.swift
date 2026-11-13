@@ -8,7 +8,12 @@
 import SwiftUI
 
 struct GroupPairingInviteView: View {
+    let session: GroupSession
+    @State private var qrImage: UIImage?
+
     var body: some View {
+        let inviteURL = session.inviteURL()
+        let groupName = session.sessionName
         VStack(spacing: 0) {
             Text("Scan this barcode to join private\ngroup with zero cell reception")
                 .font(.custom("Charter-Roman", size: 12, relativeTo: .caption))
@@ -16,20 +21,35 @@ struct GroupPairingInviteView: View {
                 .lineSpacing(3)
                 .padding(.bottom, 12)
 
-            // Static artwork
-            Image("pairing_qr_placeholder")
-                .resizable()
-                .interpolation(.none)
-                .scaledToFit()
-                .frame(width: 166, height: 166)
-                .accessibilityLabel("Group invitation QR code placeholder")
-                .padding(.bottom, 20)
+            if let qrImage {
+                Image(uiImage: qrImage)
+                    .resizable()
+                    .interpolation(.none)
+                    .scaledToFit()
+                    .frame(width: 166, height: 166)
+                    .padding(10)
+                    .background(.white)
+                    .accessibilityLabel("Group invitation QR code")
+                    .padding(.bottom, 10)
+            } else {
+                ContentUnavailableView("QR unavailable", systemImage: "qrcode")
+                    .frame(height: 186)
+            }
 
-            Button(action: shareInviteLink) {
-                Text("Share Invite Link")
-                    .font(.custom("Charter-Bold", size: 14, relativeTo: .subheadline))
-                    .frame(minWidth: 180, minHeight: 32)
-                    .background(Color(white: 0.11), in: Capsule())
+            Label("Key fingerprint \(session.keyFingerprint)", systemImage: "lock.shield")
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.white.opacity(0.08), in: Capsule())
+                .padding(.bottom, 16)
+
+            ShareLink(
+                item: inviteURL,
+                subject: Text("Join \(groupName) on Meepo"),
+                message: Text("Join my group on Meepo: \(groupName)")) {
+                PairingCardPillLabel(title: "Share Invite Link")
             }
             .buttonStyle(.plain)
         }
@@ -41,15 +61,23 @@ struct GroupPairingInviteView: View {
             RoundedRectangle(cornerRadius: 14)
                 .strokeBorder(Color(white: 0.28), lineWidth: 1)
         }
+        .task(id: inviteURL) { qrImage = QRCodeGenerator.image(for: inviteURL) }
     }
+}
 
-    private func shareInviteLink() {
-        // UI only. Invite sharing will be connected separately.
+struct PairingCardPillLabel: View {
+    let title: LocalizedStringKey
+
+    var body: some View {
+        Text(title)
+            .font(.custom("Charter-Bold", size: 14, relativeTo: .subheadline))
+            .frame(minWidth: 180, minHeight: 32)
+            .background(Color(white: 0.11), in: Capsule())
     }
 }
 
 #Preview {
-    GroupPairingInviteView()
+    GroupPairingInviteView(session: GroupSession(localInitials: "NIC"))
         .padding(42)
         .background(.black)
         .preferredColorScheme(.dark)

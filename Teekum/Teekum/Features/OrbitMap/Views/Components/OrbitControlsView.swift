@@ -10,6 +10,8 @@ import SwiftUI
 struct OrbitControlsView: View {
     let onSOS: () -> Void
     let onExpand: () -> Void
+    var onChat: () -> Void = {}
+    var unreadCount = 0
     var bottomInset: CGFloat = 0
     
     var body: some View {
@@ -39,9 +41,7 @@ struct OrbitControlsView: View {
             
             Spacer()
             
-            Button {
-                print("Message Tapped")
-            } label: {
+            Button(action: onChat) {
                 Image(systemName: "message.fill")
                     .font(.system(size: 30, weight: .semibold))
 //                    .frame(width: 62, height: 62)
@@ -50,6 +50,16 @@ struct OrbitControlsView: View {
             .buttonBorderShape(.circle)
             .controlSize(.large)
             .accessibilityLabel("Open Group Chat")
+            .accessibilityValue("\(unreadCount) unread messages")
+            .overlay(alignment: .topTrailing) {
+                if unreadCount > 0 {
+                    Text("\(unreadCount)")
+                        .font(.caption2.bold())
+                        .padding(5)
+                        .background(Color.alertRed, in: .circle)
+                        .accessibilityHidden(true)
+                }
+            }
         }
 
     }

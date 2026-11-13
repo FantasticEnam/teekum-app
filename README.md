@@ -2,9 +2,7 @@
 
 An iPhone app that helps friends find each other at concerts and festivals when internet connectivity is weak or unavailable. Developed by **Fantasix** using **SwiftUI**, with a target **Feature-Driven MVVM** architecture and a minimum deployment target of **iOS 27.0**.
 
-Planned features include private groups through QR codes or invite links, peer-to-peer location and status sharing, maps and meeting points, friend finding, and SOS alerts. Multi-hop mesh relaying is planned for a later phase.
-
-**Repository status:** a single iPhone app starter displaying “Hello, world!”. The planned features, feature-driven folder structure, Widget Extension, and test targets are not implemented in this starter. The five core documents define the team starting point. Legacy prototype logs, completion reports and checklists have been removed; feature documentation and verification evidence will be written by the developers as implementation proceeds.
+The app connects private QR/invite groups and a public festival mesh to Orbit, location, meeting points, chat and SOS. See [Session migration](docs/features/session-migration.md) for the prototype baseline, XCTest coverage and remaining device checks.
 
 ## Prerequisites
 
@@ -54,11 +52,11 @@ xcodegen generate --spec project.yml
 open Teekum.xcodeproj
 ```
 
-The output is **`Teekum.xcodeproj` at the repository root**. Select the **Teekum** scheme, choose an iPhone simulator running iOS 27+, and press **Run** (`⌘R`). The expected initial screen displays “Hello, world!”.
+The output is **`Teekum.xcodeproj` at the repository root**. Select the **Teekum** scheme, choose an iPhone simulator running iOS 27+, and press **Run** (`⌘R`). On a fresh install the app opens Pairing. An existing saved group can be restored from device-only Keychain and local metadata.
 
-For a physical device, select the **Teekum target → Signing & Capabilities**, set your Development Team, and choose a compatible iPhone. If signing requires a different bundle identifier, adjust `PRODUCT_BUNDLE_IDENTIFIER` through the configuration agreed on by the team.
+For a physical device, set your Development Team for **Teekum** and **TeekumWidgets** in Signing & Capabilities, and choose a compatible iPhone. If signing requires a different bundle identifier, adjust `PRODUCT_BUNDLE_IDENTIFIER` through the configuration agreed on by the team.
 
-The starter does not use external Swift packages, CocoaPods, a backend, or cloud-service configuration. Running the initial UI does not require `pod install` or service credentials. Location, local network, camera, and motion permissions for the planned features are not configured yet.
+No external Swift packages, CocoaPods or backend credentials are required. The app requests camera, local network, Bluetooth, location, motion and notification permissions as needed.
 
 ### 4. Regenerate After Configuration Changes
 
@@ -71,25 +69,24 @@ Regenerate after changing `project.yml`, adding/removing/moving source files, or
 
 Use **`project.yml` as the source of truth for shared configuration**. Commit source and YAML changes; the generated `.xcodeproj` is ignored by `.gitignore`. Target or scheme changes made only in Xcode may be lost when the project is regenerated.
 
-## Repository Structure
+## Source and XCTest
 
-```text
-teekum-app/
-├── project.yml                 // XcodeGen configuration: Teekum target, scheme, sources and iOS 27 minimum
-├── Teekum/Teekum/
-│   ├── TeekumApp.swift         // Starter app entry point
-│   ├── ContentView.swift       // Initial “Hello, world!” screen
-│   └── Assets.xcassets/        // App icon and color assets
-├── docs/                       // Five core planning and technical references
-├── README.md                   // Overview, setup and documentation reading guide
-└── LICENSE                     // MIT License
+`Teekum/Teekum/App` composes the session. `Core` owns shared services and contracts; `Features` owns UI and feature logic; `Shared/UI` contains reusable presentation. `TeekumWidgets` contains the Live Activity companion. `TeekumTests` contains the focused XCTest suite.
+
+Use the **Teekum** scheme to run destination XCTest on an iOS simulator. Leave local simulator signing enabled for the Keychain cases. To compare the same tests with the clean sibling `TeeKum-Prototype` at `f4c6393`:
+
+```sh
+xcodegen generate --spec project-parity.yml
+xcodebuild -project Teekum.xcodeproj -scheme TeekumParity \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
+  CODE_SIGN_IDENTITY=- test
 ```
 
-The current source layout does not yet follow the target structure. File names, feature/core folders, responsibility comments, `Models/Enums/` conventions, and the proposed four-developer ownership split are documented in [Technical Requirements — Architecture](docs/TechnicalRequirements.md#3-architecture--mvvm-feature-driven).
+The standalone project uses `project.yml` and does not require the sibling prototype. No UI test target is configured.
 
 ## Where to Start Reading the Docs
 
-1. **[TechnicalRequirements.md](docs/TechnicalRequirements.md)** — read Section 1 for product intent, Section 3 for architecture/file placement and the four-developer split, Section 7 for open decisions, and Section 5 for the Git workflow.
+1. Start at the **[Feature Map](docs/TechnicalRequirements.md#33-feature-map)** to find the entry point, logic owner and XCTest for each feature. The Technical Requirements also cover team ownership and Git workflow.
 2. **[agent.md](docs/agent.md)** — read the working rules, owner/reviewer workflow and feature documentation convention before starting implementation.
 3. **Read the technical reference for your scope:** NETWORKING for discovery/transport, PAYLOAD_GUIDE for fields/encoding, and PROTOCOL_SPECIFICATION for cryptography and validation. Resolve conflicting details through the owner/reviewer decisions in Technical Requirements Section 7 before implementing them.
 
@@ -99,11 +96,11 @@ The current source layout does not yet follow the target structure. File names, 
 | :--- | :--- |
 | [TechnicalRequirements.md](docs/TechnicalRequirements.md) | Product intent, stack, Feature-Driven MVVM file tree, four-developer ownership, verification plan, Git workflow and open team decisions. |
 | [agent.md](docs/agent.md) | Developer/agent working rules, feature boundaries, collaboration and documentation handoff. |
-| [NETWORKING.md](docs/NETWORKING.md) | Draft peer discovery, connection lifecycle, framing, queues and diagnostics reference. |
-| [PAYLOAD_GUIDE.md](docs/PAYLOAD_GUIDE.md) | Draft payload field/byte breakdowns, encoding and worked message examples. |
-| [PROTOCOL_SPECIFICATION.md](docs/PROTOCOL_SPECIFICATION.md) | Draft wire/security reference covering AEAD, nonce, AAD, key lifecycle and rejection rules. |
+| [NETWORKING.md](docs/NETWORKING.md) | Peer discovery, connection lifecycle, framing, queues and diagnostics. |
+| [PAYLOAD_GUIDE.md](docs/PAYLOAD_GUIDE.md) | V3 byte layouts, encoding and message examples. |
+| [PROTOCOL_SPECIFICATION.md](docs/PROTOCOL_SPECIFICATION.md) | V3 AEAD, nonce, AAD, key lifecycle and replay rules. |
 
-The technical references retain design material for review; they are not proof of implemented or verified features. Packet size/version, transport and identity/security rules still need reconciliation. Use [Open Team Decisions](docs/TechnicalRequirements.md#7-open-team-decisions) to resolve them with the responsible owners and update the affected references together.
+Use [Session migration](docs/features/session-migration.md) for verification evidence and [Open Team Decisions](docs/TechnicalRequirements.md#7-open-team-decisions) for the remaining protocol questions.
 
 ### Starting Work as a Team
 
@@ -123,15 +120,15 @@ Developers document their delivered scope as work proceeds. Add a concise `docs/
 | Development Team/provisioning is missing | Configure signing for physical devices; use a simulator for the initial UI if no team is available. |
 | Swift language version is unsupported | Check the active Xcode/toolchain; the YAML selects Swift 6 language mode. |
 | Configuration changes disappear | Keep shared configuration in `project.yml`, then regenerate. |
-| QR, maps, permissions or P2P are missing | The starter only displays the initial UI; these features are not implemented in this repository yet. |
+| QR scanning or peer discovery fails | Check the relevant camera, local-network or Bluetooth permission on the iPhone. Use physical phones for radio verification. |
 
 ## Contribution & Verification
 
-Create `feat/*` branches from `develop` and merge changes back through PRs. `develop` runs CI checks only. Promote release candidates to `main` through a PR for TestFlight distribution and App Store release. The four-developer scope and reviewer split are in the Architecture section. Use commit prefixes such as `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, or `test:`. [Git Workflow](docs/TechnicalRequirements.md#5-git-workflow)
+Create `f/ui/*` or `f/logic/*` branches from `develop` and merge changes back through PRs. `develop` runs CI checks only. Promote release candidates to `main` through a PR for TestFlight distribution and App Store release. The four-developer scope and reviewer split are in the Architecture section. Use commit prefixes such as `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, or `test:`. [Git Workflow](docs/TechnicalRequirements.md#5-git-workflow)
 
 Read the requirements and open decisions before adding frameworks, permissions, or protocol changes. Include the scope, rationale and actual verification results in your PR; update the relevant specification or feature note as needed. Do not record group keys or private location data.
 
-`project.yml` currently defines only the app and build scheme; there is no test target. Successful generation or compilation does not mean tests have run. Future radio, location and background testing will require physical iPhones; use the simulator for UI and logic that can be tested without physical radios.
+`project.yml` defines the app, widget and XCTest targets. Run the `Teekum` scheme’s test action for logic checks. Use physical iPhones for radio, location and background verification.
 
 ## License
 

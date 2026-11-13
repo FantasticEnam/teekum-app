@@ -12,17 +12,20 @@ enum PairingProfileColor: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
-    var color: Color {
+    var wireColorCode: UInt8 { memberColor.rawValue }
+    var color: Color { memberColor.swiftUIColor }
+
+    private var memberColor: MemberColor {
         switch self {
-        case .red: .redProfile
-        case .peach: .peachProfile
-        case .orange: .orangeProfile
-        case .cream: .creamProfile
-        case .gray: .greyProfile
-        case .white: .whiteProfile
-        case .blue: .blueProfile
-        case .green: .greenProfile
-        case .yellow: .yellowProfile
+        case .red: .reddish
+        case .peach: .orangeSalmon
+        case .orange: .artyClickOrange
+        case .cream: .apricot
+        case .gray: .sandrift
+        case .white: .paleBlueLily
+        case .blue: .darkSkyBlue
+        case .green: .greenishTeal
+        case .yellow: .yellow
         }
     }
 }

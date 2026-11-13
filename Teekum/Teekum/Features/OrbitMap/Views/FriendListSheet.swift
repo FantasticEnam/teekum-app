@@ -21,17 +21,6 @@ struct FriendListSheet: View {
     @ScaledMetric(relativeTo: .title2)
     private var cellWidth = 66
     
-    // temporary palette, share the color contract with orbit markers during integration.
-    private static let colors: [Color] = [
-        .peachProfile,
-        .orangeProfile,
-        .redProfile,
-        .greyProfile,
-        .whiteProfile,
-        .blueProfile,
-        .creamProfile
-    ]
-    
     init(
         sessionStore: SessionStore,
         onAddFriend: @escaping () -> Void,
@@ -134,13 +123,11 @@ struct FriendListSheet: View {
                             } label: {
                                 FriendListMemberView(
                                     member: member,
-                                    color: Self.colors[
-                                        Int(member.id.memberSlot)
-                                        % Self.colors.count
-                                    ]
+                                    color: member.color.swiftUIColor
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityHint("Show this friend on the Orbit radar")
                         }
                     }
                     .padding(.horizontal, 32)

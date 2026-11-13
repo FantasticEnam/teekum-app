@@ -8,16 +8,14 @@
 import SwiftUI
 
 struct OrbitUserMarkerView: View {
+    let color: Color
     var heading: Angle? = nil
 
     var body: some View {
         Circle()
-            .fill(Color.greyProfile)
+            .fill(color)
             .frame(width: 30, height: 30)
-            .shadow(
-                color: Color.greyProfile.opacity(1),
-                radius: 8
-            )
+            .shadow(color: color, radius: 8)
             .overlay {
                 if let heading {
                     Image(systemName: "location.north.fill")
@@ -52,7 +50,7 @@ struct OrbitUserMarkerView: View {
 }
 
 #Preview {
-    OrbitUserMarkerView(heading: .degrees(0))
+    OrbitUserMarkerView(color: .yellowProfile, heading: .degrees(0))
         .padding(100)
         .background(.black)
 }
