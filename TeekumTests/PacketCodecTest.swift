@@ -483,7 +483,7 @@ struct PacketCodecTests {
 
         // 5. Selectable Palette Integrity
         let selectable = MemberColor.selectableColors
-        #expect(selectable.count == 9)
+        #expect(selectable.count == 5)
         #expect(!selectable.contains(.unset))
     }
 

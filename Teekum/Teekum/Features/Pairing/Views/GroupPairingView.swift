@@ -10,7 +10,6 @@ import UIKit
 
 struct GroupPairingView: View {
     private let sessionStore: SessionStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: PairingViewModel
     @State private var isShowingAgreement = false
     @State private var isProfilePickerVisible = false
@@ -20,21 +19,61 @@ struct GroupPairingView: View {
         viewModel.mode == .create && viewModel.isShowingQR
     }
 
-    private var isEditingCreateForm: Bool {
-        viewModel.mode == .create && !isShowingDraftQR && focusedField != nil
-    }
-
-    private var shouldRaiseGenerateQR: Bool {
-        viewModel.mode == .create && !isShowingDraftQR &&
-            (isEditingCreateForm || viewModel.form.canGenerateQR)
-    }
-
     init(sessionStore: SessionStore, onActivate: (@MainActor (GroupSession) -> Void)? = nil) {
         self.sessionStore = sessionStore
         _viewModel = State(initialValue: PairingViewModel(sessionStore: sessionStore, onActivate: onActivate))
     }
 
     var body: some View {
+        // Keep the form anchored when the keyboard changes the safe area.
+        GeometryReader { _ in
+            pairingContent
+        }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .background {
+            Color.black
+                .ignoresSafeArea()
+                .onTapGesture(perform: dismissEditing)
+        }
+        .preferredColorScheme(.dark)
+        .toolbarVisibility(.hidden, for: .navigationBar)
+        .onChange(of: viewModel.mode, dismissEditing)
+        .onChange(of: sessionStore.pendingInvite, initial: true) { _, invite in
+            if let invite { viewModel.receiveInvite(invite) }
+        }
+        .onChange(of: viewModel.scannedInvite) { _, invite in
+            if invite != nil, viewModel.form.hasValidInitials {
+                dismissEditing()
+                isShowingAgreement = true
+            }
+        }
+        .onChange(of: isShowingAgreement) { _, showing in
+            if !showing { viewModel.cancelPublicFestivalAgreement() }
+        }
+        .navigationDestination(isPresented: $isShowingAgreement) {
+            AgreementView(
+                form: viewModel.form,
+                mode: viewModel.mode,
+                errorMessage: viewModel.errorMessage,
+                isPublicFestivalMesh: viewModel.isPublicFestivalMesh,
+                onAgree: viewModel.activateLocalSession
+            )
+            .navigationTitle("Group Agreement")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Group Agreement")
+                        .font(.custom("Helvetica-Bold", size: 17, relativeTo: .headline))
+                        .accessibilityAddTraits(.isHeader)
+                }
+            }
+            .toolbarVisibility(.visible, for: .navigationBar)
+        }
+    }
+
+    private var pairingContent: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
                 Image("Meepo_logo")
@@ -43,7 +82,7 @@ struct GroupPairingView: View {
                     .frame(height: 20)
                     .frame(width: 70)
                     .padding(.top, 10)
-                    .padding(.bottom, 34)
+                    .padding(.bottom, 14)
 
                 GroupPairingProfileView(
                     profileColor: $viewModel.form.profileColor,
@@ -51,7 +90,12 @@ struct GroupPairingView: View {
                     isProfilePickerVisible: $isProfilePickerVisible,
                     focusedField: $focusedField
                 )
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 10)
+
+                Text("Make sure your initials are NOT the same as anyone else's")
+                    .font(.custom("Helvetica", size: 11, relativeTo: .caption2))
+                    .padding(.bottom, 10)
+
 
                 Picker("Group action", selection: $viewModel.mode) {
                     Text("Create Group").tag(PairingMode.create)
@@ -60,9 +104,9 @@ struct GroupPairingView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .controlSize(.large)
-                .font(.custom("Futura", size: 14, relativeTo: .subheadline))
+                .font(.custom("Helvetica", size: 14, relativeTo: .subheadline))
                 .frame(minHeight: 44)
-                .padding(.bottom, isEditingCreateForm ? 12 : 24)
+                .padding(.bottom ,18)
             }
             .fixedSize(horizontal: false, vertical: true)
             .layoutPriority(1)
@@ -70,7 +114,8 @@ struct GroupPairingView: View {
             VStack(spacing: 0) {
                 if viewModel.mode == .join {
                     Text("Align QR code in frame")
-                        .font(.custom("Helvetica", size: 22, relativeTo: .title2))
+                        .font(.custom("Helvetica", size: 20, relativeTo: .title3))
+                        .bold()
                         .padding(.bottom, 10)
                     QRScannerView(
                         isEnabled: viewModel.form.hasValidInitials && !isShowingAgreement,
@@ -78,30 +123,31 @@ struct GroupPairingView: View {
                     )
                     if let invite = viewModel.scannedInvite {
                         Label(invite.sessionName, systemImage: "checkmark.circle")
-                            .font(.subheadline)
+                            .font(.custom("Helvetica", size: 15, relativeTo: .subheadline))
                             .padding(.top, 12)
                     }
                 } else if let session = viewModel.draftSession {
                     GroupQRCodeView(session: session, isDraft: true)
                 } else {
                     Text("Group Name")
-                        .font(.custom("Futura", size: 20, relativeTo: .title3))
+                        .font(.custom("Helvetica", size: 20, relativeTo: .title3))
                         .bold()
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.bottom, 10)
                     GroupNameField(
                         groupName: $viewModel.form.sessionName,
-                        focusedField: $focusedField
+                        focusedField: $focusedField,
+                        onSubmit: performPrimaryAction
                     )
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: shouldRaiseGenerateQR ? nil : .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.bottom, viewModel.mode == .join || isShowingDraftQR ? 16 : 12)
 
             VStack(spacing: 0) {
                 if let message = viewModel.errorMessage {
                     Text(message)
-                        .font(.footnote)
+                        .font(.custom("Helvetica", size: 13, relativeTo: .footnote))
                         .foregroundStyle(.red)
                         .multilineTextAlignment(.center)
                         .padding(.bottom, 12)
@@ -111,7 +157,7 @@ struct GroupPairingView: View {
                     Button(action: pasteInviteFromClipboard) {
                         HStack(spacing: 8) {
                             Text("Paste link or shared message…")
-                                .font(.custom("Futura", size: 13, relativeTo: .caption))
+                                .font(.custom("Helvetica", size: 13, relativeTo: .caption))
                                 .multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
                             Image(systemName: "doc.on.clipboard")
@@ -137,28 +183,24 @@ struct GroupPairingView: View {
                 .opacity(
                     viewModel.canPerformPrimaryAction ? 1 : 0.9
                 )
+                .padding(.bottom, 10)
 
-                if viewModel.mode == .create && !isShowingDraftQR && !isEditingCreateForm {
-                    Button("Join Public Mesh", action: preparePublicFestivalMesh)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.yellowProfile)
-                        .frame(minHeight: 34)
-                        .disabled(!viewModel.form.hasValidInitials)
+                if viewModel.mode == .create && !isShowingDraftQR {
+//                    Button("Join Public Mesh", action: preparePublicFestivalMesh)
+//                        .font(.custom("Helvetica", size: 15, relativeTo: .subheadline))
+//                        .foregroundStyle(Color.yellowProfile)
+//                        .frame(minHeight: 34)
+//                        .disabled(!viewModel.form.hasValidInitials)
                     Text("Group participants can read messages and locations shared in this group.")
-                        .font(.caption)
+                        .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
             }
-            .padding(.bottom, isEditingCreateForm ? 0 : 16)
+            .padding(.bottom, 16)
             .fixedSize(horizontal: false, vertical: true)
             .layoutPriority(1)
-
-            if shouldRaiseGenerateQR {
-                Spacer(minLength: 0)
-            }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: shouldRaiseGenerateQR)
         .frame(maxWidth: 400)
         .padding(.horizontal, 42)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -166,43 +208,6 @@ struct GroupPairingView: View {
             Color.clear
                 .contentShape(.rect)
                 .onTapGesture(perform: dismissEditing)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.white)
-        .background {
-            Color.black
-                .ignoresSafeArea()
-                .onTapGesture(perform: dismissEditing)
-        }
-        .preferredColorScheme(.dark)
-        .toolbarVisibility(.hidden, for: .navigationBar)
-        .onChange(of: viewModel.mode, dismissEditing)
-        .onChange(of: focusedField) {
-            if focusedField != nil { isProfilePickerVisible = false }
-        }
-        .onChange(of: sessionStore.pendingInvite, initial: true) { _, invite in
-            if let invite { viewModel.receiveInvite(invite) }
-        }
-        .onChange(of: viewModel.scannedInvite) { _, invite in
-            if invite != nil, viewModel.form.hasValidInitials {
-                dismissEditing()
-                isShowingAgreement = true
-            }
-        }
-        .onChange(of: isShowingAgreement) { _, showing in
-            if !showing { viewModel.cancelPublicFestivalAgreement() }
-        }
-        .navigationDestination(isPresented: $isShowingAgreement) {
-            AgreementView(
-                form: viewModel.form,
-                mode: viewModel.mode,
-                errorMessage: viewModel.errorMessage,
-                isPublicFestivalMesh: viewModel.isPublicFestivalMesh,
-                onAgree: viewModel.activateLocalSession
-            )
-            .navigationTitle("Group Agreement")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarVisibility(.visible, for: .navigationBar)
         }
     }
 

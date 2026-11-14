@@ -21,6 +21,8 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
     case darkSkyBlue      = 0x07
     case greenishTeal     = 0x08
     case yellow           = 0x09
+    case purple           = 0x0A
+    case pink             = 0x0B
     
     public var id: UInt8 { rawValue }
     
@@ -36,6 +38,8 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
         case .darkSkyBlue:    return "Dark Sky Blue"
         case .greenishTeal:   return "Greenish Teal"
         case .yellow:         return "Yellow"
+        case .purple:         return "Purple"
+        case .pink:           return "Pink"
         }
     }
         
@@ -45,20 +49,17 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
         case .unset:
             return Color(red: 0.0, green: 0.85, blue: 1.0)
         case .reddish: return .redProfile
-        case .orangeSalmon: return .peachProfile
-        case .artyClickOrange: return .orangeProfile
-        case .apricot: return .creamProfile
-        case .sandrift: return .greyProfile
-        case .paleBlueLily: return .whiteProfile
-        case .darkSkyBlue: return .blueProfile
+        // Retired swatches keep their wire codes so saved and incoming profiles still decode.
+        case .orangeSalmon, .pink: return .pinkProfile
+        case .artyClickOrange, .apricot, .yellow: return .yellowProfile
+        case .sandrift, .paleBlueLily, .darkSkyBlue, .purple: return .purpleProfile
         case .greenishTeal: return .greenProfile
-        case .yellow: return .yellowProfile
         }
     }
     
     /// Explicit profile colors available to select.
     public static var selectableColors: [MemberColor] {
-        allCases.filter { $0 != .unset }
+        [.yellow, .reddish, .greenishTeal, .purple, .pink]
     }
     
     /// Resolves the color code into a specific `MemberColor`.

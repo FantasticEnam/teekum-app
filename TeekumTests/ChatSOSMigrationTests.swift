@@ -12,17 +12,20 @@ import CoreLocation
 
 final class ChatSOSMigrationTests: XCTestCase {
     @MainActor
-    func testChatNameColorsDistinguishYellowFromCreamAcrossV3Payloads() throws {
-        let cream = PairingProfileColor.cream
-        let yellow = PairingProfileColor.yellow
-        XCTAssertEqual(cream.wireColorCode, 0x04)
-        XCTAssertEqual(yellow.wireColorCode, 0x09)
+    func testProfileColorsRoundTripAcrossV3Payloads() throws {
+        let palette = PairingProfileColor.allCases
+        XCTAssertEqual(palette.map(\.wireColorCode), [0x09, 0x01, 0x08, 0x0A, 0x0B])
+        XCTAssertEqual(palette.map(\.wireColorCode), MemberColor.selectableColors.map(\.rawValue))
+        XCTAssertEqual(MemberColor.resolve(code: 0x04, initials: "ALX"), .apricot)
+        XCTAssertEqual(MemberColor.apricot.swiftUIColor, MemberColor.yellow.swiftUIColor)
 
-        let session = GroupSession(localInitials: "ALX", localColorCode: cream.wireColorCode)
+        let session = GroupSession(localInitials: "ALX", localColorCode: PairingProfileColor.purple.wireColorCode)
         let store = SessionStore(activeSession: session)
-        XCTAssertEqual(store.profileColor(for: "ALX"), .apricot)
+        XCTAssertEqual(store.profileColor(for: "ALX"), .purple)
         XCTAssertEqual(store.profileColor(for: "BOB"), .deterministicColor(for: "BOB"))
 
+        let yellow = PairingProfileColor.yellow
+        let pink = PairingProfileColor.pink
         let coordinate = CLLocationCoordinate2D(latitude: 1, longitude: 2)
         let ping = LocationPingPayload(coordinate: coordinate, accuracy: 5, senderInitials: "BOB",
             batteryLevel: 84, colorCode: yellow.wireColorCode).serialize()
@@ -36,10 +39,10 @@ final class ChatSOSMigrationTests: XCTestCase {
         XCTAssertNotEqual(store.profileColor(for: "BOB").swiftUIColor, store.profileColor(for: "ALX").swiftUIColor)
 
         let sos = SOSPayload(coordinate: coordinate, accuracy: 5, sosEventId: 1, senderInitials: "BOB",
-            batteryLevel: 84, colorCode: yellow.wireColorCode).serialize()
+            batteryLevel: 84, colorCode: pink.wireColorCode).serialize()
         XCTAssertEqual(sos.count, 30)
-        XCTAssertEqual(sos[22], 0x09)
-        XCTAssertEqual(try SOSPayload.deserialize(from: sos).colorCode, 0x09)
+        XCTAssertEqual(sos[22], 0x0B)
+        XCTAssertEqual(try SOSPayload.deserialize(from: sos).colorCode, 0x0B)
     }
 
     private let keyData = Data(repeating: 0x42, count: 32)

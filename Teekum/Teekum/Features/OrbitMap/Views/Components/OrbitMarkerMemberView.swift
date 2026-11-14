@@ -52,8 +52,8 @@ struct OrbitMemberMarkerView: View {
 
 #Preview("Normal and SOS markers") {
     HStack(spacing: 64) {
-        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile)
-        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile, isEmergency: true)
+        OrbitMemberMarkerView(initials: "AYU", color: .pinkProfile)
+        OrbitMemberMarkerView(initials: "AYU", color: .pinkProfile, isEmergency: true)
     }
     .padding(80)
     .background(.black)

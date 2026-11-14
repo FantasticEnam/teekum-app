@@ -24,15 +24,15 @@ struct CardAgreement: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.custom("Futura", size: 12, relativeTo: .subheadline))
+                    .font(.custom("Helvetica-Bold", size: 17, relativeTo: .headline))
                 Text(description)
-                    .font(.custom("Futura", size: 8.5, relativeTo: .caption2))
+                    .font(.custom("Helvetica", size: 14, relativeTo: .subheadline))
                     .foregroundStyle(secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 9)
+        .padding(.vertical, 12)
         .frame(minHeight: 70)
         .background(cardColor, in: RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .combine)

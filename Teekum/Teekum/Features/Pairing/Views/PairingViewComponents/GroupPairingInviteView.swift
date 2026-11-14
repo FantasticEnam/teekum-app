@@ -15,7 +15,7 @@ struct GroupPairingInviteView: View {
         let inviteURL = session.inviteURL()
         VStack(spacing: 0) {
             Text("Scan this barcode to join private\ngroup with zero cell reception")
-                .font(.custom("Futura", size: 12, relativeTo: .caption))
+                .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
                 .padding(.bottom, 12)
@@ -32,6 +32,7 @@ struct GroupPairingInviteView: View {
                     .accessibilityLabel("Group invitation QR code")
             } else {
                 Label("QR unavailable", systemImage: "qrcode")
+                    .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                     .frame(maxHeight: 186)
             }
 

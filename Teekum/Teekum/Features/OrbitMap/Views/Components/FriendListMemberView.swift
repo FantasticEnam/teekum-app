@@ -24,11 +24,7 @@ struct FriendListMemberView: View {
                         relativeTo: .title2
                     )
                 )
-                .foregroundStyle(
-                    color == .whiteProfile
-                        ? Color.black
-                        : Color.white
-                )
+                .foregroundStyle(.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(width: avatarSize, height: avatarSize)
@@ -72,17 +68,17 @@ struct FriendListMemberView: View {
             member: Member(
                 id: "NIC", measurementTimestamp: .now.addingTimeInterval(-25)
             ),
-            color: .peachProfile
+            color: .pinkProfile
         )
         FriendListMemberView(
             member: Member(
                 id: "AYU", isEmergency: true, measurementTimestamp: .now.addingTimeInterval(-125)
             ),
-            color: .orangeProfile
+            color: .yellowProfile
         )
         FriendListMemberView(
             member: Member(id: "ADI"),
-            color: .whiteProfile
+            color: .purpleProfile
         )
     }
     .padding(24)

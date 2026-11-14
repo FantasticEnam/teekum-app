@@ -52,7 +52,7 @@ struct OrbitBloomView: View {
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [.creamProfile.opacity(0.8), .clear],
+                            colors: [.yellowProfile.opacity(0.8), .clear],
                             center: .center,
                             startRadius: 0,
                             endRadius: 22
