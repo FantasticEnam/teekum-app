@@ -365,42 +365,61 @@ struct PacketCodecTests {
 
     // MARK: - Test 13: 1 to 3-Letter Initials Codec
 
-    @Test("InitialsCodec 1-to-3 letter encoding, decoding, and boundaries")
-    func initialsCodecBase26() throws {
-        // 1. Single letter: "A"
+    @Test("InitialsCodec 1-to-3 alphanumeric encoding, decoding, and boundaries")
+    func initialsCodecBase37() throws {
+        // 1. Single characters: "A", "Z", "0", "9"
         let aBytes = try #require(InitialsCodec.encode("A"))
         #expect(aBytes.count == 2)
         #expect(InitialsCodec.decode(aBytes) == "A")
 
-        // Single letter: "Z"
         let zBytes = try #require(InitialsCodec.encode("Z"))
         #expect(InitialsCodec.decode(zBytes) == "Z")
 
-        // 2. Two letters: "AB"
+        let zeroBytes = try #require(InitialsCodec.encode("0"))
+        #expect(InitialsCodec.decode(zeroBytes) == "0")
+
+        let nineBytes = try #require(InitialsCodec.encode("9"))
+        #expect(InitialsCodec.decode(nineBytes) == "9")
+
+        // 2. Two characters: "AB", "ZZ", "A1", "99"
         let abBytes = try #require(InitialsCodec.encode("AB"))
         #expect(abBytes.count == 2)
         #expect(InitialsCodec.decode(abBytes) == "AB")
 
-        // Two letters: "ZZ"
         let zzBytes = try #require(InitialsCodec.encode("ZZ"))
         #expect(InitialsCodec.decode(zzBytes) == "ZZ")
 
-        // 3. Three letters: "DNA"
+        let a1Bytes = try #require(InitialsCodec.encode("A1"))
+        #expect(InitialsCodec.decode(a1Bytes) == "A1")
+
+        let doubleNineBytes = try #require(InitialsCodec.encode("99"))
+        #expect(InitialsCodec.decode(doubleNineBytes) == "99")
+
+        // 3. Three characters: "DNA", "JD2", "123", boundaries "AAA" & "999"
         let dnaBytes = try #require(InitialsCodec.encode("DNA"))
         #expect(dnaBytes.count == 2)
         #expect(InitialsCodec.decode(dnaBytes) == "DNA")
 
-        // Boundary AAA & ZZZ
+        let jd2Bytes = try #require(InitialsCodec.encode("JD2"))
+        #expect(InitialsCodec.decode(jd2Bytes) == "JD2")
+
+        let oneTwoThreeBytes = try #require(InitialsCodec.encode("123"))
+        #expect(InitialsCodec.decode(oneTwoThreeBytes) == "123")
+
         let aaaBytes = try #require(InitialsCodec.encode("AAA"))
         #expect(InitialsCodec.decode(aaaBytes) == "AAA")
 
         let zzzBytes = try #require(InitialsCodec.encode("ZZZ"))
         #expect(InitialsCodec.decode(zzzBytes) == "ZZZ")
 
+        let maxBoundaryBytes = try #require(InitialsCodec.encode("999"))
+        #expect(InitialsCodec.decode(maxBoundaryBytes) == "999")
+
         // 4. Invalid inputs
         #expect(InitialsCodec.encode("") == nil)
         #expect(InitialsCodec.encode("ABCD") == nil)
-        #expect(InitialsCodec.encode("123") == nil)
+        #expect(InitialsCodec.encode("1234") == nil)
+        #expect(InitialsCodec.encode("A@!") == nil)
         #expect(InitialsCodec.decode([0, 0]) == nil)
         #expect(InitialsCodec.decode([0xFF, 0xFF]) == nil)
 
@@ -409,6 +428,9 @@ struct PacketCodecTests {
         #expect(InitialsCodec.sanitize("ab") == "AB")
         #expect(InitialsCodec.sanitize("Alex") == "ALE")
         #expect(InitialsCodec.sanitize(" d-n.a! ") == "DNA")
+        #expect(InitialsCodec.sanitize("jd2") == "JD2")
+        #expect(InitialsCodec.sanitize("1234") == "123")
+        #expect(InitialsCodec.sanitize("!@#") == "A")
     }
 
     // MARK: - Test 14: MemberColor Payload Serialization & Deterministic Initials Fallback

@@ -15,7 +15,7 @@ enum PairingError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidInitials: "Enter one to three letters for your initials."
+        case .invalidInitials: "Enter one to three letters or numbers for your initials."
         case .invalidGroupName: "Enter a group name."
         case .invalidInvite: "This is not a valid TeeKum group invitation."
         case .emptyClipboard: "Copy a group invitation link first."
