@@ -144,7 +144,7 @@ struct OrbitMapView: View {
         .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
             Group { switch modal {
             case .mapPoint:
-                MainMapView(sessionStore: viewModel.sessionStore, meetingService: meetingService)
+                MainMapView(sessionStore: viewModel.sessionStore, meetingService: meetingService, location: location)
             case .friends:
                 GeometryReader { geometry in
                     ZStack(alignment: .bottom) {

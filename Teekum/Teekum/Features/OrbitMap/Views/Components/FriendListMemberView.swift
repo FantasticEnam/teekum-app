@@ -19,7 +19,7 @@ struct FriendListMemberView: View {
             Text(member.initials)
                 .font(
                     .custom(
-                        "Charter-Bold",
+                        "Futura",
                         size: 26,
                         relativeTo: .title2
                     )

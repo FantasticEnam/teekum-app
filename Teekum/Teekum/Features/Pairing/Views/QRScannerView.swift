@@ -11,7 +11,6 @@ import UIKit
 struct QRScannerView: View {
     var isEnabled = false
     var onCodeScanned: @MainActor @Sendable (String) -> Void = { _ in }
-    var onPasteCandidates: @MainActor ([String]) -> Void = { _ in }
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
@@ -19,43 +18,38 @@ struct QRScannerView: View {
     @State private var cameraMessage: String?
 
     var body: some View {
-        ZStack {
-            Color.black
+        Group {
+            if isEnabled, let cameraMessage {
+                VStack(spacing: 8) {
+                    Text(cameraMessage)
+                    Button("Open Settings", action: openSettings)
+                        .foregroundStyle(Color.yellowProfile)
+                }
+                .padding(8)
+                .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
+            } else if !isEnabled {
+                Text("Enter your initials to enable the camera.")
+                    .opacity(0.5)
+            } else {
+                Color.clear
+            }
+        }
+        .font(.custom("Futura", size: 14, relativeTo: .body))
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: 255, maxHeight: 255)
+        .background {
             if isEnabled {
                 CameraPreviewView(session: scanner.session)
                     .accessibilityLabel("Group QR code scanner")
-                if let cameraMessage {
-                    VStack(spacing: 12) {
-                        Text(cameraMessage)
-                        Button("Open Settings", action: openSettings)
-                            .foregroundStyle(Color.yellowProfile)
-                    }
-                    .font(.custom("Charter-Roman", size: 14, relativeTo: .body))
-                    .multilineTextAlignment(.center)
-                    .padding(24)
-                    .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 48)
-                }
             } else {
-                Text("Enter your initials to enable the camera.")
-                    .font(.custom("Charter-Roman", size: 14, relativeTo: .body))
-                    .multilineTextAlignment(.center)
-                    .padding(24)
-                    .padding(.bottom, 44)
-                    .opacity(0.5)
+                Color.black
             }
         }
-        .overlay(alignment: .bottom) {
-            Button(action: pasteFromClipboard) {
-                PairingCardPillLabel(title: "Paste Invite Link")
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 20)
-        }
-        .foregroundStyle(.white)
-        .frame(height: 300)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay {
             RoundedRectangle(cornerRadius: 14)
@@ -76,17 +70,6 @@ struct QRScannerView: View {
     private func openSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         openURL(url)
-    }
-
-    private func pasteFromClipboard() {
-        var candidates: [String] = []
-        if UIPasteboard.general.hasStrings, let text = UIPasteboard.general.string {
-            candidates.append(text)
-        }
-        if UIPasteboard.general.hasURLs, let urlString = UIPasteboard.general.url?.absoluteString {
-            candidates.append(urlString)
-        }
-        onPasteCandidates(candidates)
     }
 }
 

@@ -49,6 +49,10 @@ public final class MeetingPointViewModel {
         return active.proposerId == memberID
     }
     
+    public var members: [Member] {
+        sessionStore.visibleMembers
+    }
+    
 
     public func requestLocationPermission() {
         if locationManager == nil { locationManager = CLLocationManager() }
@@ -111,3 +115,5 @@ public final class MeetingPointViewModel {
 
     public var errorMessage: String? { meetingService.errorMessage }
 }
+
+
