@@ -117,10 +117,15 @@ struct OrbitSceneView: View {
 
     private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
         let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
+        let lowBatteryPercentage = member.batteryLevel.flatMap { level in
+            let threshold = Float(MeepoConfiguration.Battery.survivalThresholdPercent) / 100
+            return (0...threshold).contains(level) ? level.formattedBatteryPercentage : nil
+        }
         return Button { onSelectMember(member) } label: {
             OrbitMemberMarkerView(initials: member.initials,
                 color: member.color.swiftUIColor, isSelected: isSelected,
-                isEmergency: member.isEmergency, showsBloom: projection.isClamped)
+                isEmergency: member.isEmergency, showsBloom: projection.isClamped,
+                lowBatteryPercentage: lowBatteryPercentage)
                 .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
                 .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
                 .frame(minWidth: 44, minHeight: 44)
@@ -129,6 +134,7 @@ struct OrbitSceneView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Find \(member.initials), \(projection.distance.formattedDistance())")
         .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
+        .accessibilityHint(lowBatteryPercentage.map { Text("Low battery, \($0)") } ?? Text(""))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .offset(x: projection.x, y: projection.y)
         .zIndex(isSelected ? 2 : 0)
@@ -180,13 +186,13 @@ struct OrbitSceneView: View {
     }
 }
 
-#Preview("Near and distant friends") {
+#Preview("Near and distant friends with low battery") {
     let location = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 5)
 
     OrbitSceneView(
         userColor: .yellowProfile,
         members: [
-            Member(id: "NIC", coordinate: .init(latitude: 0.00025, longitude: -0.0001),
+            Member(id: "NIC", coordinate: .init(latitude: 0.00025, longitude: -0.0001), batteryLevel: 0.2,
                 color: .greenishTeal, measurementTimestamp: .now),
             Member(id: "ADI", coordinate: .init(latitude: -0.0004, longitude: 0.0005),
                 color: .apricot, measurementTimestamp: .now)

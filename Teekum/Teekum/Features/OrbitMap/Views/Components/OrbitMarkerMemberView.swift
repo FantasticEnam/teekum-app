@@ -14,6 +14,10 @@ struct OrbitMemberMarkerView: View {
     var isEmergency = false
     var size: CGFloat = 30
     var showsBloom = false
+    var lowBatteryPercentage: String?
+
+    private var showsPointer: Bool { isEmergency || isSelected || lowBatteryPercentage != nil }
+    private var bubbleColor: Color { isEmergency ? .alertRed : (isSelected ? .yellowProfile : .black) }
     
     var body: some View {
         Circle()
@@ -30,29 +34,42 @@ struct OrbitMemberMarkerView: View {
             }
             .overlay(alignment: .top) {
                 VStack(spacing: -2) {
-                    Text(initials)
-                        .font(.custom("Helvetica", size: isSelected ? 16 : 13, relativeTo: .caption))
-                        .foregroundStyle((isSelected && !isEmergency) ? .black : .white)
-                        .padding(.horizontal, isSelected ? 14 : 10)
-                        .padding(.vertical, isSelected ? 8 : 6)
-                        .background(
-                                                    isEmergency ? Color.alertRed : (isSelected ? Color.yellowProfile : .black),
-                                                    in: .rect(cornerRadius: isSelected ? 8 : 6)
-                                                )
+                    VStack(spacing: 1) {
+                        Text(initials)
+                            .font(.custom("Helvetica", size: isSelected ? 16 : 13, relativeTo: .caption))
+                            .foregroundStyle(isSelected && !isEmergency ? .black : .white)
+                        if let lowBatteryPercentage {
+                            Label(lowBatteryPercentage, systemImage: "bolt.fill")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(isSelected && !isEmergency ? .black : .yellowProfile)
+                        }
+                    }
+                    .padding(.horizontal, isSelected ? 14 : 10)
+                    .padding(.vertical, isSelected ? 8 : 6)
+                    .background(bubbleColor, in: .rect(cornerRadius: isSelected ? 8 : 6))
                     
-                    if isEmergency || isSelected {
+                    if showsPointer {
                         Image(systemName: "triangle.fill")
                             .font(.system(size: isSelected ? 13 : 10))
                             .rotationEffect(.degrees(180))
-                            .foregroundStyle(isEmergency ? Color.alertRed : (isSelected ? Color.yellowProfile : .black))
+                            .foregroundStyle(bubbleColor)
                     }
                 }
                 .fixedSize()
-                .alignmentGuide(.top) { $0[.bottom] + (isEmergency || isSelected ? 2 : 12) }
+                .alignmentGuide(.top) { $0[.bottom] + (showsPointer ? 2 : 12) }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Member \(initials)")
     }
+}
+
+#Preview("Low battery markers") {
+    HStack(spacing: 64) {
+        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile, lowBatteryPercentage: "20%")
+        OrbitMemberMarkerView(initials: "NIC", color: .peachProfile, isEmergency: true, lowBatteryPercentage: "12%")
+    }
+    .padding(80)
+    .background(.black)
 }
 
 #Preview("Normal and SOS markers") {
