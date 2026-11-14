@@ -201,7 +201,7 @@ struct OrbitSceneView: View {
     )
 }
 
-#Preview("1. Selected Normal (Kuning)") {
+#Preview("1. Selected Normal (Yellow)") {
     let store = SessionStore.preview
     OrbitSceneView(
         userColor: .yellowProfile,
@@ -212,7 +212,7 @@ struct OrbitSceneView: View {
     )
 }
 
-#Preview("2. Friend SOS Active (Merah)") {
+#Preview("2. Friend SOS Active (Red)") {
     let store = SessionStore.preview
     var sosMembers = store.members
     if let index = sosMembers.firstIndex(where: { $0.id == "ADI" }) {
