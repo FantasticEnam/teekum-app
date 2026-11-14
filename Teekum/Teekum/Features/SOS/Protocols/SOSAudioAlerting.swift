@@ -11,6 +11,9 @@ import Foundation
 public protocol SOSAudioAlerting: Sendable {
     /// Starts repeating feedback for an unacknowledged emergency.
     func triggerEmergencyAlertFeedback() async
+
+    /// Switches to delayed reminders after the receiver acknowledges the alert.
+    func scheduleEmergencyReminder() async
     
     /// Stops any ongoing audio alert or siren loop.
     func stopEmergencyAlertFeedback() async

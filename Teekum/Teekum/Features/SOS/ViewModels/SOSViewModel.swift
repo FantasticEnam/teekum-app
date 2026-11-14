@@ -35,7 +35,7 @@ final class SOSViewModel {
     var onIncomingSOSResolved: (@MainActor (String) -> Void)?
 
     var showsEdgeGlow: Bool {
-        incomingAlert != nil || isSending || outgoingEventId != nil || deliveryState.stage != .idle
+        incomingAlert != nil || !incomingEvents.isEmpty || isSending || outgoingEventId != nil || deliveryState.stage != .idle
     }
 
     init(
@@ -125,12 +125,12 @@ final class SOSViewModel {
         }
     }
 
-    func dismissIncomingAlert() {
+    func acknowledgeIncomingAlert() async {
         guard let incomingAlert else { return }
         let event = SOSResolvedPayload(senderInitials: incomingAlert.senderInitials, eventId: incomingAlert.id)
         self.incomingAlert = nil
         recordUserInteraction()
-        Task { await engine.dismissIncomingAlert(matching: event) }
+        await engine.acknowledgeIncomingAlert(matching: event)
     }
 
     func acceptResolution(_ event: SOSResolvedPayload) async {

@@ -12,22 +12,33 @@ import CoreLocation
 
 final class ChatSOSMigrationTests: XCTestCase {
     @MainActor
-    func testSOSFeedbackRepeatsOncePerIntervalAndStops() async {
+    func testSOSFeedbackSwitchesToDelayedRemindersAndStops() async {
         let repeated = XCTestExpectation(description: "SOS plays a second pulse")
+        let reminded = XCTestExpectation(description: "Acknowledged SOS plays a reminder")
         let afterStop = XCTestExpectation(description: "SOS stays quiet after stopping")
         afterStop.isInverted = true
         var pulses = 0
+        var firstReminderPulse: Int?
         var stopped = false
-        let alerter = DefaultSOSAudioAlerter(interval: .milliseconds(25)) {
+        let alerter = DefaultSOSAudioAlerter(interval: .milliseconds(25), reminderInterval: .milliseconds(80)) {
             if stopped { afterStop.fulfill() }
             pulses += 1
             if pulses == 2 { repeated.fulfill() }
+            if pulses == firstReminderPulse { reminded.fulfill() }
         }
         await alerter.triggerEmergencyAlertFeedback()
         await alerter.triggerEmergencyAlertFeedback()
         XCTAssertEqual(pulses, 1)
         let repeatResult = await XCTWaiter.fulfillment(of: [repeated], timeout: 1)
         XCTAssertEqual(repeatResult, .completed)
+        let beforeAcknowledgment = pulses
+        await alerter.scheduleEmergencyReminder()
+        firstReminderPulse = beforeAcknowledgment + 1
+        XCTAssertEqual(pulses, beforeAcknowledgment)
+        let reminderStart = ContinuousClock.now
+        let reminderResult = await XCTWaiter.fulfillment(of: [reminded], timeout: 1)
+        XCTAssertEqual(reminderResult, .completed)
+        XCTAssertGreaterThanOrEqual(reminderStart.duration(to: .now), .milliseconds(70))
         await alerter.stopEmergencyAlertFeedback()
         stopped = true
         let stopResult = await XCTWaiter.fulfillment(of: [afterStop], timeout: 0.12)
@@ -175,8 +186,9 @@ final class ChatSOSMigrationTests: XCTestCase {
     func testDismissingSOSFeedbackKeepsEmergencyUntilMatchingResolution() async throws {
         let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
         let crypto = CryptoService()
+        let audio = MessagingTestAudio()
         let engine = SOSForwardingEngine(transport: MessagingTestTransport(), cryptoService: crypto,
-            sessionProvider: { session })
+            sessionProvider: { session }, audioAlerter: audio)
         let model = SOSViewModel(engine: engine, locationService: LocationService(isLiveSharingEnabled: false),
             sessionProvider: { session })
         await model.start()
@@ -213,14 +225,20 @@ final class ChatSOSMigrationTests: XCTestCase {
         let result = await XCTWaiter.fulfillment(of: [received], timeout: 2)
         XCTAssertEqual(result, .completed)
         XCTAssertTrue(model.showsEdgeGlow)
-        model.dismissIncomingAlert()
-        XCTAssertFalse(model.showsEdgeGlow)
+        await model.acknowledgeIncomingAlert()
+        XCTAssertNil(model.incomingAlert)
+        XCTAssertTrue(model.showsEdgeGlow)
+        XCTAssertEqual(audio.reminderCount, 1)
         XCTAssertTrue(store.members[0].isEmergency)
 
         await model.acceptResolution(.init(senderInitials: "NIC", eventId: 77))
         XCTAssertTrue(store.members[0].isEmergency)
+        XCTAssertTrue(model.showsEdgeGlow)
+        XCTAssertEqual(audio.stopCount, 0)
         await model.acceptResolution(.init(senderInitials: "ALX", eventId: 77))
         XCTAssertFalse(store.members[0].isEmergency)
+        XCTAssertFalse(model.showsEdgeGlow)
+        XCTAssertEqual(audio.stopCount, 1)
         try await engine.handleInboundSOSPacket(rawPacket: packet, fromPeerId: "ALX")
         XCTAssertNil(model.incomingAlert)
 
@@ -364,8 +382,11 @@ private final class MessagingTestAudio: SOSAudioAlerting, @unchecked Sendable {
     private let lock = NSLock()
     private var triggers = 0
     private var stops = 0
+    private var reminders = 0
     var triggerCount: Int { lock.withLock { triggers } }
     var stopCount: Int { lock.withLock { stops } }
+    var reminderCount: Int { lock.withLock { reminders } }
+    func scheduleEmergencyReminder() { lock.withLock { reminders += 1 } }
     func triggerEmergencyAlertFeedback() { lock.withLock { triggers += 1 } }
     func stopEmergencyAlertFeedback() { lock.withLock { stops += 1 } }
 }

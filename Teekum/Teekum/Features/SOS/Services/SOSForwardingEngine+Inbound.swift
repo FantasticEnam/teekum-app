@@ -85,6 +85,7 @@ extension SOSForwardingEngine {
             batteryLevel: payload.batteryLevel,
             receivedAt: clock.now()
         )
+        pendingSOSEvents.insert(event)
         self.activeIncomingAlert = alert
         isSirenActive = true
         await audioAlerter?.triggerEmergencyAlertFeedback()
@@ -98,6 +99,11 @@ extension SOSForwardingEngine {
 
     func acceptResolution(_ event: SOSResolvedPayload) async {
         resolvedSOSEvents.insert(event)
-        await dismissIncomingAlert(matching: event)
+        guard pendingSOSEvents.remove(event) != nil else { return }
+        if pendingSOSEvents.isEmpty {
+            await dismissIncomingAlert()
+        } else {
+            await acknowledgeIncomingAlert(matching: event)
+        }
     }
 }

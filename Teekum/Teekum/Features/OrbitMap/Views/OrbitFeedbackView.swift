@@ -15,7 +15,9 @@ struct OrbitFeedbackView: View {
         VStack(spacing: 8) {
             if let sos {
                 if let alert = sos.incomingAlert {
-                    IncomingSOSAlertBannerView(alert: alert, onDismiss: sos.dismissIncomingAlert)
+                    IncomingSOSAlertBannerView(alert: alert) {
+                        Task { await sos.acknowledgeIncomingAlert() }
+                    }
                 }
                 InactivityWarningView(guardService: sos.inactivityGuard)
                 if sos.asksAboutHelp {
