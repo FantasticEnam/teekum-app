@@ -23,6 +23,13 @@ struct OrbitSceneView: View {
     var isUserSOSActive = false
     var onSelectMember: (Member) -> Void = { _ in }
     var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
+
+    @State private var zoom = 1.0
+    @GestureState private var pinchMagnification = 1.0
+
+    private var radarRange: Double {
+        MeepoConfiguration.Navigation.tacticalRadarRangeMeters / boundedZoom(zoom * pinchMagnification)
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -30,6 +37,7 @@ struct OrbitSceneView: View {
             let baseSize = min(size.width, size.height)
             let outerRadius = baseSize * 1.55 / 2
             let markerRadius = Double(baseSize * 0.42)
+            let range = radarRange
             
             RadialGradient(
                 stops: [
@@ -62,7 +70,8 @@ struct OrbitSceneView: View {
                     if let location {
                         ForEach(members) { member in
                             if let coordinate = member.coordinate {
-                                let projection = OrbitProjection(from: location, to: coordinate, heading: heading, radius: markerRadius)
+                                let projection = OrbitProjection(from: location, to: coordinate, heading: heading,
+                                    radius: markerRadius, range: range)
                                 let isSelected = selectedTarget == .member(member.id)
                                 if isSelected {
                                     targetLine(to: projection, in: size, isEmergency: member.isEmergency)
@@ -72,7 +81,8 @@ struct OrbitSceneView: View {
                         }
 
                         if let meetingPoint {
-                            let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading, radius: markerRadius)
+                            let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading,
+                                radius: markerRadius, range: range)
                             let isSelected = selectedTarget == .meetingPoint(meetingPoint.id)
                             if isSelected {
                                 targetLine(to: projection, in: size)
@@ -83,8 +93,26 @@ struct OrbitSceneView: View {
                 }
             }
             .clipped()
+            .contentShape(.rect)
+            .simultaneousGesture(
+                MagnifyGesture()
+                    .updating($pinchMagnification) { value, magnification, _ in
+                        magnification = Double(value.magnification)
+                    }
+                    .onEnded { value in
+                        zoom = boundedZoom(zoom * Double(value.magnification))
+                    }
+            )
         }
         .background(.black)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Orbit radar")
+        .accessibilityAction(named: Text("Zoom in")) { zoom = boundedZoom(zoom * 1.25) }
+        .accessibilityAction(named: Text("Zoom out")) { zoom = boundedZoom(zoom / 1.25) }
+    }
+
+    private func boundedZoom(_ scale: Double) -> Double {
+        min(max(scale, 0.5), 2)
     }
 
     private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {

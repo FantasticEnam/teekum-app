@@ -231,6 +231,12 @@ final class SessionSafetyTests: XCTestCase {
         XCTAssertEqual(facingEast.y, -100, accuracy: 0.001)
         XCTAssertTrue(facingEast.isClamped)
         XCTAssertEqual(facingEast.distance, 111.3, accuracy: 0.5)
+
+        let zoomedOut = OrbitProjection(from: location, to: point.coordinate, heading: 0,
+            radius: 100, range: 120)
+        XCTAssertEqual(zoomedOut.x, facingNorth.distance / 120 * 100, accuracy: 0.001)
+        XCTAssertFalse(zoomedOut.isClamped)
+        XCTAssertEqual(zoomedOut.distance, facingNorth.distance)
     }
 
     private func removeKeychainItems(service: String) {
