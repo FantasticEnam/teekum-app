@@ -36,6 +36,8 @@ V3 has no leave packet. Orbit hides a member from its radar and friend list afte
 
 Closing the SOS banner only stops its local feedback. The sender gets one automatic confirmation prompt per SOS when fresh GPS estimates place a friend within 10 m. The sender can also open the prompt from the active SOS button. A confirmed resolution is retained in memory for up to 10 minutes using the existing carry mechanism. A receiver clears the matching SOS when it receives the resolution.
 
+While the receiver's app is active, the SOS tone and vibration repeat every two seconds until acknowledgment, resolution, or session teardown. Background reception uses the existing iOS notification. The loop resumes when the app becomes active again and the alert is still pending.
+
 When a member becomes unreachable, the receiving device shows a **Lost contact** notification and records the member's initials and detection time under **Group settings → Group activity**. Each device detects the loss from its own radio state. The log keeps the latest 100 losses for the active session. Recovery lets a later loss generate a new entry, and leaving clears the log.
 
 ## Verification boundary

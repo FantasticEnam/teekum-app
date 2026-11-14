@@ -74,10 +74,6 @@ extension SOSForwardingEngine {
         // 7. First-Time Trusted Reception
         totalReceivedCount += 1
         
-        // Sound Siren & Haptics
-        isSirenActive = true
-        audioAlerter?.triggerEmergencyAlertFeedback()
-        
         let alert = IncomingSOSAlert(
             id: eventId,
             senderInitials: payload.senderInitials,
@@ -90,6 +86,9 @@ extension SOSForwardingEngine {
             receivedAt: clock.now()
         )
         self.activeIncomingAlert = alert
+        isSirenActive = true
+        await audioAlerter?.triggerEmergencyAlertFeedback()
+        guard generation == sessionGeneration, activeIncomingAlert == alert else { return }
         await onIncomingAlertTriggered?(alert)
         
         // 8. Multi-Hop Return ACK Routing
@@ -97,8 +96,8 @@ extension SOSForwardingEngine {
         try await sendDeliveryACK(for: rawPacket, status: .deliveredToFriend)
     }
 
-    func acceptResolution(_ event: SOSResolvedPayload) {
+    func acceptResolution(_ event: SOSResolvedPayload) async {
         resolvedSOSEvents.insert(event)
-        dismissIncomingAlert(matching: event)
+        await dismissIncomingAlert(matching: event)
     }
 }

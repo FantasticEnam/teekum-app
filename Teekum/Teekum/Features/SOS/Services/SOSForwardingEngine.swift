@@ -134,25 +134,25 @@ public actor SOSForwardingEngine {
         onDeliveryStateChanged?(newState)
     }
     
-    public func dismissIncomingAlert() {
+    public func dismissIncomingAlert() async {
         activeIncomingAlert = nil
         isSirenActive = false
-        audioAlerter?.stopEmergencyAlertFeedback()
+        await audioAlerter?.stopEmergencyAlertFeedback()
     }
 
-    func dismissIncomingAlert(matching event: SOSResolvedPayload) {
+    func dismissIncomingAlert(matching event: SOSResolvedPayload) async {
         guard activeIncomingAlert?.id == event.eventId,
               activeIncomingAlert?.senderInitials == event.senderInitials else { return }
-        dismissIncomingAlert()
+        await dismissIncomingAlert()
     }
     
-    public func reset() {
+    public func reset() async {
         sessionGeneration = UUID()
         cancelOutgoingSOS()
-        dismissIncomingAlert()
         seenSOSEvents.removeAll()
         resolvedSOSEvents.removeAll()
         measurementProvider = nil
+        await dismissIncomingAlert()
     }
 
     public func cancelOutgoingSOS() {

@@ -5,45 +5,52 @@
 //  Created by Nicho on 10/11/26.
 //
 
-import Foundation
-#if canImport(AudioToolbox)
 import AudioToolbox
-#endif
-#if canImport(UIKit)
 import UIKit
-#endif
 
-/// Native implementation using standard Apple system audio and feedback generators.
-///
-/// iOS Platform Realities:
-/// 1. Hardware Silent / Mute Switch: Standard system alerts (`AudioServicesPlayAlertSound`)
-///    respect the physical silent switch and Action button mute mode. When muted, only
-///    the haptic vibration fires. Bypassing the mute switch requires `AVAudioSessionCategoryPlayback`
-///    with the `audio` UIBackgroundModes entitlement, which iOS restricts for background apps.
-/// 2. Focus Modes / Do Not Disturb: Only apps with Apple's special-entitlement
-///    "Critical Alerts" (`UNAuthorizationOptions.criticalAlert`) can break through DND.
-///    In this direct offline POC, alerts sound when the app is active and foregrounded.
-public final class DefaultSOSAudioAlerter: SOSAudioAlerting, @unchecked Sendable {
-    
-    public init() {}
-    
-    public func triggerEmergencyAlertFeedback() {
-        #if os(iOS) && canImport(AudioToolbox)
-        // System Sound 1005: High-priority SMS alert / warning chime
+@MainActor
+public final class DefaultSOSAudioAlerter: SOSAudioAlerting {
+    private var repeatTask: Task<Void, Never>?
+    private let interval: Duration
+    private let testPulse: (() -> Void)?
+
+    public init() {
+        interval = .seconds(2)
+        testPulse = nil
+    }
+
+    init(interval: Duration, pulse: @escaping () -> Void) {
+        self.interval = interval
+        testPulse = pulse
+    }
+
+    public func triggerEmergencyAlertFeedback() async {
+        guard repeatTask == nil else { return }
+        playPulse()
+        repeatTask = Task { [weak self, interval] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: interval) }
+                catch { return }
+                guard !Task.isCancelled, let self else { return }
+                playPulse()
+            }
+        }
+    }
+
+    public func stopEmergencyAlertFeedback() async {
+        repeatTask?.cancel()
+        repeatTask = nil
+    }
+
+    private func playPulse() {
+        if let testPulse {
+            testPulse()
+            return
+        }
+        // shortcut: background alerts use the existing iOS notification; this loop plays only while active.
+        guard UIApplication.shared.applicationState == .active else { return }
         AudioServicesPlayAlertSound(SystemSoundID(1005))
         AudioServicesPlayAlertSound(kSystemSoundID_Vibrate)
-        #endif
-        
-        #if os(iOS) && canImport(UIKit)
-        Task { @MainActor in
-            let generator = UINotificationFeedbackGenerator()
-            generator.prepare()
-            generator.notificationOccurred(.error)
-        }
-        #endif
-    }
-    
-    public func stopEmergencyAlertFeedback() {
-        // Discrete system sound does not require manual stop, but hooks into active siren loops if expanded.
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
     }
 }

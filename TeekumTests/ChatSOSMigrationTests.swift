@@ -12,6 +12,29 @@ import CoreLocation
 
 final class ChatSOSMigrationTests: XCTestCase {
     @MainActor
+    func testSOSFeedbackRepeatsOncePerIntervalAndStops() async {
+        let repeated = XCTestExpectation(description: "SOS plays a second pulse")
+        let afterStop = XCTestExpectation(description: "SOS stays quiet after stopping")
+        afterStop.isInverted = true
+        var pulses = 0
+        var stopped = false
+        let alerter = DefaultSOSAudioAlerter(interval: .milliseconds(25)) {
+            if stopped { afterStop.fulfill() }
+            pulses += 1
+            if pulses == 2 { repeated.fulfill() }
+        }
+        await alerter.triggerEmergencyAlertFeedback()
+        await alerter.triggerEmergencyAlertFeedback()
+        XCTAssertEqual(pulses, 1)
+        let repeatResult = await XCTWaiter.fulfillment(of: [repeated], timeout: 1)
+        XCTAssertEqual(repeatResult, .completed)
+        await alerter.stopEmergencyAlertFeedback()
+        stopped = true
+        let stopResult = await XCTWaiter.fulfillment(of: [afterStop], timeout: 0.12)
+        XCTAssertEqual(stopResult, .completed)
+    }
+
+    @MainActor
     func testSOSSwipeRequiresFullUpwardTravel() {
         XCTAssertFalse(SOSSwipeButtonView.completesSwipe(.zero))
         XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 0, height: -63)))

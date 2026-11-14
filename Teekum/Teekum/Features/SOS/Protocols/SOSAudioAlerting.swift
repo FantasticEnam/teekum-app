@@ -9,9 +9,9 @@ import Foundation
 
 /// Authoritative contract for audio and haptic alert feedback when emergency SOS is triggered or received.
 public protocol SOSAudioAlerting: Sendable {
-    /// Plays the emergency alert tone / siren and triggers strong haptic vibration.
-    func triggerEmergencyAlertFeedback()
+    /// Starts repeating feedback for an unacknowledged emergency.
+    func triggerEmergencyAlertFeedback() async
     
     /// Stops any ongoing audio alert or siren loop.
-    func stopEmergencyAlertFeedback()
+    func stopEmergencyAlertFeedback() async
 }
