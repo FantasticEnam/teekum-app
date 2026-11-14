@@ -111,7 +111,7 @@ struct GroupPairingProfileView: View {
     }
 
     private func updateInitials(_ value: String) {
-        initials = String(value.uppercased().filter { $0 >= "A" && $0 <= "Z" }.prefix(3))
+        initials = String(value.uppercased().filter { ($0 >= "A" && $0 <= "Z") || ($0 >= "0" && $0 <= "9") }.prefix(3))
         initialsSelection = TextSelection(insertionPoint: initials.endIndex)
         isCursorVisible = true
     }
