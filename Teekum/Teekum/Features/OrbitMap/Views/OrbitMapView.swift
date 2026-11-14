@@ -29,7 +29,6 @@ struct OrbitMapView: View {
     private var orbitScene: some View {
         OrbitSceneView(
             userColor: viewModel.localProfileColor.swiftUIColor,
-            bloomRotation: .degrees(-(location?.currentHeading ?? 0)),
             members: visibleMembers,
             meetingPoint: meetingPoint,
             location: location?.currentLocation,
@@ -64,47 +63,48 @@ struct OrbitMapView: View {
     }
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Color.black
-                    .ignoresSafeArea()
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
 
-                orbitScene
+            orbitScene
 
-                VStack(alignment: .leading) {
-                    OrbitHeaderView(groupName: viewModel.groupName,
-                        onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
+            VStack(alignment: .leading) {
+                OrbitHeaderView(groupName: viewModel.groupName,
+                    onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
 
-                    if location?.currentLocation == nil {
-                        Label("Waiting for your location", systemImage: "location.slash")
-                            .font(.caption).padding(8)
-                            .background(Color.blackCard, in: .capsule)
-                        if let meetingPoint, selectedTarget != .meetingPoint(meetingPoint.id) {
-                            Button("Meeting point set", systemImage: "mappin.circle.fill") {
-                                selectMeetingPoint(meetingPoint.id)
-                            }
-                            .buttonStyle(.glass)
-                        }
-                    }
-
-                    targetSummary
-
-                    Spacer()
-                    OrbitControlsView(
-                        onSOS: {
-                            sos?.triggerSOS()
-                        },
-                        onExpand: {
-                            activeModal = .friends
-                        },
-                        onChat: openChat,
-                        unreadCount: chat?.unreadCount ?? 0,
-                        bottomInset: geometry.safeAreaInsets.bottom,
-                        onActiveSOS: isSOSActive ? { sos?.askAboutHelp() } : nil
-                    )
+                if let activity = notifications?.groupActivity {
+                    groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
                 }
-                .padding(.horizontal)
+
+                if location?.currentLocation == nil {
+                    Label("Waiting for your location", systemImage: "location.slash")
+                        .font(.caption).padding(8)
+                        .background(Color.blackCard, in: .capsule)
+                    if let meetingPoint, selectedTarget != .meetingPoint(meetingPoint.id) {
+                        Button("Meeting point set", systemImage: "mappin.circle.fill") {
+                            selectMeetingPoint(meetingPoint.id)
+                        }
+                        .buttonStyle(.glass)
+                    }
+                }
+
+                targetSummary
+
+                Spacer()
+                OrbitControlsView(
+                    onSOS: {
+                        sos?.triggerSOS()
+                    },
+                    onExpand: {
+                        activeModal = .friends
+                    },
+                    onChat: openChat,
+                    unreadCount: chat?.unreadCount ?? 0,
+                    isSOSActive: isSOSActive
+                )
             }
+            .padding(.horizontal)
         }
         .overlay {
             if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
@@ -136,7 +136,15 @@ struct OrbitMapView: View {
         .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
             if let chat {
                 ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
-                    .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
+                    .overlay(alignment: .top) {
+                        if let alert = notifications?.chatAlert {
+                            OrbitFeedbackView.chatBanner(sender: alert.sender, message: alert.body)
+                                .padding(.horizontal)
+                        }
+                    }
+                    .safeAreaInset(edge: .top) {
+                        OrbitFeedbackView(sos: sos, notifications: notifications, showsChatAlert: false)
+                    }
                     .overlay { SOSEdgeGlowView(sos: sos) }
             }
         }
@@ -206,6 +214,22 @@ struct OrbitMapView: View {
             .overlay { SOSEdgeGlowView(sos: sos) }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         }
+    }
+
+    private func groupActivityPill(_ message: String, color: Color) -> some View {
+        Label {
+            Text(message).font(.subheadline.weight(.semibold))
+        } icon: {
+            Circle().fill(color).frame(width: 14, height: 14)
+                .accessibilityHidden(true)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(white: 0.19), in: .capsule)
+        .shadow(color: .white.opacity(0.26), radius: 5, y: 5)
+        .frame(maxWidth: .infinity)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder

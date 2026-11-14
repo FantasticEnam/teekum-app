@@ -108,7 +108,7 @@ Sources are in `Core/Packets/Payloads/`.
 | 22 | colorCode: UInt8 |
 | 23..29 | 7 zero reserved bytes |
 
-SOSType currently declares general=0, medical=1, separated=2, security=3 and inactivity=4. A declared inactivity code is not an enabled/validated automatic safety feature. UI hold currently uses 1.5 s; configuration contains 3 s. Those values do not change byte layout and still need product reconciliation.
+SOSType currently declares general=0, medical=1, separated=2, security=3 and inactivity=4. A declared inactivity code is not an enabled/validated automatic safety feature.
 
 #### SOSResolvedPayload — 0x08
 

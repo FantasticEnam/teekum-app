@@ -19,7 +19,6 @@ final class SOSViewModel {
     private var dispatchTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
     private var showsDeliveryDetails = true
-    private var didOfferNearbyHelp = false
     private var lastEmergencyType: SOSType = .general
     private var incomingEvents: Set<SOSResolvedPayload> = []
 
@@ -28,14 +27,13 @@ final class SOSViewModel {
     private(set) var incomingAlert: IncomingSOSAlert?
     private(set) var isSending = false
     private(set) var outgoingEventId: UInt32?
-    private(set) var asksAboutHelp = false
     private(set) var isResolving = false
     private(set) var resolutionError: String?
     var onIncomingAlert: (@MainActor (IncomingSOSAlert) -> Void)?
     var onIncomingSOSResolved: (@MainActor (String) -> Void)?
 
     var showsEdgeGlow: Bool {
-        incomingAlert != nil || isSending || outgoingEventId != nil || deliveryState.stage != .idle
+        incomingAlert != nil || !incomingEvents.isEmpty || isSending || outgoingEventId != nil || deliveryState.stage != .idle
     }
 
     init(
@@ -85,8 +83,6 @@ final class SOSViewModel {
         incomingAlert = nil
         incomingEvents.removeAll()
         outgoingEventId = nil
-        asksAboutHelp = false
-        didOfferNearbyHelp = false
         isResolving = false
         resolutionError = nil
         deliveryState = .idle
@@ -125,12 +121,12 @@ final class SOSViewModel {
         }
     }
 
-    func dismissIncomingAlert() {
+    func acknowledgeIncomingAlert() async {
         guard let incomingAlert else { return }
         let event = SOSResolvedPayload(senderInitials: incomingAlert.senderInitials, eventId: incomingAlert.id)
         self.incomingAlert = nil
         recordUserInteraction()
-        Task { await engine.dismissIncomingAlert(matching: event) }
+        await engine.acknowledgeIncomingAlert(matching: event)
     }
 
     func acceptResolution(_ event: SOSResolvedPayload) async {
@@ -145,42 +141,8 @@ final class SOSViewModel {
         }
     }
 
-    func checkForNearbyHelp(members: [Member], now: Date = .now) {
-        let radius: CLLocationDistance = 10
-        let maxAge = MeepoConfiguration.Timing.stalePeerThreshold
-        guard outgoingEventId != nil, !didOfferNearbyHelp, !isResolving,
-              !asksAboutHelp, let local = locationService.currentLocation,
-              (0...maxAge).contains(now.timeIntervalSince(local.timestamp)),
-              (0...radius).contains(local.horizontalAccuracy),
-              CLLocationCoordinate2DIsValid(local.coordinate),
-              let localInitials = sessionProvider()?.localInitials else { return }
-
-        let hasNearbyFriend = members.contains { member in
-            guard member.id != localInitials,
-                  let time = member.measurementTimestamp,
-                  (0...maxAge).contains(now.timeIntervalSince(time)),
-                  let accuracy = member.horizontalAccuracy, (0...radius).contains(accuracy),
-                  let coordinate = member.coordinate, CLLocationCoordinate2DIsValid(coordinate) else { return false }
-            return local.distance(to: coordinate) <= radius
-        }
-        guard hasNearbyFriend else { return }
-        didOfferNearbyHelp = true
-        askAboutHelp()
-    }
-
-    func askAboutHelp() {
-        guard outgoingEventId != nil, !isResolving else { return }
-        recordUserInteraction()
-        asksAboutHelp = true
-    }
-
-    func keepSOSActive() {
-        asksAboutHelp = false
-        resolutionError = nil
-    }
-
-    func confirmHelpReceived() {
-        guard let eventId = outgoingEventId, asksAboutHelp, !isResolving else { return }
+    func endSOS() {
+        guard let eventId = outgoingEventId, !isResolving else { return }
         recordUserInteraction()
         isResolving = true
         resolutionError = nil
@@ -191,8 +153,6 @@ final class SOSViewModel {
                 try await engine.resolveOutgoingSOS(eventId: eventId)
                 guard generation == current, !Task.isCancelled else { return }
                 outgoingEventId = nil
-                asksAboutHelp = false
-                didOfferNearbyHelp = false
                 deliveryState = .idle
             } catch {
                 guard generation == current, !Task.isCancelled else { return }

@@ -12,45 +12,58 @@ struct OrbitControlsView: View {
     let onExpand: () -> Void
     var onChat: () -> Void = {}
     var unreadCount = 0
-    var bottomInset: CGFloat = 0
-    var onActiveSOS: (() -> Void)?
+    var isSOSActive = false
+
+    private let friendsPanelHeight: CGFloat = 44
     
     var body: some View {
-        HStack {
-            if let onActiveSOS {
-                Button("SOS", action: onActiveSOS)
-                    .font(.custom("Futura", size: 25, relativeTo: .title2).bold())
+        HStack(alignment: .bottom) {
+            if isSOSActive {
+                Text("SOS")
+                    .font(.custom("Helvetica", size: 25, relativeTo: .title2).bold())
                     .foregroundStyle(.white)
                     .frame(width: 64, height: 64)
                     .background(Color.alertRed, in: .circle)
-                    .glassEffect(.regular.tint(.alertRed).interactive(), in: .circle)
-                    .buttonStyle(.plain)
+                    .glassEffect(.regular.tint(.alertRed), in: .circle)
                     .accessibilityLabel("SOS active")
-                    .accessibilityHint("Opens the confirmation to end the SOS")
             } else {
-                SOSHoldButton(onHoldCompleted: onSOS)
+                SOSSwipeButtonView(onSwipeCompleted: onSOS)
+                    .zIndex(1)
             }
         
             Spacer()
             
             Button(action: onExpand) {
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 24, weight: .medium))
+                    .font(.system(size: 30, weight: .semibold))
+                    .offset(y:15)
                     .foregroundStyle(.secondary)
-                    .frame(width: 144, height: 64)
-                    .background(alignment: .top) {
+                    .frame(maxWidth: 176)
+                    .frame(height: friendsPanelHeight)
+                    .background {
                         OrbitPanelShape(
                             cornerRadius: 0,
-                            crestHeight: 64
+                            crestHeight: nil,
+                            crestWidth: 176
                         )
-                            .fill(Color.blackCard)
-                            .frame(height: 64)
+                        .fill(Color.blackCard)
+                        .ignoresSafeArea(.container, edges: .bottom)
+                        .allowsHitTesting(false)
                     }
                     .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .layoutPriority(1)
             .accessibilityLabel("Open friends")
-            .offset(y: bottomInset)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20)
+                    .onEnded { value in
+                        let upwardDistance = -value.translation.height
+                        if upwardDistance >= 36, upwardDistance > abs(value.translation.width) {
+                            onExpand()
+                        }
+                    }
+            )
             
             Spacer()
             

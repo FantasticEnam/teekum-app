@@ -34,7 +34,7 @@ struct QRScannerView: View {
                 Color.clear
             }
         }
-        .font(.custom("Futura", size: 14, relativeTo: .body))
+        .font(.custom("Helvetica", size: 14, relativeTo: .body))
         .multilineTextAlignment(.center)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
