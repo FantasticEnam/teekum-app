@@ -13,7 +13,8 @@ import UIKit
 @MainActor
 @Observable
 final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
-    var message: String?
+    private(set) var message: String?
+    private(set) var chatAlert: (sender: String, body: String)?
     private(set) var groupActivity: (message: String, memberID: String)?
     private var dismissTask: Task<Void, Never>?
 
@@ -49,13 +50,20 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         notify(title: "Group activity", body: body, showBanner: false)
     }
 
-    private func showMessage(_ text: String, memberID: String? = nil) {
-        message = memberID == nil ? text : nil
+    func notifyChat(sender: String, body: String) {
+        showMessage(body, chatSender: sender)
+        notify(title: sender, body: body, showBanner: false)
+    }
+
+    private func showMessage(_ text: String, memberID: String? = nil, chatSender: String? = nil) {
+        message = memberID == nil && chatSender == nil ? text : nil
+        chatAlert = chatSender.map { ($0, text) }
         groupActivity = memberID.map { (text, $0) }
         dismissTask?.cancel()
         dismissTask = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(4)) } catch { return }
             self?.message = nil
+            self?.chatAlert = nil
             self?.groupActivity = nil
         }
     }
@@ -64,6 +72,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         dismissTask?.cancel()
         dismissTask = nil
         message = nil
+        chatAlert = nil
         groupActivity = nil
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()

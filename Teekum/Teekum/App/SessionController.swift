@@ -322,8 +322,8 @@ final class SessionController {
                 guard let self, generation == current,
                       let outcome = try? await chatEngine.handleInboundPacket(inbound, relay: false) else { return }
                 guard generation == current else { return }
-                if let message = outcome.deliveredMessage, !chat.isChatSheetPresented {
-                    notifications.notify(title: message.senderInitials, body: message.text)
+                if let message = outcome.deliveredMessage {
+                    notifications.notifyChat(sender: message.senderInitials, body: message.text)
                 }
             }, onSOSResolved: { [weak self] event in
                 guard let self, generation == current else { return }

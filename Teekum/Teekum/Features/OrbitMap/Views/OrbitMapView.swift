@@ -136,7 +136,15 @@ struct OrbitMapView: View {
         .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
             if let chat {
                 ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
-                    .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
+                    .overlay(alignment: .top) {
+                        if let alert = notifications?.chatAlert {
+                            OrbitFeedbackView.chatBanner(sender: alert.sender, message: alert.body)
+                                .padding(.horizontal)
+                        }
+                    }
+                    .safeAreaInset(edge: .top) {
+                        OrbitFeedbackView(sos: sos, notifications: notifications, showsChatAlert: false)
+                    }
                     .overlay { SOSEdgeGlowView(sos: sos) }
             }
         }
