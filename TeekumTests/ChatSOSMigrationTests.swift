@@ -12,6 +12,15 @@ import CoreLocation
 
 final class ChatSOSMigrationTests: XCTestCase {
     @MainActor
+    func testSOSSwipeRequiresFullUpwardTravel() {
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(.zero))
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 0, height: -63)))
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 0, height: 64)))
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 75, height: -64)))
+        XCTAssertTrue(SOSSwipeButtonView.completesSwipe(CGSize(width: 12, height: -64)))
+    }
+
+    @MainActor
     func testChatNameColorsDistinguishYellowFromCreamAcrossV3Payloads() throws {
         let cream = PairingProfileColor.cream
         let yellow = PairingProfileColor.yellow

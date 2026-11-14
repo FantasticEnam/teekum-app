@@ -29,7 +29,8 @@ struct OrbitControlsView: View {
                     .accessibilityLabel("SOS active")
                     .accessibilityHint("Opens the confirmation to end the SOS")
             } else {
-                SOSHoldButton(onHoldCompleted: onSOS)
+                SOSSwipeButtonView(onSwipeCompleted: onSOS)
+                    .zIndex(1)
             }
         
             Spacer()
