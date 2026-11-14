@@ -42,7 +42,7 @@ public actor RoutingTable: RoutingTableManaging {
     
     public static func routeKey(destinationId: String, sessionId: UInt32? = nil) -> String {
         if let sid = sessionId {
-            return String(format: "%06X:%@", sid & 0x00FFFFFF, destinationId)
+            return "\(PacketConstants.formatSessionId(sid)):\(destinationId)"
         }
         return destinationId
     }
@@ -241,9 +241,10 @@ public actor RoutingTable: RoutingTableManaging {
     
     /// Invalidates all forward routes belonging to a specific group session (e.g. on teardown or leave).
     public func invalidateRoutes(forSessionId sessionId: UInt32) async {
-        let prefix = String(format: "%06X:", sessionId & 0x00FFFFFF)
+        let masked = sessionId & PacketConstants.sessionIdMask
+        let prefix = "\(PacketConstants.formatSessionId(masked)):"
         forwardRoutes = forwardRoutes.filter { key, route in
-            if route.sessionId == sessionId { return false }
+            if route.sessionId == masked { return false }
             if key.hasPrefix(prefix) { return false }
             return true
         }

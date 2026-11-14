@@ -17,12 +17,12 @@ public actor KeychainStore {
         self.serviceName = serviceName
     }
     
-    private func keychainAccount(for sessionId: UInt16) -> String {
-        String(format: "session_0x%04X", sessionId)
+    private func keychainAccount(for sessionId: UInt32) -> String {
+        "session_0x\(PacketConstants.formatSessionId(sessionId))"
     }
     
     /// Persists key bytes in the device-only Keychain; reports failure instead of pretending recovery is durable.
-    public func storeKeyInKeychain(_ key: SymmetricKey, forSessionId sessionId: UInt16) throws {
+    public func storeKeyInKeychain(_ key: SymmetricKey, forSessionId sessionId: UInt32) throws {
         let keyData = key.withUnsafeBytes { Data($0) }
         guard keyData.count == 32 else {
             throw CryptoServiceError.invalidKeySize(expected: 32, actual: keyData.count)
@@ -57,7 +57,7 @@ public actor KeychainStore {
     }
     
     /// Reads the symmetric session key from the iOS Keychain.
-    public func loadKeyFromKeychain(forSessionId sessionId: UInt16) throws -> SymmetricKey? {
+    public func loadKeyFromKeychain(forSessionId sessionId: UInt32) throws -> SymmetricKey? {
         let account = keychainAccount(for: sessionId)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -83,7 +83,7 @@ public actor KeychainStore {
     }
     
     /// Permanently purges the session key from the iOS Keychain.
-    public func purgeKeyFromKeychain(forSessionId sessionId: UInt16) throws {
+    public func purgeKeyFromKeychain(forSessionId sessionId: UInt32) throws {
         let account = keychainAccount(for: sessionId)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

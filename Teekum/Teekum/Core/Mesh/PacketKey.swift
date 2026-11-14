@@ -21,13 +21,13 @@ public struct PacketKey: Hashable, Sendable, CustomStringConvertible {
     public let type: PacketType?        // Optional packet type discriminator
     
     public init(sessionId: UInt32, sequenceNumber: UInt32, type: PacketType? = nil) {
-        self.sessionId = sessionId & 0x00FFFFFF
+        self.sessionId = sessionId & PacketConstants.sessionIdMask
         self.sequenceNumber = sequenceNumber
         self.type = type
     }
     
     public init(wirePacket: RawWirePacket) {
-        self.sessionId = UInt32(wirePacket.envelope.sessionId)
+        self.sessionId = wirePacket.envelope.sessionId & PacketConstants.sessionIdMask
         self.sequenceNumber = wirePacket.envelope.sequenceNumber
         self.type = wirePacket.envelope.type
     }
@@ -50,6 +50,6 @@ public struct PacketKey: Hashable, Sendable, CustomStringConvertible {
     
     public var description: String {
         let typeStr = type.map { "\($0)" } ?? "any"
-        return "PacketKey(sid: 0x\(String(format: "%06X", sessionId)), seq: \(sequenceNumber), type: \(typeStr))"
+        return "PacketKey(sid: 0x\(PacketConstants.formatSessionId(sessionId)), seq: \(sequenceNumber), type: \(typeStr))"
     }
 }

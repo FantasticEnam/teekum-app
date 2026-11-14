@@ -70,15 +70,12 @@ final class SessionController {
         meeting = MeetingPointService(sessionStore: store, cryptoService: crypto, transport: transport,
             sequenceAllocator: sequences)
         sos.onIncomingAlert = { [weak self] alert in
-            guard let self else { return }
-            if let index = store.members.firstIndex(where: { $0.id == alert.senderInitials }) {
-                store.members[index].isEmergency = true
-            }
+            guard let self, holder.session != nil else { return }
+            store.setEmergency(true, for: alert.senderInitials)
             notifications.notify(title: "SOS from \(alert.senderInitials)", body: alert.emergencyType.title, showBanner: false)
         }
-        sos.onIncomingAlertDismissed = { [weak store] initials in
-            guard let store, let index = store.members.firstIndex(where: { $0.id == initials }) else { return }
-            store.members[index].isEmergency = false
+        sos.onIncomingSOSResolved = { [weak store] initials in
+            store?.setEmergency(false, for: initials)
         }
     }
 
@@ -259,10 +256,7 @@ final class SessionController {
             guard generation == current else { break }
             diagnostics = snapshot
             let losses = store.refreshMemberVisibility(now: .now, peers: snapshot.activeDirectPeers)
-            if !losses.isEmpty {
-                let initials = losses.map(\.initials).formatted(.list(type: .and))
-                notifications.notify(title: "Group activity", body: "Lost contact with \(initials).")
-            }
+            notifications.notifyGroupActivity(losses.map(\.initials), joined: false)
             meeting.checkExpiration()
             if let coordinate = location.currentLocation?.coordinate { meeting.checkArrival(userLocation: coordinate) }
             let stale = store.members.contains { $0.isWithinStaleRecoveryWindow() }
@@ -270,9 +264,9 @@ final class SessionController {
                 location.hasStalePeers = stale
                 if stale { location.triggerCadenceEvaluation() }
             }
-            await liveActivity.update(peerCount: snapshot.activeDirectPeers.filter(\.isDirectLink).count,
+            await liveActivity.update(peerCount: store.visibleMembers.count + 1, unreadCount: chat.unreadCount,
                 meeting: store.activeMeetingPoint, location: location.currentLocation,
-                sosSender: sos.incomingAlert?.senderInitials ?? (sos.deliveryState == .idle ? nil : session.localInitials),
+                sosSender: sos.outgoingEventId != nil ? session.localInitials : store.members.first(where: \.isEmergency)?.id,
                 relay: relayState)
             guard generation == current else { break }
             let now = Date.now
@@ -298,10 +292,14 @@ final class SessionController {
             routeDiscoveryService: routes, seenPacketCache: seen,
             onLocationPing: { [weak self] ping, inbound in
                 guard let self, generation == current else { return }
+                let isNew = !store.members.contains { $0.id == ping.senderInitials }
                 store.applyLocationPing(ping, inbound: inbound)
+                if isNew { notifications.notifyGroupActivity([ping.senderInitials], joined: true) }
             }, onSOS: { [weak self] payload, inbound in
                 guard let self, generation == current else { return }
+                let isNew = !store.members.contains { $0.id == payload.senderInitials }
                 store.applySOSLocation(payload, inbound: inbound)
+                if isNew { notifications.notifyGroupActivity([payload.senderInitials], joined: true) }
                 try? await sosEngine.handleInboundSOSPacket(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
             }, onACK: { [weak self] inbound in
                 guard let self, generation == current else { return }
@@ -311,15 +309,25 @@ final class SessionController {
             }, onMeetingUpdate: { [weak self] update in
                 guard let self, generation == current, meeting.applyInboundUpdate(update) else { return }
                 if update.senderInitials != store.activeSession?.localInitials {
-                    notifications.notify(title: "Meeting point", body: "\(update.senderInitials) updated the group rendezvous.")
+                    switch update.action {
+                    case .propose:
+                        notifications.notify(title: "Meeting point", body: "\(update.senderInitials) updated the group rendezvous.")
+                    case .cancel:
+                        notifications.notify(title: "Meeting point", body: "\(update.senderInitials) cancelled the group rendezvous.")
+                    case .accept, .decline:
+                        break
+                    }
                 }
             }, onChat: { [weak self] inbound in
                 guard let self, generation == current,
                       let outcome = try? await chatEngine.handleInboundPacket(inbound, relay: false) else { return }
                 guard generation == current else { return }
-                if let message = outcome.deliveredMessage, !chat.isChatSheetPresented {
-                    notifications.notify(title: message.senderInitials, body: message.text)
+                if let message = outcome.deliveredMessage {
+                    notifications.notifyChat(sender: message.senderInitials, body: message.text)
                 }
+            }, onSOSResolved: { [weak self] event in
+                guard let self, generation == current else { return }
+                await sos.acceptResolution(event)
             })
     }
 
@@ -327,14 +335,19 @@ final class SessionController {
         let current = generation
         let connected = Set(peers.filter(\.isDirectLink).map(\.id))
         let disconnected = directPeers.subtracting(connected)
+        let newlyConnected = connected.subtracting(directPeers)
         directPeers = connected
         for peer in disconnected {
             await routes.handleNeighborDisconnected(peerId: peer)
             guard generation == current else { return }
         }
+        let knownMembers = Set(store.members.map(\.id))
         store.applyPeerSnapshot(peers, connected: connected)
+        notifications.notifyGroupActivity(store.members.map(\.id).filter { !knownMembers.contains($0) }, joined: true)
         if !connected.isEmpty {
             location.publishCurrentState()
+        }
+        if !newlyConnected.isEmpty {
             await meeting.syncActiveMeetingPointToPeers()
         }
     }

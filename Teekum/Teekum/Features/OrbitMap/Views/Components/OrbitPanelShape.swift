@@ -9,17 +9,18 @@ import SwiftUI
 
 struct OrbitPanelShape: Shape {
     var cornerRadius: CGFloat = 40
-    var crestHeight: CGFloat = 44
+    var crestHeight: CGFloat? = 44
+    var crestWidth: CGFloat = 144
 
     func path(in rect: CGRect) -> Path {
-        let crest = min(crestHeight, rect.height)
+        let crest = min(crestHeight ?? rect.height, rect.height)
         let radius = min(
             cornerRadius,
             rect.width / 2,
             (rect.height - crest) / 2
         )
         let halfCrest = min(
-            72.0,
+            crestWidth / 2,
             max(0, rect.width / 2 - radius)
         )
         let mid = rect.midX
@@ -88,13 +89,14 @@ struct OrbitPanelShape: Shape {
                     .frame(height: 44)
             }
 
-        OrbitPanelShape(cornerRadius: 0, crestHeight: 64)
+        OrbitPanelShape(cornerRadius: 0, crestHeight: nil, crestWidth: 176)
             .fill(Color.blackCard)
-            .frame(width: 144, height: 64)
-            .overlay {
+            .frame(width: 176, height: 88)
+            .overlay(alignment: .top) {
                 Image(systemName: "chevron.up")
                     .font(.title2)
                     .foregroundStyle(.secondary)
+                    .frame(height: 54)
             }
     }
     .padding(24)

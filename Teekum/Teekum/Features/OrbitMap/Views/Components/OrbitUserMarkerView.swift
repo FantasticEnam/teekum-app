@@ -10,20 +10,21 @@ import SwiftUI
 struct OrbitUserMarkerView: View {
     let color: Color
     var heading: Angle? = nil
+    var isEmergency = false
+    var isTargetSelected = false
 
     var body: some View {
         Circle()
-            .fill(color)
+            .fill(isEmergency ? Color.alertRed : color)
             .frame(width: 30, height: 30)
-            .shadow(color: color, radius: 8)
             .overlay {
                 if let heading {
                     Image(systemName: "location.north.fill")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: isTargetSelected ? 30 : 20, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(
-                            width: 90,
-                            height: 90,
+                            width: isTargetSelected ? 120 : 90,
+                            height: isTargetSelected ? 120 : 90,
                             alignment: .top
                         )
                         .rotationEffect(heading)
@@ -31,26 +32,31 @@ struct OrbitUserMarkerView: View {
             }
             .overlay(alignment: .bottom) {
                 Text("YOU")
-                    .font(.custom("Charter-Roman", size: 13, relativeTo: .caption))
+                    .font(.custom("Helvetica", size: 13, relativeTo: .caption))
                     .fontWeight(.semibold)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(.black, in: .rect(cornerRadius: 6))
+                    .background(isEmergency ? Color.alertRed : .black, in: .rect(cornerRadius: 6))
                     .fixedSize()
                     .offset(y: 40)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Your position")
             .accessibilityValue(
-                heading == nil
-                    ? "Direction unavailable"
-                    : "Direction available"
+                isEmergency ? "SOS active" : (heading == nil ? "Direction unavailable" : "Direction available")
             )
     }
 }
 
-#Preview {
-    OrbitUserMarkerView(color: .yellowProfile, heading: .degrees(0))
-        .padding(100)
-        .background(.black)
+#Preview("User Marker States") {
+    HStack(spacing: 60) {
+        // 1. Normal
+        OrbitUserMarkerView(color: .yellowProfile, heading: .degrees(0))
+
+        // 2. SOS Emergency
+        OrbitUserMarkerView(color: .yellowProfile, heading: .degrees(0), isEmergency: true)
+    }
+    .padding(100)
+    .background(.black)
 }

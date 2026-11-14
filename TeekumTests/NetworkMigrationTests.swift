@@ -198,6 +198,131 @@ final class NetworkMigrationTests: XCTestCase {
         XCTAssertEqual(accepted, 1)
     }
 
+    @MainActor
+    func testRouterAuthenticatesResolutionBeforeForwardingOrRetaining() async throws {
+        let transport = NetworkTestTransport()
+        let crypto = CryptoService()
+        let discovery = RouteDiscoveryService(routingTable: RoutingTable(), neighborTable: NeighborTable(),
+            transport: transport, cryptoService: crypto)
+        let policy = RelayPolicyManager(storageKeyPrefix: "network-router-\(UUID())", transport: transport, defaultMode: .disabled)
+        let key = SymmetricKey(size: .bits256)
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: key.withUnsafeBytes { Data($0) },
+            localInitials: "BOB")
+        let senderSlot = MemberID.fromInitials("ALX").memberSlot
+        let resolution = SOSResolvedPayload(senderInitials: "ALX", eventId: 77)
+        var accepted: [SOSResolvedPayload] = []
+        let router = PacketRouter(cryptoService: crypto, peerTransport: transport,
+            relayPolicyManager: policy, routeDiscoveryService: discovery, seenPacketCache: SeenPacketCache(),
+            onLocationPing: { _, _ in }, onSOS: { _, _ in }, onACK: { _ in }, onMeetingUpdate: { _ in },
+            onChat: { _ in }, onSOSResolved: { accepted.append($0) })
+        let sequence = CleartextEnvelope.makeSequenceNumber(memberSlot: senderSlot, counter: 1)
+        let envelope = CleartextEnvelope(type: .sosResolved, sessionId: session.sessionId, sequenceNumber: sequence)
+        let data = try await crypto.sealToWireBytes(payload: resolution.serialize(), envelope: envelope, using: key)
+        var tampered = data
+        tampered[tampered.index(before: tampered.endIndex)] ^= 1
+        let invalid = try RawWirePacket.fromWireData(tampered)
+        await router.routeInboundPacket(.init(rawPacket: invalid, sourcePeerId: "relay"), for: session)
+        XCTAssertTrue(accepted.isEmpty)
+        let valid = try RawWirePacket.fromWireData(data)
+        for _ in 0..<2 {
+            await router.routeInboundPacket(.init(rawPacket: valid, sourcePeerId: "relay"), for: session)
+        }
+        XCTAssertEqual(accepted, [resolution])
+        let carried = await transport.carriedCount
+        let broadcast = await transport.broadcastCount
+        XCTAssertEqual(carried, 1)
+        XCTAssertEqual(broadcast, 1)
+
+        var carry = CarryMessageStore()
+        carry.remember(data, isForeign: false)
+        XCTAssertEqual(carry.nextTransmission(to: ["reconnected-friend"])?.data, data)
+    }
+
+    @MainActor
+    func test24BitSessionIdsRoundTripEnvelopeIsolateRoutesAndAuthenticateInRouter() async throws {
+        for sid: UInt32 in [0x000001, GroupSession.defaultSessionId, 0xAB1234, 0xFFFFFF] {
+            var env = CleartextEnvelope(type: .locationPing, hopLimit: 8, hopCount: 2, sessionId: sid, sequenceNumber: 0x0700_002A)
+            let serialized = env.serialize()
+            XCTAssertEqual(serialized.subdata(in: 3..<6), Data(PacketConstants.encodeSessionId24(sid)))
+            XCTAssertEqual(env.constructNonce().prefix(3), Data(PacketConstants.encodeSessionId24(sid)))
+            XCTAssertEqual(env.authenticatedAssociatedData().subdata(in: 3..<6), Data(PacketConstants.encodeSessionId24(sid)))
+            XCTAssertEqual(try CleartextEnvelope.deserialize(from: serialized), env)
+            XCTAssertEqual(PacketKey(wireData: serialized)?.sessionId, sid)
+
+            env.sessionId = 0x1200_0000 | sid
+            XCTAssertEqual(env.sessionId, sid)
+        }
+
+        let routing = RoutingTable()
+        await routing.recordForwardRoute(destinationId: "ALX", nextHop: "P1", hopCount: 1, cost: 1, sequenceNumber: 1, ttl: 30, sessionId: 0xAB1234)
+        await routing.recordForwardRoute(destinationId: "ALX", nextHop: "P2", hopCount: 1, cost: 1, sequenceNumber: 1, ttl: 30, sessionId: 0xCD1234)
+        await routing.invalidateRoutes(forSessionId: 0xAB1234)
+        let evicted = await routing.findRoute(to: "ALX", inSession: 0xAB1234)
+        let kept = await routing.findRoute(to: "ALX", inSession: 0xCD1234)
+        XCTAssertNil(evicted)
+        XCTAssertEqual(kept?.nextHopPeerId, "P2")
+
+        let transport = NetworkTestTransport()
+        let crypto = CryptoService()
+        let cache = SeenPacketCache()
+        let neighbors = NeighborTable()
+        let discovery = RouteDiscoveryService(routingTable: routing, neighborTable: neighbors, transport: transport, cryptoService: crypto)
+        let policy = RelayPolicyManager(storageKeyPrefix: "network-24bit-\(UUID())", transport: transport, defaultMode: .disabled)
+        let key = SymmetricKey(size: .bits256)
+        let session = GroupSession(sessionId: 0xAB1234, symmetricKeyData: key.withUnsafeBytes { Data($0) }, localInitials: "BOB")
+        var delivered = 0
+        let router = PacketRouter(cryptoService: crypto, peerTransport: transport, relayPolicyManager: policy,
+            routeDiscoveryService: discovery, seenPacketCache: cache,
+            onLocationPing: { _, _ in }, onSOS: { _, _ in }, onACK: { _ in }, onMeetingUpdate: { _ in },
+            onChat: { _ in delivered += 1 })
+        let envelope = CleartextEnvelope(type: .chatMessage, sessionId: session.sessionId, sequenceNumber: 0x0100_0001)
+        let payload = try ChatMessagePayload(senderInitials: "ALX", timestamp: .now, text: "24-bit mesh").serialize()
+        let sealed = try await crypto.seal(payload: payload, envelope: envelope, using: key)
+        let wire = try RawWirePacket(envelope: envelope, ciphertext: sealed.ciphertext, authTag: sealed.authTag).toWireData()
+        let parsed = try RawWirePacket.fromWireData(wire)
+        XCTAssertEqual(parsed.envelope.sessionId, session.sessionId)
+        await router.routeInboundPacket(InboundPacket(rawPacket: parsed, sourcePeerId: "ALX"), for: session)
+        XCTAssertEqual(delivered, 1)
+    }
+
+    @MainActor
+    func testRouterDeduplicatesInboundMeetingUpdatesAndStillRelaysOnce() async throws {
+        let transport = NetworkTestTransport()
+        let crypto = CryptoService()
+        let cache = SeenPacketCache()
+        let routing = RoutingTable()
+        let neighbors = NeighborTable()
+        let discovery = RouteDiscoveryService(routingTable: routing, neighborTable: neighbors,
+            transport: transport, cryptoService: crypto)
+        let policy = RelayPolicyManager(storageKeyPrefix: "network-meeting-\(UUID())", transport: transport, defaultMode: .disabled)
+        let key = SymmetricKey(size: .bits256)
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: key.withUnsafeBytes { Data($0) },
+            localInitials: "BOB")
+        var updates: [MeetingUpdatePayload] = []
+        let router = PacketRouter(cryptoService: crypto, peerTransport: transport,
+            relayPolicyManager: policy, routeDiscoveryService: discovery, seenPacketCache: cache,
+            onLocationPing: { _, _ in }, onSOS: { _, _ in }, onACK: { _ in },
+            onMeetingUpdate: { updates.append($0) }, onChat: { _ in })
+
+        let envelope = CleartextEnvelope(type: .meetingUpdate, hopLimit: 15, hopCount: 0,
+            sessionId: session.sessionId,
+            sequenceNumber: CleartextEnvelope.makeSequenceNumber(memberSlot: 1, counter: 1))
+        let payload = MeetingUpdatePayload(
+            coordinate: .init(latitude: -6.2, longitude: 106.8),
+            action: .propose, attendanceStatus: .attending,
+            meetingPointId: 77, senderInitials: "ALX"
+        ).serialize()
+        let sealed = try await crypto.seal(payload: payload, envelope: envelope, using: key)
+        let packet = RawWirePacket(envelope: envelope, ciphertext: sealed.ciphertext, authTag: sealed.authTag)
+
+        await router.routeInboundPacket(InboundPacket(rawPacket: packet, sourcePeerId: "ALX"), for: session)
+        await router.routeInboundPacket(InboundPacket(rawPacket: packet, sourcePeerId: "relay"), for: session)
+
+        let relayed = await transport.broadcastCount
+        XCTAssertEqual(updates.count, 1)
+        XCTAssertEqual(relayed, 1)
+    }
+
     private func wire(type: PacketType, sequence: UInt32) throws -> Data {
         try RawWirePacket(envelope: CleartextEnvelope(type: type, sessionId: 0x1234, sequenceNumber: sequence),
             ciphertext: Data(repeating: 0, count: 30), authTag: Data(repeating: 0, count: 16)).toWireData()

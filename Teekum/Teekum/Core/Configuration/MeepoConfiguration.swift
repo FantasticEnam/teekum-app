@@ -1,5 +1,5 @@
 //
-//  TeeKumConfiguration.swift
+//  MeepoConfiguration.swift
 //  Teekum
 //
 //  Created by Nicho on 05/11/26.
@@ -11,7 +11,7 @@ import Foundation
 ///
 /// Every configurable knob, cadences, network thresholds, hop limits, battery cutoffs,
 /// retry parameters, and UI timings are unified in this single file for rapid testing and field tuning.
-nonisolated public enum TeeKumConfiguration {
+nonisolated public enum MeepoConfiguration {
     
     // MARK: - 1. Wire Protocol & Network Topology Parameters
     public enum Network {
@@ -30,11 +30,17 @@ nonisolated public enum TeeKumConfiguration {
         /// Size of cryptographic AEAD nonce (12 bytes).
         public static let nonceSize: Int = 12
         
-        /// Protocol version (0x03 for Protocol Version 3).
-        public static let protocolVersion: UInt8 = 0x03
+        /// Protocol version (0x01 for Protocol Version 1).
+        public static let protocolVersion: UInt8 = 0x01
         
         /// 4-byte domain separation tag used in AEAD nonce construction: 'T', 'K', 'M', '3'.
         public static let protocolDomainTag: [UInt8] = [0x54, 0x4B, 0x4D, 0x33]
+
+        /// Bitmask for canonical 24-bit Session ID values (`0x000000...0xFFFFFF`).
+        public static let sessionIdMask: UInt32 = 0x00FFFFFF
+
+        /// Maximum allowable 24-bit Session ID (`0x00FFFFFF` = 16,777,215).
+        public static let maxSessionId: UInt32 = 0x00FFFFFF
         
         /// Hard architectural maximum allowable hop limit across the entire mesh (1...15).
         public static let maxHopLimit: UInt8 = 15
@@ -45,9 +51,6 @@ nonisolated public enum TeeKumConfiguration {
         /// Dedicated hop limit budget for Chat Messages (Type 0x07) and Delivery ACKs (Type 0x06).
         /// Tuneable independently to control text propagation radius and conserve festival airtime (default: 8).
         public static let chatHopLimit: UInt8 = 8
-        
-        /// Strict 1-hop limit for Ultra-Wideband token exchange packets (default: 1).
-        public static let uwbHopLimit: UInt8 = 1
         
         /// High-reach hop limit for Group Rendezvous / Meeting Point updates (Type 0x03) (default: 15).
         public static let meetingPointHopLimit: UInt8 = 15
@@ -154,9 +157,6 @@ nonisolated public enum TeeKumConfiguration {
     
     // MARK: - 4. Emergency SOS Parameters
     public enum SOS {
-        /// Continuous press-and-hold duration required to trigger emergency alarm (default: 3.0s).
-        public static let holdDuration: TimeInterval = 1.5
-        
         /// Inactivity stillness duration before triggering pre-alarm warning countdown (default: 180.0s = 3 minutes).
         public static let inactivityStillnessDuration: TimeInterval = 180.0
         
@@ -192,15 +192,6 @@ nonisolated public enum TeeKumConfiguration {
     public enum Navigation {
         /// Outer polar boundary radius rendered on Tactical Radar (default: 60.0m).
         public static let tacticalRadarRangeMeters: Double = 60.0
-        
-        /// Proximity threshold where Tactical Radar transitions to Ultra-Wideband (default: 6.0m).
-        public static let uwbTransitionDistanceMeters: Double = 6.0
-        
-        /// Maximum physical range of Apple Ultra-Wideband U1/U2 chips (default: 8.0m).
-        public static let uwbMaxRangingDistanceMeters: Double = 8.0
-        
-        /// Inactivity timeout before an idle UWB session is torn down to preserve battery (default: 30.0s).
-        public static let uwbSessionTimeoutSeconds: Double = 30.0
         
         /// Field of view angle for attendee heading vision cones on map (default: 50.0 degrees).
         public static let visionConeFOV: Double = 50.0

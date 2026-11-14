@@ -15,14 +15,21 @@ struct OrbitSceneView: View {
     }
 
     let userColor: Color
-    var bloomRotation: Angle = .zero
     var members: [Member] = []
     var meetingPoint: MeetingPoint?
     var location: LocationPin?
     var heading: Double = 0
     var selectedTarget: Target?
+    var isUserSOSActive = false
     var onSelectMember: (Member) -> Void = { _ in }
     var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
+
+    @State private var zoom = 1.0
+    @GestureState private var pinchMagnification = 1.0
+
+    private var radarRange: Double {
+        MeepoConfiguration.Navigation.tacticalRadarRangeMeters / boundedZoom(zoom * pinchMagnification)
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -30,30 +37,18 @@ struct OrbitSceneView: View {
             let baseSize = min(size.width, size.height)
             let outerRadius = baseSize * 1.55 / 2
             let markerRadius = Double(baseSize * 0.42)
+            let range = radarRange
             
-            ZStack {
-                StarfieldView()
-                
-                RadialGradient(
-                    stops: [
-                        .init(
-                            color: .clear,
-                            location: 0
-                        ),
-                        .init(
-                            color: .black.opacity(0.15),
-                            location: 0.65
-                        ),
-                        .init(
-                            color: .black.opacity(0.75),
-                            location: 1
-                        )
-                    ],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: outerRadius
-                )
-            }
+            RadialGradient(
+                stops: [
+                    .init(color: Color(hex: 0x131313), location: 0),
+                    .init(color: Color(hex: 0x161616), location: 0.85),
+                    .init(color: .black, location: 1)
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: outerRadius * 1.12
+            )
             .frame(width: size.width, height: size.height)
             .overlay {
                 ZStack {
@@ -69,28 +64,25 @@ struct OrbitSceneView: View {
                             )
                     }
                     
-                    OrbitBloomView(
-                        radius: outerRadius,
-                        rotation: bloomRotation
-                    )
-                    
-                    OrbitUserMarkerView(color: userColor, heading: .degrees(0))
+                    OrbitUserMarkerView(color: userColor, heading: .degrees(0), isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil)
                         .allowsHitTesting(false)
 
                     if let location {
                         ForEach(members) { member in
                             if let coordinate = member.coordinate {
-                                let projection = OrbitProjection(from: location, to: coordinate, heading: heading, radius: markerRadius)
+                                let projection = OrbitProjection(from: location, to: coordinate, heading: heading,
+                                    radius: markerRadius, range: range)
                                 let isSelected = selectedTarget == .member(member.id)
                                 if isSelected {
-                                    targetLine(to: projection, in: size)
+                                    targetLine(to: projection, in: size, isEmergency: member.isEmergency)
                                 }
                                 memberMarker(member, projection: projection, isSelected: isSelected)
                             }
                         }
 
                         if let meetingPoint {
-                            let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading, radius: markerRadius)
+                            let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading,
+                                radius: markerRadius, range: range)
                             let isSelected = selectedTarget == .meetingPoint(meetingPoint.id)
                             if isSelected {
                                 targetLine(to: projection, in: size)
@@ -101,23 +93,48 @@ struct OrbitSceneView: View {
                 }
             }
             .clipped()
+            .contentShape(.rect)
+            .simultaneousGesture(
+                MagnifyGesture()
+                    .updating($pinchMagnification) { value, magnification, _ in
+                        magnification = Double(value.magnification)
+                    }
+                    .onEnded { value in
+                        zoom = boundedZoom(zoom * Double(value.magnification))
+                    }
+            )
         }
         .background(.black)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Orbit radar")
+        .accessibilityAction(named: Text("Zoom in")) { zoom = boundedZoom(zoom * 1.25) }
+        .accessibilityAction(named: Text("Zoom out")) { zoom = boundedZoom(zoom / 1.25) }
+    }
+
+    private func boundedZoom(_ scale: Double) -> Double {
+        min(max(scale, 0.5), 2)
     }
 
     private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
         let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
+        let lowBatteryPercentage = member.batteryLevel.flatMap { level in
+            let threshold = Float(MeepoConfiguration.Battery.survivalThresholdPercent) / 100
+            return (0...threshold).contains(level) ? level.formattedBatteryPercentage : nil
+        }
         return Button { onSelectMember(member) } label: {
             OrbitMemberMarkerView(initials: member.initials,
-                color: member.isEmergency ? .alertRed : member.color.swiftUIColor,
-                isSelected: isSelected)
+                color: member.color.swiftUIColor, isSelected: isSelected,
+                isEmergency: member.isEmergency, showsBloom: projection.isClamped,
+                lowBatteryPercentage: lowBatteryPercentage)
                 .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
-                .opacity(isStale && !isSelected ? 0.5 : 1)
+                .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Find \(member.initials), \(projection.distance.formattedDistance())")
+        .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
+        .accessibilityHint(lowBatteryPercentage.map { Text("Low battery, \($0)") } ?? Text(""))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .offset(x: projection.x, y: projection.y)
         .zIndex(isSelected ? 2 : 0)
@@ -155,13 +172,13 @@ struct OrbitSceneView: View {
             .fixedSize()
     }
 
-    private func targetLine(to projection: OrbitProjection, in size: CGSize) -> some View {
+    private func targetLine(to projection: OrbitProjection, in size: CGSize, isEmergency: Bool = false) -> some View {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         return Path { path in
             path.move(to: center)
             path.addLine(to: CGPoint(x: center.x + projection.x, y: center.y + projection.y))
         }
-        .stroke(Color.yellowProfile, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+        .stroke(isEmergency ? Color.alertRedFire : Color.yellowProfile, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
         .frame(width: size.width, height: size.height)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -169,9 +186,55 @@ struct OrbitSceneView: View {
     }
 }
 
-#Preview {
+#Preview("Near and distant friends with low battery") {
+    let location = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 5)
+
+    OrbitSceneView(
+        userColor: .yellowProfile,
+        members: [
+            Member(id: "NIC", coordinate: .init(latitude: 0.00025, longitude: -0.0001), batteryLevel: 0.2,
+                color: .greenishTeal, measurementTimestamp: .now),
+            Member(id: "ADI", coordinate: .init(latitude: -0.0004, longitude: 0.0005),
+                color: .apricot, measurementTimestamp: .now)
+        ],
+        location: location
+    )
+}
+
+#Preview("1. Selected Normal (Yellow)") {
     let store = SessionStore.preview
-    OrbitSceneView(userColor: .yellowProfile, members: store.members, meetingPoint: store.activeMeetingPoint,
+    OrbitSceneView(
+        userColor: .yellowProfile,
+        members: store.members,
+        meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
-        selectedTarget: .member("ADI"))
+        selectedTarget: .member("ADI") // Kotak nama kuning, teks hitam, garis putus-putus kuning
+    )
+}
+
+#Preview("2. Friend SOS Active (Red)") {
+    let store = SessionStore.preview
+    var sosMembers = store.members
+    if let index = sosMembers.firstIndex(where: { $0.id == "ADI" }) {
+        sosMembers[index].isEmergency = true
+    }
+
+    return OrbitSceneView(
+        userColor: .yellowProfile,
+        members: sosMembers,
+        meetingPoint: store.activeMeetingPoint,
+        location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
+        selectedTarget: .member("ADI") // Kotak merah, teks putih (bukan hitam), panah merah
+    )
+}
+
+#Preview("3. My SOS Active") {
+    let store = SessionStore.preview
+    OrbitSceneView(
+        userColor: .yellowProfile,
+        members: store.members,
+        meetingPoint: store.activeMeetingPoint,
+        location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
+        isUserSOSActive: true // Titik tengah user sendiri berwarna merah
+    )
 }

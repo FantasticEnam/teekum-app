@@ -95,7 +95,7 @@ extension PeerTransportService {
                 throw TransportError.rateLimitExceeded("Urgent SOS forwarding budget exceeded")
             }
         } else {
-            let allowed = packetType == .chatMessage || packetType == .ack
+            let allowed = [.chatMessage, .ack, .sosResolved].contains(packetType)
                 ? await rateLimiter.consumeOrdinaryToken() : await rateLimiter.consumeTelemetryToken()
             guard allowed else {
                 throw TransportError.rateLimitExceeded("Ordinary relay budget exhausted")
@@ -125,8 +125,11 @@ extension PeerTransportService {
             throw TransportError.invalidPacketSize
         }
         
-        rememberForCarry(data)
+        let isSOSResolution = (data[data.startIndex] & 0x0F) == PacketType.sosResolved.rawValue
+        if !isSOSResolution { rememberForCarry(data) }
         try outbox.enqueue(data: data, destinationPeerId: nil, isRelay: false)
+        // A failed resolution enqueue leaves the SOS active, so don't retain it for later sending.
+        if isSOSResolution { rememberForCarry(data) }
         triggerOutboxFlush()
     }
     
@@ -168,7 +171,7 @@ extension PeerTransportService {
         // Update Bonjour TXT record dynamically with relay flag
         if let session = activeSession, let currentListener = listener {
             var txtDict: [String: Data] = [:]
-            txtDict["sid"] = String(format: "%08X", session.sessionId).data(using: .utf8)
+            txtDict["sid"] = PacketConstants.formatSessionId(session.sessionId).data(using: .utf8)
             txtDict["name"] = session.localMemberName.data(using: .utf8)
             txtDict["relay"] = (enabled ? "1" : "0").data(using: .utf8)
             let txtData = NetService.data(fromTXTRecord: txtDict)

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct QRScannerView: View {
     var isEnabled = false
@@ -17,32 +18,38 @@ struct QRScannerView: View {
     @State private var cameraMessage: String?
 
     var body: some View {
-        ZStack {
-            Color.black
+        Group {
+            if isEnabled, let cameraMessage {
+                VStack(spacing: 8) {
+                    Text(cameraMessage)
+                    Button("Open Settings", action: openSettings)
+                        .foregroundStyle(Color.yellowProfile)
+                }
+                .padding(8)
+                .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
+            } else if !isEnabled {
+                Text("Enter your initials to enable the camera.")
+                    .opacity(0.5)
+            } else {
+                Color.clear
+            }
+        }
+        .font(.custom("Helvetica", size: 14, relativeTo: .body))
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: 255, maxHeight: 255)
+        .background {
             if isEnabled {
                 CameraPreviewView(session: scanner.session)
                     .accessibilityLabel("Group QR code scanner")
-                if let cameraMessage {
-                    VStack(spacing: 12) {
-                        Text(cameraMessage)
-                        Button("Open Settings", action: openSettings)
-                            .foregroundStyle(Color.yellowProfile)
-                    }
-                    .font(.custom("Charter-Roman", size: 14, relativeTo: .body))
-                    .multilineTextAlignment(.center)
-                    .padding(24)
-                    .background(.black.opacity(0.8))
-                }
             } else {
-                Text("Enter your initials to enable the camera.")
-                    .font(.custom("Charter-Roman", size: 14, relativeTo: .body))
-                    .multilineTextAlignment(.center)
-                    .padding(24)
-                    .opacity(0.5)
+                Color.black
             }
         }
-        .foregroundStyle(.white)
-        .frame(height: 300)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay {
             RoundedRectangle(cornerRadius: 14)

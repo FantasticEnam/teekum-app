@@ -37,8 +37,7 @@ public final class MeetingPointService {
 
     public func canSetMeetingPoint(by initials: String) -> Bool {
         checkExpiration()
-        guard let point = sessionStore.activeMeetingPoint else { return true }
-        return point.proposerInitials == InitialsCodec.sanitize(initials)
+        return sessionStore.hasActiveSession
     }
 
     @discardableResult
@@ -50,8 +49,7 @@ public final class MeetingPointService {
         arrivalRadiusMeters: Double = 25
     ) -> Bool {
         guard let session = sessionStore.activeSession,
-              CLLocationCoordinate2DIsValid(coordinate),
-              canSetMeetingPoint(by: session.localInitials) else { return false }
+              CLLocationCoordinate2DIsValid(coordinate) else { return false }
         let point = MeetingPoint(
             name: "\(session.localInitials)'s Meeting Point",
             coordinate: coordinate,
@@ -114,8 +112,9 @@ public final class MeetingPointService {
         switch update.action {
         case .propose:
             checkExpiration()
-            if let existing = sessionStore.activeMeetingPoint,
-               existing.proposerInitials != update.senderInitials { return false }
+            if let existing = sessionStore.activeMeetingPoint, existing.id == update.meetingPointId {
+                return false
+            }
             let point = MeetingPoint(
                 id: update.meetingPointId,
                 name: "\(update.senderInitials)'s Meeting Point",
@@ -140,8 +139,11 @@ public final class MeetingPointService {
             return true
         case .accept, .decline:
             guard var point = sessionStore.activeMeetingPoint,
-                  point.id == update.meetingPointId else { return false }
-            point.attendance[.fromInitials(update.senderInitials)] = MeetingAttendance(rawValue: update.attendanceStatus.rawValue)
+                  point.id == update.meetingPointId,
+                  let status = MeetingAttendance(rawValue: update.attendanceStatus.rawValue) else { return false }
+            let memberId = MemberID.fromInitials(update.senderInitials)
+            guard point.attendance[memberId] != status else { return false }
+            point.attendance[memberId] = status
             sessionStore.activeMeetingPoint = point
             return true
         }
@@ -149,11 +151,26 @@ public final class MeetingPointService {
 
     public func syncActiveMeetingPointToPeers() async {
         checkExpiration()
-        guard let point = sessionStore.activeMeetingPoint else { return }
-        let localId = sessionStore.activeSession?.localMemberId
-        let attendance = localId.flatMap { point.attendance[$0] }
+        guard let session = sessionStore.activeSession,
+              let point = sessionStore.activeMeetingPoint else { return }
+        let proposerAttendance = point.attendance[point.proposerId]
             .flatMap { AttendanceStatus(rawValue: $0.rawValue) } ?? .attending
-        await broadcastMeetingUpdate(action: .propose, point: point, attendance: attendance)
+        await broadcastMeetingUpdate(
+            action: .propose,
+            point: point,
+            attendance: proposerAttendance,
+            senderInitials: point.proposerInitials
+        )
+        if point.proposerId != session.localMemberId,
+           let localAttendance = point.attendance[session.localMemberId],
+           let wireAttendance = AttendanceStatus(rawValue: localAttendance.rawValue) {
+            await broadcastMeetingUpdate(
+                action: localAttendance == .declined ? .decline : .accept,
+                point: point,
+                attendance: wireAttendance,
+                senderInitials: session.localInitials
+            )
+        }
     }
 
     public func reset() {
@@ -173,7 +190,12 @@ public final class MeetingPointService {
         }
     }
 
-    private func broadcastMeetingUpdate(action: MeetingAction, point: MeetingPoint, attendance: AttendanceStatus) async {
+    private func broadcastMeetingUpdate(
+        action: MeetingAction,
+        point: MeetingPoint,
+        attendance: AttendanceStatus,
+        senderInitials: String? = nil
+    ) async {
         guard !Task.isCancelled,
               let session = sessionStore.activeSession,
               let cryptoService, let transport else { return }
@@ -185,7 +207,7 @@ public final class MeetingPointService {
             action: action,
             attendanceStatus: attendance,
             meetingPointId: point.id,
-            senderInitials: session.localInitials,
+            senderInitials: senderInitials ?? session.localInitials,
             arrivalRadiusMeters: UInt8(min(100, max(5, point.arrivalRadiusMeters.rounded()))),
             isRightNow: point.isRightNow,
             anchorToProposerGPS: point.anchorToProposerGPS

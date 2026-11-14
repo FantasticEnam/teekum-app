@@ -25,7 +25,7 @@ final class PairingMeetingMigrationTests: XCTestCase {
         let host = try GroupSessionFactory.create(name: "Festival Crew", initials: "ADI", colorCode: 7)
         let invite = try XCTUnwrap(GroupSession.parseInvite(from: host.inviteURL()))
         let friend = try GroupSessionFactory.join(invite: invite, initials: "NIC", colorCode: 2)
-        XCTAssertNotEqual(host.sessionId, 0)
+        XCTAssertTrue(PacketConstants.isValidSessionId(host.sessionId))
         XCTAssertEqual(host.symmetricKeyData.count, 32)
         XCTAssertEqual(friend.sessionId, host.sessionId)
         XCTAssertEqual(friend.sessionName, host.sessionName)
@@ -33,6 +33,14 @@ final class PairingMeetingMigrationTests: XCTestCase {
         XCTAssertEqual(friend.localInitials, "NIC")
         XCTAssertEqual(friend.localColorCode, 2)
         XCTAssertFalse(friend.isHost)
+
+        let sid24Host = GroupSession(sessionId: 0xAB1234, sessionName: "TwentyFour", symmetricKeyData: host.symmetricKeyData, localInitials: "ADI")
+        let sid24URL = sid24Host.inviteURL()
+        XCTAssertTrue(sid24URL.absoluteString.contains("sid=AB1234"))
+        let sid24Invite = try XCTUnwrap(GroupSession.parseInvite(from: sid24URL))
+        XCTAssertEqual(sid24Invite.sessionId, 0xAB1234)
+        let sid24Friend = try GroupSessionFactory.join(invite: sid24Invite, initials: "NIC", colorCode: 2)
+        XCTAssertEqual(sid24Friend.sessionId, 0xAB1234)
     }
 
     func testPairingDoesNotActivateBeforeAgreementAction() throws {
@@ -55,6 +63,12 @@ final class PairingMeetingMigrationTests: XCTestCase {
         }
         let invite = GroupSessionInvite(sessionId: 0x1234, sessionName: "Crew", keyData: Data(repeating: 1, count: 31))
         XCTAssertThrowsError(try GroupSessionFactory.join(invite: invite, initials: "ADI", colorCode: 1))
+        let validKey = Data(repeating: 1, count: 32)
+        XCTAssertThrowsError(try GroupSessionFactory.join(invite: .init(sessionId: 0, sessionName: "Crew", keyData: validKey), initials: "ADI", colorCode: 1))
+        XCTAssertThrowsError(try GroupSessionFactory.join(invite: .init(sessionId: 0x0100_0000, sessionName: "Crew", keyData: validKey), initials: "ADI", colorCode: 1))
+        let encodedKey = validKey.base64EncodedString()
+        XCTAssertNil(GroupSession.parseInvite(from: "meepo://join#key=\(encodedKey)&sid=000000&name=Crew"))
+        XCTAssertNil(GroupSession.parseInvite(from: "meepo://join#key=\(encodedKey)&sid=01000000&name=Crew"))
         let viewModel = PairingViewModel(sessionStore: SessionStore())
         viewModel.form.initials = "ADI"
         viewModel.mode = .join
@@ -64,6 +78,34 @@ final class PairingMeetingMigrationTests: XCTestCase {
         XCTAssertNotNil(viewModel.errorMessage)
     }
 
+    func testPasteInviteMatchesShareLinkMessageAndRejectsEmptyClipboard() throws {
+        let host = try GroupSessionFactory.create(name: "Festival Crew", initials: "ADI", colorCode: 7)
+        let inviteURL = host.inviteURL().absoluteString
+        let sharedMessage = "Join my group on Meepo: \(host.sessionName)\n\(inviteURL)."
+
+        let viewModel = PairingViewModel(sessionStore: SessionStore())
+        viewModel.form.initials = "NIC"
+        viewModel.mode = .join
+
+        viewModel.pasteInvite(candidates: [])
+        XCTAssertNil(viewModel.scannedInvite)
+        XCTAssertEqual(viewModel.errorMessage, PairingError.emptyClipboard.localizedDescription)
+
+        viewModel.pasteInvite(candidates: [sharedMessage])
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.scannedInvite?.sessionId, host.sessionId)
+        XCTAssertEqual(viewModel.scannedInvite?.sessionName, host.sessionName)
+        XCTAssertEqual(viewModel.scannedInvite?.keyData, host.symmetricKeyData)
+        XCTAssertTrue(viewModel.canPerformPrimaryAction)
+
+        // Multi-item pasteboard fallback: message text without URL + separate URL item.
+        let fallbackModel = PairingViewModel(sessionStore: SessionStore())
+        fallbackModel.form.initials = "NIC"
+        fallbackModel.pasteInvite(candidates: ["Join my group on Meepo: \(host.sessionName)", inviteURL])
+        XCTAssertNil(fallbackModel.errorMessage)
+        XCTAssertEqual(fallbackModel.scannedInvite?.sessionId, host.sessionId)
+    }
+
     func testMeetingSetterLockAndAttendanceMatchPrototypeRules() throws {
         let store = SessionStore(activeSession: GroupSession(localInitials: "ADI"))
         let service = MeetingPointService(sessionStore: store)
@@ -71,11 +113,7 @@ final class PairingMeetingMigrationTests: XCTestCase {
         XCTAssertTrue(service.proposeMeetingPoint(coordinate: coordinate))
         let point = try XCTUnwrap(store.activeMeetingPoint)
         XCTAssertTrue(service.canSetMeetingPoint(by: "ADI"))
-        XCTAssertFalse(service.canSetMeetingPoint(by: "NIC"))
-        XCTAssertFalse(service.applyInboundUpdate(MeetingUpdatePayload(
-            coordinate: coordinate, action: .propose, attendanceStatus: .attending,
-            meetingPointId: point.id + 1, senderInitials: "NIC"
-        )))
+        XCTAssertTrue(service.canSetMeetingPoint(by: "NIC"))
         XCTAssertFalse(service.applyInboundUpdate(MeetingUpdatePayload(
             coordinate: coordinate, action: .cancel, attendanceStatus: .attending,
             meetingPointId: point.id, senderInitials: "NIC"
@@ -87,6 +125,21 @@ final class PairingMeetingMigrationTests: XCTestCase {
         XCTAssertEqual(store.activeMeetingPoint?.attendance[.fromInitials("NIC")], .arrived)
         XCTAssertTrue(service.cancelMeetingPoint())
         XCTAssertNil(store.activeMeetingPoint)
+    }
+    
+    func testNewMeetingPointReplacesExistingPoint() throws {
+        let store = SessionStore(activeSession: GroupSession(localInitials: "ADI"))
+        let service = MeetingPointService(sessionStore: store)
+        let coordinate = CLLocationCoordinate2D(latitude: -6.2, longitude: 106.8)
+        XCTAssertTrue(service.proposeMeetingPoint(coordinate: coordinate))
+        let firstPoint = try XCTUnwrap(store.activeMeetingPoint)
+
+        XCTAssertTrue(service.applyInboundUpdate(MeetingUpdatePayload(
+            coordinate: coordinate, action: .propose, attendanceStatus: .attending,
+            meetingPointId: firstPoint.id + 1, senderInitials: "NIC"
+        )))
+        XCTAssertEqual(store.activeMeetingPoint?.id, firstPoint.id + 1)
+        XCTAssertEqual(store.activeMeetingPoint?.proposerInitials, "NIC")
     }
 
     func testMeetingArrivalAndOneHourExpiryMatchPrototype() throws {
@@ -102,5 +155,31 @@ final class PairingMeetingMigrationTests: XCTestCase {
         )
         service.checkExpiration()
         XCTAssertNil(store.activeMeetingPoint)
+    }
+
+    func testDuplicateProposeAndUnchangedAttendanceAreIgnored() throws {
+        let store = SessionStore(activeSession: GroupSession(localInitials: "ADI"))
+        let service = MeetingPointService(sessionStore: store)
+        let coordinate = CLLocationCoordinate2D(latitude: -6.2, longitude: 106.8)
+        let proposal = MeetingUpdatePayload(
+            coordinate: coordinate, action: .propose, attendanceStatus: .attending,
+            meetingPointId: 42, senderInitials: "NIC"
+        )
+        XCTAssertTrue(service.applyInboundUpdate(proposal))
+        service.respond(status: .attending)
+        XCTAssertEqual(store.activeMeetingPoint?.attendance[.fromInitials("ADI")], .accepted)
+
+        // Re-receiving the same meetingPointId must not reset attendance or return true.
+        XCTAssertFalse(service.applyInboundUpdate(proposal))
+        XCTAssertEqual(store.activeMeetingPoint?.proposerInitials, "NIC")
+        XCTAssertEqual(store.activeMeetingPoint?.attendance[.fromInitials("ADI")], .accepted)
+
+        // First RSVP from BOB applies; repeating the same RSVP is ignored.
+        let bobRSVP = MeetingUpdatePayload(
+            coordinate: coordinate, action: .accept, attendanceStatus: .attending,
+            meetingPointId: 42, senderInitials: "BOB"
+        )
+        XCTAssertTrue(service.applyInboundUpdate(bobRSVP))
+        XCTAssertFalse(service.applyInboundUpdate(bobRSVP))
     }
 }

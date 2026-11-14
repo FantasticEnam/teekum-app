@@ -24,7 +24,7 @@ Leave/rejoin stops the router, cancels the session task and probes, stops publis
 
 ## Queue, relay and carry
 
-`Core/Transport/PriorityOutboxQueue.swift` drains urgent SOS/ACK/meeting, FIFO chat, other foreign relay, then coalesced telemetry. Foreign SOS/ACK use the urgent lane; foreign chat uses the chat lane. Queueing and link sends are not recipient confirmation.
+`Core/Transport/PriorityOutboxQueue.swift` drains urgent SOS, SOS resolution, ACK and meeting, FIFO chat, other foreign relay, then coalesced telemetry. Foreign SOS, SOS resolution and ACK use the urgent lane; foreign chat uses the chat lane. Queueing and link sends are not recipient confirmation.
 
 `Core/Mesh/PacketRouter.swift` authenticates own-group updates before callbacks. `SessionStore` applies accepted measurements and peer snapshots. It relays within the existing hop/dedup rules and processes foreign ciphertext without opening it. The inherited opaque SOS fallback for equal SID with failed authentication never produces a local alert or ACK. Foreign relay needs opt-in, sufficient battery and Low Power Mode off; ordinary relay budget is eight per second, with telemetry reservation for reliable traffic. See [Protocol specification](PROTOCOL_SPECIFICATION.md) for residual trust and replay limits.
 
@@ -33,6 +33,10 @@ Leave/rejoin stops the router, cancels the session task and probes, stops publis
 `Core/Mesh/Routing/RouteDiscoveryService.swift` handles authenticated requests, responses and route invalidation. Its extensions sit in the same folder. The maintenance loop triggers the legacy stale-member cadence and staggered route probes; target arrival can burst location pings. Keep route discovery, request timeouts and late callback cancellation within the session lifetime.
 
 V3 has no leave packet. Orbit hides a member from its radar and friend list after 90 seconds without contact, unless the member still has a ready group link or an active SOS. A reconnect attempt counts as contact once the link is ready. Fresh location traffic can also make the member visible again. Routing and chat still use the session roster.
+
+Acknowledging an SOS closes the receiver's banner. The red edge glow stays active while any incoming SOS remains unresolved. During an outgoing SOS, the sender has a persistent banner with one action, **End SOS**, which queues the resolution immediately. A queued resolution is retained in memory for up to 10 minutes using the existing carry mechanism. A receiver clears the matching SOS when it receives the resolution.
+
+While the receiver's app is active, the SOS tone and vibration repeat every two seconds before acknowledgment and every 90 seconds afterward. The first reminder is due 90 seconds after acknowledgment. A new SOS returns to the urgent cadence. Resolution of the final pending SOS or session teardown stops the loop. Background reception uses the existing iOS notification.
 
 When a member becomes unreachable, the receiving device shows a **Lost contact** notification and records the member's initials and detection time under **Group settings → Group activity**. Each device detects the loss from its own radio state. The log keeps the latest 100 losses for the active session. Recovery lets a later loss generate a new entry, and leaving clears the log.
 

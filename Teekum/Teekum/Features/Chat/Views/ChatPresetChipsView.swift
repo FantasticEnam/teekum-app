@@ -15,8 +15,7 @@ struct ChatPresetChipsView: View {
             HStack {
                 ForEach(ChatMessagePayload.standardPresets, id: \.self) { preset in
                     Button(preset) { onSelect(preset) }
-                        .buttonStyle(.bordered)
-                        .tint(.yellowProfile)
+                        .buttonStyle(.glass)
                 }
             }
             .padding(.horizontal)

@@ -12,6 +12,49 @@ import CoreLocation
 
 final class ChatSOSMigrationTests: XCTestCase {
     @MainActor
+    func testSOSFeedbackSwitchesToDelayedRemindersAndStops() async {
+        let repeated = XCTestExpectation(description: "SOS plays a second pulse")
+        let reminded = XCTestExpectation(description: "Acknowledged SOS plays a reminder")
+        let afterStop = XCTestExpectation(description: "SOS stays quiet after stopping")
+        afterStop.isInverted = true
+        var pulses = 0
+        var firstReminderPulse: Int?
+        var stopped = false
+        let alerter = DefaultSOSAudioAlerter(interval: .milliseconds(25), reminderInterval: .milliseconds(80)) {
+            if stopped { afterStop.fulfill() }
+            pulses += 1
+            if pulses == 2 { repeated.fulfill() }
+            if pulses == firstReminderPulse { reminded.fulfill() }
+        }
+        await alerter.triggerEmergencyAlertFeedback()
+        await alerter.triggerEmergencyAlertFeedback()
+        XCTAssertEqual(pulses, 1)
+        let repeatResult = await XCTWaiter.fulfillment(of: [repeated], timeout: 1)
+        XCTAssertEqual(repeatResult, .completed)
+        let beforeAcknowledgment = pulses
+        await alerter.scheduleEmergencyReminder()
+        firstReminderPulse = beforeAcknowledgment + 1
+        XCTAssertEqual(pulses, beforeAcknowledgment)
+        let reminderStart = ContinuousClock.now
+        let reminderResult = await XCTWaiter.fulfillment(of: [reminded], timeout: 1)
+        XCTAssertEqual(reminderResult, .completed)
+        XCTAssertGreaterThanOrEqual(reminderStart.duration(to: .now), .milliseconds(70))
+        await alerter.stopEmergencyAlertFeedback()
+        stopped = true
+        let stopResult = await XCTWaiter.fulfillment(of: [afterStop], timeout: 0.12)
+        XCTAssertEqual(stopResult, .completed)
+    }
+
+    @MainActor
+    func testSOSSwipeRequiresFullUpwardTravel() {
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(.zero))
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 0, height: -63)))
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 0, height: 64)))
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 75, height: -64)))
+        XCTAssertTrue(SOSSwipeButtonView.completesSwipe(CGSize(width: 12, height: -64)))
+    }
+
+    @MainActor
     func testChatNameColorsDistinguishYellowFromCreamAcrossV3Payloads() throws {
         let cream = PairingProfileColor.cream
         let yellow = PairingProfileColor.yellow
@@ -133,10 +176,117 @@ final class ChatSOSMigrationTests: XCTestCase {
         XCTAssertEqual(audio.stopCount, 0)
         await engine.reset()
         let cleared = await engine.activeIncomingAlert
-        let seen = await engine.seenSOSEventIds
+        let seen = await engine.seenSOSEvents
         XCTAssertNil(cleared)
         XCTAssertTrue(seen.isEmpty)
         XCTAssertEqual(audio.stopCount, 1)
+    }
+
+    @MainActor
+    func testDismissingSOSFeedbackKeepsEmergencyUntilMatchingResolution() async throws {
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
+        let crypto = CryptoService()
+        let audio = MessagingTestAudio()
+        let engine = SOSForwardingEngine(transport: MessagingTestTransport(), cryptoService: crypto,
+            sessionProvider: { session }, audioAlerter: audio)
+        let model = SOSViewModel(engine: engine, locationService: LocationService(isLiveSharingEnabled: false),
+            sessionProvider: { session })
+        await model.start()
+        XCTAssertFalse(model.showsEdgeGlow)
+
+        let received = XCTestExpectation(description: "Receiver displays the SOS alert")
+        let store = SessionStore(members: [Member(id: "ALX")])
+        model.onIncomingAlert = { alert in
+            store.setEmergency(true, for: alert.senderInitials)
+            received.fulfill()
+        }
+        model.onIncomingSOSResolved = { initials in
+            XCTAssertEqual(initials, "ALX")
+            store.setEmergency(false, for: initials)
+        }
+        let payload = SOSPayload(coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+            timestamp: Date(timeIntervalSince1970: 0), accuracy: 255, sosEventId: 77,
+            senderInitials: "ALX", batteryLevel: 85)
+        let envelope = CleartextEnvelope(type: .sos, sessionId: session.sessionId, sequenceNumber: 0x01000001)
+        let wire = try await crypto.sealToWireBytes(payload: payload.serialize(), envelope: envelope,
+            using: SymmetricKey(data: session.symmetricKeyData))
+        let packet = try RawWirePacket.fromWireData(wire)
+        await model.acceptResolution(.init(senderInitials: "ALX", eventId: 76))
+        var alreadyResolved = payload
+        alreadyResolved.sosEventId = 76
+        let delayedWire = try await crypto.sealToWireBytes(payload: alreadyResolved.serialize(), envelope:
+            CleartextEnvelope(type: .sos, sessionId: session.sessionId, sequenceNumber: 0x01000002),
+            using: SymmetricKey(data: session.symmetricKeyData))
+        try await engine.handleInboundSOSPacket(rawPacket: RawWirePacket.fromWireData(delayedWire), fromPeerId: "ALX")
+        XCTAssertNil(model.incomingAlert)
+        XCTAssertFalse(store.members[0].isEmergency)
+
+        try await engine.handleInboundSOSPacket(rawPacket: packet, fromPeerId: "ALX")
+        let result = await XCTWaiter.fulfillment(of: [received], timeout: 2)
+        XCTAssertEqual(result, .completed)
+        XCTAssertTrue(model.showsEdgeGlow)
+        await model.acknowledgeIncomingAlert()
+        XCTAssertNil(model.incomingAlert)
+        XCTAssertTrue(model.showsEdgeGlow)
+        XCTAssertEqual(audio.reminderCount, 1)
+        XCTAssertTrue(store.members[0].isEmergency)
+
+        await model.acceptResolution(.init(senderInitials: "NIC", eventId: 77))
+        XCTAssertTrue(store.members[0].isEmergency)
+        XCTAssertTrue(model.showsEdgeGlow)
+        XCTAssertEqual(audio.stopCount, 0)
+        await model.acceptResolution(.init(senderInitials: "ALX", eventId: 77))
+        XCTAssertFalse(store.members[0].isEmergency)
+        XCTAssertFalse(model.showsEdgeGlow)
+        XCTAssertEqual(audio.stopCount, 1)
+        try await engine.handleInboundSOSPacket(rawPacket: packet, fromPeerId: "ALX")
+        XCTAssertNil(model.incomingAlert)
+
+        model.triggerSOS()
+        XCTAssertTrue(model.showsEdgeGlow)
+        model.dismissDeliveryStatus()
+        XCTAssertTrue(model.showsEdgeGlow)
+        await model.stop()
+    }
+
+    @MainActor
+    func testSenderCanEndSOSWithoutGPSAndTriggerAgain() async throws {
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
+        let crypto = CryptoService()
+        let transport = MessagingTestTransport()
+        let engine = SOSForwardingEngine(transport: transport, cryptoService: crypto, sessionProvider: { session })
+        let location = LocationService(isLiveSharingEnabled: false)
+        let model = SOSViewModel(engine: engine, locationService: location, sessionProvider: { session })
+        await model.start()
+        model.triggerSOS()
+        for _ in 0..<100 where model.isSending { try await Task.sleep(for: .milliseconds(10)) }
+        let eventId = try XCTUnwrap(model.outgoingEventId)
+        await transport.failNextResolutionEnqueue()
+        model.endSOS()
+        for _ in 0..<100 where model.isResolving { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNotNil(model.resolutionError)
+        XCTAssertEqual(model.outgoingEventId, eventId)
+
+        model.endSOS()
+        for _ in 0..<100 where model.isResolving { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNil(model.outgoingEventId)
+        XCTAssertFalse(model.showsEdgeGlow)
+        let broadcasts = await transport.broadcasts
+        let wire = try XCTUnwrap(broadcasts.last)
+        XCTAssertEqual(wire.count, 56)
+        XCTAssertEqual(wire.first, 0x18)
+        let opened = try await crypto.openWireBytes(wire, using: SymmetricKey(data: session.symmetricKeyData))
+        XCTAssertEqual(opened.envelope.type, .sosResolved)
+        XCTAssertEqual(opened.envelope.memberSlot, session.memberSlot)
+        XCTAssertEqual(try SOSResolvedPayload.deserialize(from: opened.payload),
+            SOSResolvedPayload(senderInitials: "BOB", eventId: eventId))
+        let engineEventId = await engine.activeSOSEventId
+        XCTAssertNil(engineEventId)
+
+        model.triggerSOS()
+        for _ in 0..<100 where model.isSending { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNotEqual(try XCTUnwrap(model.outgoingEventId), eventId)
+        await model.stop()
     }
 
     func testSOSACKWithoutActiveEventDoesNotClaimDelivery() async throws {
@@ -165,7 +315,7 @@ final class ChatSOSMigrationTests: XCTestCase {
     }
 
     private func chatPacket(crypto: CryptoService, date: Date, hopCount: UInt8 = 0) async throws -> RawWirePacket {
-        let payload = ChatMessagePayload(senderInitials: "ALX", timestamp: date, text: "At Main Stage")
+        let payload = ChatMessagePayload(senderInitials: "ALX", timestamp: date, text: ChatMessagePayload.presetAtTheShelter)
         return try await sealed(crypto: crypto, payload: payload.serialize(), type: .chatMessage,
             sequence: 0x01000001, hopCount: hopCount)
     }
@@ -185,13 +335,21 @@ private actor MessagingTestTransport: MeshTransport {
     nonisolated let neighborEvents = AsyncStream<NeighborEvent> { _ in }
     nonisolated let transportErrors = AsyncStream<TransportError> { _ in }
     private(set) var broadcasts: [Data] = []
+    private var shouldFailResolution = false
+    func failNextResolutionEnqueue() { shouldFailResolution = true }
     func start(serviceType: String, session: GroupSession) async throws {}
     func stop() async {}
     func sendFrame(_ data: Data, to peerId: String) async throws -> SendOutcome {
         broadcasts.append(data)
         return SendOutcome(destinationPeerId: peerId, packetType: .chatMessage, isSuccess: true)
     }
-    func broadcastFrame(_ data: Data) async throws { broadcasts.append(data) }
+    func broadcastFrame(_ data: Data) async throws {
+        if shouldFailResolution, try RawWirePacket.fromWireData(data).envelope.type == .sosResolved {
+            shouldFailResolution = false
+            throw TransportError.queueFull("Test outbox")
+        }
+        broadcasts.append(data)
+    }
     func forwardFrame(_ data: Data, to nextHopPeerId: String) async throws -> SendOutcome {
         try await sendFrame(data, to: nextHopPeerId)
     }
@@ -205,8 +363,11 @@ private final class MessagingTestAudio: SOSAudioAlerting, @unchecked Sendable {
     private let lock = NSLock()
     private var triggers = 0
     private var stops = 0
+    private var reminders = 0
     var triggerCount: Int { lock.withLock { triggers } }
     var stopCount: Int { lock.withLock { stops } }
+    var reminderCount: Int { lock.withLock { reminders } }
+    func scheduleEmergencyReminder() { lock.withLock { reminders += 1 } }
     func triggerEmergencyAlertFeedback() { lock.withLock { triggers += 1 } }
     func stopEmergencyAlertFeedback() { lock.withLock { stops += 1 } }
 }

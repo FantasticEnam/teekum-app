@@ -253,5 +253,6 @@ private final class ParityAudio: SOSAudioAlerting, @unchecked Sendable {
     var triggerCount: Int { lock.withLock { triggers } }
     var stopCount: Int { lock.withLock { stops } }
     func triggerEmergencyAlertFeedback() { lock.withLock { triggers += 1 } }
+    func scheduleEmergencyReminder() {}
     func stopEmergencyAlertFeedback() { lock.withLock { stops += 1 } }
 }

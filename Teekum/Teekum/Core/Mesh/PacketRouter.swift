@@ -18,6 +18,7 @@ public final class PacketRouter {
     private let seenPacketCache: SeenPacketCache
     private let onLocationPing: (LocationPingPayload, InboundPacket) -> Void
     private let onSOS: (SOSPayload, InboundPacket) async -> Void
+    private let onSOSResolved: (SOSResolvedPayload) async -> Void
     private let onACK: (InboundPacket) async -> Void
     private let onMeetingUpdate: (MeetingUpdatePayload) -> Void
     private let onChat: (InboundPacket) async -> Void
@@ -33,7 +34,8 @@ public final class PacketRouter {
         onSOS: @escaping (SOSPayload, InboundPacket) async -> Void,
         onACK: @escaping (InboundPacket) async -> Void,
         onMeetingUpdate: @escaping (MeetingUpdatePayload) -> Void,
-        onChat: @escaping (InboundPacket) async -> Void
+        onChat: @escaping (InboundPacket) async -> Void,
+        onSOSResolved: @escaping (SOSResolvedPayload) async -> Void = { _ in }
     ) {
         self.cryptoService = cryptoService
         self.peerTransport = peerTransport
@@ -42,6 +44,7 @@ public final class PacketRouter {
         self.seenPacketCache = seenPacketCache
         self.onLocationPing = onLocationPing
         self.onSOS = onSOS
+        self.onSOSResolved = onSOSResolved
         self.onACK = onACK
         self.onMeetingUpdate = onMeetingUpdate
         self.onChat = onChat
@@ -89,6 +92,17 @@ public final class PacketRouter {
             await onSOS(payload, inbound)
             await relayMeshPacketIfNeeded(inbound, for: session)
 
+        case .sosResolved:
+            guard let resolution = try? SOSResolvedPayload.deserialize(from: decrypted),
+                  resolution.senderInitials != session.localInitials,
+                  envelope.memberSlot == MemberID.fromInitials(resolution.senderInitials).memberSlot else { return }
+            let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: raw))
+            guard !duplicate, isActive else { return }
+            await onSOSResolved(resolution)
+            guard isActive else { return }
+            await peerTransport.retainReceivedForCarry(raw, excludingPeerId: inbound.sourcePeerId)
+            await relayMeshPacketIfNeeded(inbound, for: session, skipSeenCheck: true)
+
         case .locationPing:
             guard let ping = try? LocationPingPayload.deserialize(from: decrypted),
                   ping.senderInitials != session.localInitials else { return }
@@ -97,8 +111,10 @@ public final class PacketRouter {
 
         case .meetingUpdate:
             guard let update = try? MeetingUpdatePayload.deserialize(from: decrypted) else { return }
+            let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: raw))
+            guard !duplicate, isActive else { return }
             onMeetingUpdate(update)
-            await relayMeshPacketIfNeeded(inbound, for: session)
+            await relayMeshPacketIfNeeded(inbound, for: session, skipSeenCheck: true)
 
         case .routeReq:
             guard let wireData = try? raw.toWireData() else { return }
@@ -120,18 +136,17 @@ public final class PacketRouter {
             guard isActive else { return }
             await onChat(inbound)
             await relayMeshPacketIfNeeded(inbound, for: session)
-
-        case .uwbTokenExchange:
-            break
         }
     }
 
-    public func relayMeshPacketIfNeeded(_ inbound: InboundPacket, for session: GroupSession) async {
+    public func relayMeshPacketIfNeeded(_ inbound: InboundPacket, for session: GroupSession, skipSeenCheck: Bool = false) async {
         let envelope = inbound.rawPacket.envelope
         guard isActive, envelope.hopCount < envelope.hopLimit,
               envelope.memberSlot != session.memberSlot else { return }
-        let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: inbound.rawPacket))
-        guard !duplicate, isActive else { return }
+        if !skipSeenCheck {
+            let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: inbound.rawPacket))
+            guard !duplicate, isActive else { return }
+        }
         var packet = inbound.rawPacket
         packet.envelope.hopCount += 1
         guard let data = try? packet.toWireData() else { return }

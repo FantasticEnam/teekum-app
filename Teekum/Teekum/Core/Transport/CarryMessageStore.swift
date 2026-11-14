@@ -35,7 +35,7 @@ nonisolated struct CarryMessageStore {
     mutating func remember(_ data: Data, isForeign: Bool, excludingPeerId: String? = nil, now: Date = Date()) {
         purge(now: now)
         guard let packet = try? RawWirePacket.fromWireData(data),
-              packet.envelope.type == .chatMessage || packet.envelope.type == .ack else { return }
+              [.chatMessage, .ack, .sosResolved].contains(packet.envelope.type) else { return }
         let key = identity(data)
         // Retries and loops must not extend custody or reset the hop budget.
         if entries[key] != nil {
@@ -62,8 +62,8 @@ nonisolated struct CarryMessageStore {
             for peer in peers where !entry.sources.contains(peer) {
                 let attempt = entry.attempts[peer]
                 let last = attempt?.lastSentAt ?? .distantPast
-                let delay = (attempt?.count ?? 0) < TeeKumConfiguration.Chat.carryFastAttemptLimit
-                    ? TeeKumConfiguration.Chat.carryFastRetryInterval : TeeKumConfiguration.Chat.carrySlowRetryInterval
+                let delay = (attempt?.count ?? 0) < MeepoConfiguration.Chat.carryFastAttemptLimit
+                    ? MeepoConfiguration.Chat.carryFastRetryInterval : MeepoConfiguration.Chat.carrySlowRetryInterval
                 if now.timeIntervalSince(last) >= delay,
                    priority < bestPriority || (priority == bestPriority && last < oldest) {
                     bestPriority = priority

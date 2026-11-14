@@ -115,7 +115,7 @@ public actor RouteDiscoveryService {
     
     func nextSequenceNumber(for session: GroupSession) async throws -> UInt32 {
         if let sequenceAllocator { return try await sequenceAllocator.next(for: session) }
-        let sid = UInt32(session.sessionId)
+        let sid = session.sessionId & PacketConstants.sessionIdMask
         let counter = (sequenceCounters[sid] ?? 0) &+ 1
         sequenceCounters[sid] = counter
         return CleartextEnvelope.makeSequenceNumber(memberSlot: session.memberSlot, counter: counter)

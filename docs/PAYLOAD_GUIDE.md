@@ -12,7 +12,7 @@ Configuration in `Core/Configuration/TeeKumConfiguration.swift`, exposed through
 
 | Item | Source value |
 | :--- | :--- |
-| Protocol version | 0x03 |
+| Protocol version | 0x01 in the current app; 0x03 in the frozen prototype |
 | Wire frame | 56 bytes |
 | Cleartext envelope | 10 bytes |
 | Plaintext/ciphertext payload | 30 bytes |
@@ -39,32 +39,32 @@ See `Core/Packets/CleartextEnvelope.swift` and `Core/Packets/RawWirePacket.swift
 
 | Wire bytes | Size | Field / current encoding |
 | :--- | :--- | :--- |
-| 0 | 1 | High nibble version 3; low nibble PacketType. |
+| 0 | 1 | High nibble protocol version; low nibble PacketType. |
 | 1 | 1 | hopLimit, separate UInt8. |
 | 2 | 1 | hopCount, separate UInt8. |
-| 3..5 | 3 | UInt16 sessionId in three bytes, big-endian; encoders write the first byte as zero. |
+| 3..5 | 3 | 24-bit sessionId (`0x000001...0xFFFFFF`) in three bytes, big-endian (`UInt32` masked to `0x00FFFFFF`). |
 | 6..9 | 4 | sequenceNumber, big-endian UInt32. |
 | 10..39 | 30 | Ciphertext. |
 | 40..55 | 16 | Poly1305 authentication tag. |
 
-The decoder returns a UInt16 SID and narrows noncanonical upper bytes as in the prototype.
+The decoder reads all three bytes (`3..5`) as a 24-bit `UInt32` SID, and `CleartextEnvelope` masks `sessionId` to `0x00FFFFFF`.
 
 The decoder checks for a positive hop limit and a hop count within that limit. The initializer then clamps the limit to 1...PacketConstants.maxHopLimit (15) and clamps the count to that limit.
 
 | PacketType | Code | Version/type byte | Located payload |
 | :--- | :--- | :--- | :--- |
-| locationPing | 0x01 | 0x31 | LocationPingPayload |
-| sos | 0x02 | 0x32 | SOSPayload |
-| meetingUpdate | 0x03 | 0x33 | MeetingUpdatePayload |
-| routeReq | 0x04 | 0x34 | RouteReqPayload |
-| routeResp | 0x05 | 0x35 | RouteRespPayload |
-| ack | 0x06 | 0x36 | ACKPayload |
-| chatMessage | 0x07 | 0x37 | ChatMessagePayload |
-| uwbTokenExchange | 0x08 | 0x38 | Enum case exists; no dedicated payload implementation/complete UWB flow located. |
+| locationPing | 0x01 | 0x11 | LocationPingPayload |
+| sos | 0x02 | 0x12 | SOSPayload |
+| meetingUpdate | 0x03 | 0x13 | MeetingUpdatePayload |
+| routeReq | 0x04 | 0x14 | RouteReqPayload |
+| routeResp | 0x05 | 0x15 | RouteRespPayload |
+| ack | 0x06 | 0x16 | ACKPayload |
+| chatMessage | 0x07 | 0x17 | ChatMessagePayload |
+| sosResolved | 0x08 | 0x18 | SOSResolvedPayload |
 
 ## 3. Field Encoding
 
-- Multi-byte numeric fields use big-endian encoding. The three-byte SID field retains a zero upper byte for the UInt16 session contract.
+- Multi-byte numeric fields use big-endian encoding. The three-byte SID field holds a canonical 24-bit `sessionId` (`0x000001...0xFFFFFF`), formatted as `%06X` for invite links, Keychain accounts, Bonjour TXT `sid`, and routing keys.
 - Coordinate integers are rounded signed Int32 values of degrees × 1,000,000. This is about 0.11 m latitude quantization, **not GPS accuracy**; longitude spacing depends on latitude. Validate finite/range-safe inputs before conversion.
 - Timestamp fields are UInt32 Unix seconds. Do not refresh an old measurement timestamp when a packet is received. Existing direct conversions require range review; clock-skew/expiry rules are not uniformly enforced by serialization.
 - Accuracy is a one-byte meter value. Battery is capped at 100 by several constructors/serializers. Do not invent an unknown-value encoding without reviewing both sides.
@@ -108,7 +108,17 @@ Sources are in `Core/Packets/Payloads/`.
 | 22 | colorCode: UInt8 |
 | 23..29 | 7 zero reserved bytes |
 
-SOSType currently declares general=0, medical=1, separated=2, security=3 and inactivity=4. A declared inactivity code is not an enabled/validated automatic safety feature. UI hold currently uses 1.5 s; configuration contains 3 s. Those values do not change byte layout and still need product reconciliation.
+SOSType currently declares general=0, medical=1, separated=2, security=3 and inactivity=4. A declared inactivity code is not an enabled/validated automatic safety feature.
+
+#### SOSResolvedPayload — 0x08
+
+| Payload bytes | Field |
+| :--- | :--- |
+| 0..3 | Original SOS event ID, nonzero UInt32, big-endian |
+| 4..5 | Original sender initials, encoded with `InitialsCodec` |
+| 6..29 | Reserved, written as zero |
+
+Only the sender's explicit confirmation queues this frame. The recipient can dismiss the alert and stop its sound while the Orbit name bubble stays red. The packet uses the existing bounded carry window and has no delivery ACK of its own.
 
 ### 4.3 MeetingUpdatePayload — 0x03
 
@@ -173,7 +183,7 @@ The strict chat decoder additionally requires exactly 30 bytes and zero reserved
 
 ## 5. Shared XCTest Envelope Vector
 
-`ParityContractTests` checks the following vector on the prototype and destination. This is an envelope and nonce, not a complete encrypted packet:
+`ParityContractTests` compares both builds against this frozen prototype envelope and nonce. The current app uses `0x11` in place of `0x31` in the envelope, nonce, and AAD.
 
 ```text
 version=3, type=locationPing, hopLimit=8, hopCount=2
@@ -187,7 +197,7 @@ sequenceNumber=(7 << 24) | 42 = 0x0700002A
 00 12 34 07 00 00 2A 31 54 4B 4D 33
 ```
 
-Both envelope decode paths round-trip the UInt16 SID; AAD masks hop count without changing the other canonical bytes.
+Both builds round-trip the SID `0x1234` using their respective protocol versions. `Teekum` encodes and decodes the full 24-bit SID (`0x000001...0xFFFFFF`). AAD masks hop count without changing the other canonical bytes.
 
 A valid encrypted fixture must declare test-only key/input data and use the actual CryptoKit implementation to produce ciphertext/tag. No fabricated authentication tags or copied historical pass counts belong in acceptance evidence.
 
@@ -196,5 +206,5 @@ A valid encrypted fixture must declare test-only key/input data and use the actu
 1. Compare with the frozen legacy revision; record unknown/missing payload helpers and behaviors. The current source inventory cannot prove full migration.
 2. Resolve SID width, unique identity/counter/key lifecycle and all consumers together. Do not silently enable the old 54-byte proposal or reuse reserved bytes without compatibility review.
 3. Validate untrusted bounds, timestamps, enum/initials decoding, padding and UTF-8 at the agreed boundary before mutating state. Serialization helpers are not a complete security pipeline.
-4. Verify actual roundtrips across both existing codec/envelope paths, SID boundary values, boundary coordinates, wrong sizes, all packet types and authenticated tampering. UWB is currently an enum without a complete payload flow; do not claim eight working feature payloads.
+4. Verify actual roundtrips across both existing codec/envelope paths, SID boundary values, boundary coordinates, wrong sizes, all packet types and authenticated tampering.
 5. Record tests actually run at the current revision. Use the focused XCTest and optional parity targets. UI testing remains developer-managed.

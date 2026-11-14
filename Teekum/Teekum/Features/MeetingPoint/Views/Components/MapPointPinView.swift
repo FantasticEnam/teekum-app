@@ -21,7 +21,7 @@ public struct MapPointPinView: View {
             VStack(spacing: -3) {
                 // Meeting Point Text
                 Text(title)
-                    .font(.custom("Charter", size: 14).weight(.bold))
+                    .font(.custom("Helvetica", size: 14).weight(.bold))
                     .foregroundStyle(.black)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
@@ -35,8 +35,8 @@ public struct MapPointPinView: View {
             Image("MeetPoint")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 23, height: 34)
-                .shadow(color: .black.opacity(0.3) ,radius: 3)
+                .frame(width: 34, height: 34)
+                .shadow(color: .black.opacity(0.1) ,radius: 3)
         }
     }
 }

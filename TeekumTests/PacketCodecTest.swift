@@ -32,6 +32,17 @@ struct PacketCodecTests {
 
         let decoded = try CleartextEnvelope.deserialize(from: data)
         #expect(decoded == original)
+
+        for sid: UInt32 in [0x000001, 0x7E3AF5, 0xFFFFFF] {
+            let sidEnv = CleartextEnvelope(type: .chatMessage, hopLimit: 8, hopCount: 1, sessionId: sid, sequenceNumber: 99)
+            #expect(try CleartextEnvelope.deserialize(from: sidEnv.serialize()) == sidEnv)
+        }
+
+        var overwide = CleartextEnvelope(type: .locationPing, sessionId: 0x12345678, sequenceNumber: 1)
+        #expect(overwide.sessionId == 0x345678)
+        overwide.sessionId = 0xAABBCCDD
+        #expect(overwide.sessionId == 0xBBCCDD)
+        #expect(try CleartextEnvelope.deserialize(from: overwide.serialize()) == overwide)
     }
 
     // MARK: - Test 2: Envelope Validation & Error Handling
@@ -492,12 +503,12 @@ struct PacketCodecTests {
             ChatTestCase(initials: "AB", text: "Stage 2"),
             ChatTestCase(initials: "DNA", text: "Beer? Stage 2 - OMW"),
             ChatTestCase(initials: "ALX", text: "12345678901234567890"),
-            ChatTestCase(initials: "SAM", text: ChatMessagePayload.presetRestroom),
-            ChatTestCase(initials: "BOB", text: ChatMessagePayload.presetAtMainStage),
-            ChatTestCase(initials: "CHA", text: ChatMessagePayload.presetRestroom),
-            ChatTestCase(initials: "DAN", text: ChatMessagePayload.presetWhereAreYou),
-            ChatTestCase(initials: "EVE", text: ChatMessagePayload.presetOnMyWay),
-            ChatTestCase(initials: "FRANK", text: ChatMessagePayload.presetLost)
+            ChatTestCase(initials: "SAM", text: ChatMessagePayload.presetINeedHelp),
+            ChatTestCase(initials: "BOB", text: ChatMessagePayload.presetWhereAreYou),
+            ChatTestCase(initials: "CHA", text: ChatMessagePayload.presetImSafe),
+            ChatTestCase(initials: "DAN", text: ChatMessagePayload.presetAtTheShelter),
+            ChatTestCase(initials: "EVE", text: ChatMessagePayload.presetIveArrived),
+            ChatTestCase(initials: "FRANK", text: ChatMessagePayload.presetOnMyWay)
         ]
     )
     func chatMessagePayloadSerializationRoundtrip(testCase: ChatTestCase) throws {
@@ -772,14 +783,14 @@ struct PacketCodecTests {
     @Test(
         "Regression test across all 8 PacketTypes",
         arguments: [
-            PacketTypeMapping(type: .locationPing, rawByte: 0x01, byte0: 0x31),
-            PacketTypeMapping(type: .sos, rawByte: 0x02, byte0: 0x32),
-            PacketTypeMapping(type: .meetingUpdate, rawByte: 0x03, byte0: 0x33),
-            PacketTypeMapping(type: .routeReq, rawByte: 0x04, byte0: 0x34),
-            PacketTypeMapping(type: .routeResp, rawByte: 0x05, byte0: 0x35),
-            PacketTypeMapping(type: .ack, rawByte: 0x06, byte0: 0x36),
-            PacketTypeMapping(type: .chatMessage, rawByte: 0x07, byte0: 0x37),
-            PacketTypeMapping(type: .uwbTokenExchange, rawByte: 0x08, byte0: 0x38)
+            PacketTypeMapping(type: .locationPing, rawByte: 0x01, byte0: 0x11),
+            PacketTypeMapping(type: .sos, rawByte: 0x02, byte0: 0x12),
+            PacketTypeMapping(type: .meetingUpdate, rawByte: 0x03, byte0: 0x13),
+            PacketTypeMapping(type: .routeReq, rawByte: 0x04, byte0: 0x14),
+            PacketTypeMapping(type: .routeResp, rawByte: 0x05, byte0: 0x15),
+            PacketTypeMapping(type: .ack, rawByte: 0x06, byte0: 0x16),
+            PacketTypeMapping(type: .chatMessage, rawByte: 0x07, byte0: 0x17),
+            PacketTypeMapping(type: .sosResolved, rawByte: 0x08, byte0: 0x18)
         ]
     )
     func packetTypesRegression(mapping: PacketTypeMapping) throws {
