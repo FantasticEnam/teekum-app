@@ -64,47 +64,44 @@ struct OrbitMapView: View {
     }
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Color.black
-                    .ignoresSafeArea()
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
 
-                orbitScene
+            orbitScene
 
-                VStack(alignment: .leading) {
-                    OrbitHeaderView(groupName: viewModel.groupName,
-                        onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
+            VStack(alignment: .leading) {
+                OrbitHeaderView(groupName: viewModel.groupName,
+                    onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
 
-                    if location?.currentLocation == nil {
-                        Label("Waiting for your location", systemImage: "location.slash")
-                            .font(.caption).padding(8)
-                            .background(Color.blackCard, in: .capsule)
-                        if let meetingPoint, selectedTarget != .meetingPoint(meetingPoint.id) {
-                            Button("Meeting point set", systemImage: "mappin.circle.fill") {
-                                selectMeetingPoint(meetingPoint.id)
-                            }
-                            .buttonStyle(.glass)
+                if location?.currentLocation == nil {
+                    Label("Waiting for your location", systemImage: "location.slash")
+                        .font(.caption).padding(8)
+                        .background(Color.blackCard, in: .capsule)
+                    if let meetingPoint, selectedTarget != .meetingPoint(meetingPoint.id) {
+                        Button("Meeting point set", systemImage: "mappin.circle.fill") {
+                            selectMeetingPoint(meetingPoint.id)
                         }
+                        .buttonStyle(.glass)
                     }
-
-                    targetSummary
-
-                    Spacer()
-                    OrbitControlsView(
-                        onSOS: {
-                            sos?.triggerSOS()
-                        },
-                        onExpand: {
-                            activeModal = .friends
-                        },
-                        onChat: openChat,
-                        unreadCount: chat?.unreadCount ?? 0,
-                        bottomInset: geometry.safeAreaInsets.bottom,
-                        onActiveSOS: isSOSActive ? { sos?.askAboutHelp() } : nil
-                    )
                 }
-                .padding(.horizontal)
+
+                targetSummary
+
+                Spacer()
+                OrbitControlsView(
+                    onSOS: {
+                        sos?.triggerSOS()
+                    },
+                    onExpand: {
+                        activeModal = .friends
+                    },
+                    onChat: openChat,
+                    unreadCount: chat?.unreadCount ?? 0,
+                    onActiveSOS: isSOSActive ? { sos?.askAboutHelp() } : nil
+                )
             }
+            .padding(.horizontal)
         }
         .overlay {
             if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
