@@ -37,7 +37,7 @@ struct SOSSwipeButtonView: View {
             }
             .overlay {
                 Text("SOS")
-                    .font(.custom("Futura", size: 25, relativeTo: .title2).bold())
+                    .font(.custom("Helvetica", size: 25, relativeTo: .title2).bold())
                     .foregroundStyle(.white)
                     .frame(width: buttonSize, height: buttonSize)
                     .background(Color.alertRed, in: .circle)

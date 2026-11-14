@@ -26,7 +26,7 @@ struct SessionActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.relayStatusText)
-                        .font(.custom("Futura", size: 12, relativeTo: .caption))
+                        .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                         .foregroundStyle(accent)
                         .padding(.trailing, 8)
                         .padding(.top, 6)
@@ -72,7 +72,7 @@ struct SessionActivityWidget: Widget {
     ) -> some View {
         if let sosInitials = state.sosSenderInitials {
             Text(sosInitials)
-                .font(.custom("Futura", size: 12, relativeTo: .caption))
+                .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                 .foregroundStyle(.red)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -82,7 +82,7 @@ struct SessionActivityWidget: Widget {
                 : (count: state.directPeerCount, icon: "person.2.fill")
             HStack(spacing: 3) {
                 Text("\(badge.count)")
-                    .font(.custom("Futura", size: 12, relativeTo: .caption))
+                    .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                     .monospacedDigit()
                 Image(systemName: badge.icon)
                     .font(.system(size: 10, weight: .semibold))

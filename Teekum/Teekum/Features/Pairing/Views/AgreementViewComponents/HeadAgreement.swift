@@ -20,12 +20,12 @@ struct HeadAgreement: View {
                 .accessibilityHidden(true)
 
             Text("Together, Beyond the Signal")
-                .font(.custom("Futura", size: 20, relativeTo: .title3))
+                .font(.custom("Helvetica", size: 20, relativeTo: .title3))
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, 2)
 
             Text("Stay connected. Here’s how Meepo keeps your group connected")
-                .font(.custom("Futura-MediumItalic", size: 13, relativeTo: .footnote))
+                .font(.custom("Helvetica-Oblique", size: 13, relativeTo: .footnote))
                 .foregroundStyle(secondaryText)
         }
         .multilineTextAlignment(.center)

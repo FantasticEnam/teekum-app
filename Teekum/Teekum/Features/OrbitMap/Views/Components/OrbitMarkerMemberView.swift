@@ -31,7 +31,7 @@ struct OrbitMemberMarkerView: View {
             .overlay(alignment: .top) {
                 VStack(spacing: -2) {
                     Text(initials)
-                        .font(.custom("Futura", size: isSelected ? 16 : 13, relativeTo: .caption))
+                        .font(.custom("Helvetica", size: isSelected ? 16 : 13, relativeTo: .caption))
                         .foregroundStyle((isSelected && !isEmergency) ? .black : .white)
                         .padding(.horizontal, isSelected ? 14 : 10)
                         .padding(.vertical, isSelected ? 8 : 6)

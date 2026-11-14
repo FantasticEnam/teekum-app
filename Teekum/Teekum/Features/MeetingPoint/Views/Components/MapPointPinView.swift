@@ -21,7 +21,7 @@ public struct MapPointPinView: View {
             VStack(spacing: -3) {
                 // Meeting Point Text
                 Text(title)
-                    .font(.custom("Futura", size: 14).weight(.bold))
+                    .font(.custom("Helvetica", size: 14).weight(.bold))
                     .foregroundStyle(.black)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)

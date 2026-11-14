@@ -15,7 +15,7 @@ struct SessionAppBadge: View {
     var body: some View {
         Label {
             Text("Meepo")
-                .font(.custom("Futura", size: 12, relativeTo: .caption))
+                .font(.custom("Helvetica", size: 12, relativeTo: .caption))
         } icon: {
             Image("MeetPoint")
                 .resizable()
@@ -36,7 +36,7 @@ struct SessionSummaryRow: View {
                 Circle()
                     .fill(circleFillColor)
                 Text(circleInitials)
-                    .font(.custom("Futura", size: 16, relativeTo: .headline))
+                    .font(.custom("Helvetica", size: 16, relativeTo: .headline))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -45,11 +45,11 @@ struct SessionSummaryRow: View {
             
             VStack(alignment: .leading, spacing: 3) {
                 Text(attributes.sessionName)
-                    .font(.custom("Futura", size: 20, relativeTo: .title2))
+                    .font(.custom("Helvetica", size: 20, relativeTo: .title2))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                 Text(subtitleText)
-                    .font(.custom("Futura", size: 14, relativeTo: .subheadline))
+                    .font(.custom("Helvetica", size: 14, relativeTo: .subheadline))
                     .foregroundStyle(state.sosSenderInitials == nil ? .white.opacity(0.85) : .red)
                     .lineLimit(1)
             }
@@ -60,7 +60,7 @@ struct SessionSummaryRow: View {
                 Image(systemName: rightBadge.icon)
                     .font(.system(size: 10, weight: .semibold))
                 Text(rightBadge.text)
-                    .font(.custom("Futura", size: 12, relativeTo: .caption))
+                    .font(.custom("Helvetica", size: 12, relativeTo: .caption))
             }
             .foregroundStyle(accentColor)
             .padding(.horizontal, 12)
@@ -115,7 +115,7 @@ struct SessionLiveActivityView: View {
                 SessionAppBadge(accentColor: accentColor)
                 Spacer()
                 Text(state.relayStatusText)
-                    .font(.custom("Futura", size: 12, relativeTo: .caption))
+                    .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                     .foregroundStyle(accentColor)
             }
             Divider()

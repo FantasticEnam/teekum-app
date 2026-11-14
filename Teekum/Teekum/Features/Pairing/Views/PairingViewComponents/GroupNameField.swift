@@ -27,7 +27,7 @@ struct GroupNameField: View {
             .submitLabel(.done)
             .onSubmit { focusedField.wrappedValue = nil }
             .textFieldStyle(.plain)
-            .font(.custom("Futura", size: 16, relativeTo: .body))
+            .font(.custom("Helvetica", size: 16, relativeTo: .body))
             .foregroundStyle(.white)
             .textInputAutocapitalization(.words)
             .padding(.horizontal, 24)

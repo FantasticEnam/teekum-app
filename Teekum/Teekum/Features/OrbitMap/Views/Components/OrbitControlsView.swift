@@ -20,7 +20,7 @@ struct OrbitControlsView: View {
         HStack(alignment: .bottom) {
             if let onActiveSOS {
                 Button("SOS", action: onActiveSOS)
-                    .font(.custom("Futura", size: 25, relativeTo: .title2).bold())
+                    .font(.custom("Helvetica", size: 25, relativeTo: .title2).bold())
                     .foregroundStyle(.white)
                     .frame(width: 64, height: 64)
                     .background(Color.alertRed, in: .circle)
