@@ -15,7 +15,6 @@ struct OrbitSceneView: View {
     }
 
     let userColor: Color
-    var bloomRotation: Angle = .zero
     var members: [Member] = []
     var meetingPoint: MeetingPoint?
     var location: LocationPin?
@@ -57,11 +56,6 @@ struct OrbitSceneView: View {
                             )
                     }
                     
-                    OrbitBloomView(
-                        radius: outerRadius,
-                        rotation: bloomRotation
-                    )
-                    
                     OrbitUserMarkerView(color: userColor, heading: .degrees(0), isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil)
                         .allowsHitTesting(false)
 
@@ -98,7 +92,7 @@ struct OrbitSceneView: View {
         return Button { onSelectMember(member) } label: {
             OrbitMemberMarkerView(initials: member.initials,
                 color: member.color.swiftUIColor, isSelected: isSelected,
-                isEmergency: member.isEmergency)
+                isEmergency: member.isEmergency, showsBloom: projection.isClamped)
                 .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
                 .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
                 .frame(minWidth: 44, minHeight: 44)
@@ -156,6 +150,21 @@ struct OrbitSceneView: View {
         .accessibilityHidden(true)
         .zIndex(-1)
     }
+}
+
+#Preview("Near and distant friends") {
+    let location = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 5)
+
+    OrbitSceneView(
+        userColor: .yellowProfile,
+        members: [
+            Member(id: "NIC", coordinate: .init(latitude: 0.00025, longitude: -0.0001),
+                color: .greenishTeal, measurementTimestamp: .now),
+            Member(id: "ADI", coordinate: .init(latitude: -0.0004, longitude: 0.0005),
+                color: .apricot, measurementTimestamp: .now)
+        ],
+        location: location
+    )
 }
 
 #Preview("1. Selected Normal (Kuning)") {

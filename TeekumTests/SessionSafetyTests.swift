@@ -213,6 +213,7 @@ final class SessionSafetyTests: XCTestCase {
         let north = OrbitProjection(distance: 30, bearing: 0, heading: 0, radius: 100)
         XCTAssertEqual(north.x, 0, accuracy: 0.001)
         XCTAssertLessThan(north.y, 0)
+        XCTAssertFalse(north.isClamped)
         let eastWhenFacingEast = OrbitProjection(distance: 600, bearing: 90, heading: 90, radius: 100)
         XCTAssertEqual(eastWhenFacingEast.x, 0, accuracy: 0.001)
         XCTAssertEqual(eastWhenFacingEast.y, -100, accuracy: 0.001)

@@ -13,11 +13,14 @@ struct OrbitMemberMarkerView: View {
     var isSelected = false
     var isEmergency = false
     var size: CGFloat = 30
+    var showsBloom = false
     
     var body: some View {
         Circle()
             .fill(color)
             .frame(width: size, height: size)
+            .blur(radius: showsBloom ? 4 : 0)
+            .shadow(color: showsBloom ? color.opacity(0.7) : .clear, radius: 10)
             .overlay {
                 if isSelected || isEmergency {
                     Circle()

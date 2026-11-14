@@ -29,7 +29,6 @@ struct OrbitMapView: View {
     private var orbitScene: some View {
         OrbitSceneView(
             userColor: viewModel.localProfileColor.swiftUIColor,
-            bloomRotation: .degrees(-(location?.currentHeading ?? 0)),
             members: visibleMembers,
             meetingPoint: meetingPoint,
             location: location?.currentLocation,
