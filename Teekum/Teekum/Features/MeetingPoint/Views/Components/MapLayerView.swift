@@ -22,6 +22,7 @@ public struct MapLayerView: View {
             distance: 400
         )
     )
+    @State private var hasInitialCentered: Bool = false
     // Simpan posisi finger touch sementara
     @State private var lastTouchPoint: CGPoint? = nil
     private let holdDuration: Double = 0.7
@@ -108,15 +109,16 @@ public struct MapLayerView: View {
             FriendFinderView(member: member, location: location)
         }
         .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
-            if let newCoord {
-                withAnimation {
-                    cameraPosition = .camera(MapCamera(centerCoordinate: newCoord, distance: 400))
-                }
+            guard !hasInitialCentered, let newCoord else { return }
+            hasInitialCentered = true
+            withAnimation {
+                cameraPosition = .camera(MapCamera(centerCoordinate: newCoord, distance: 400))
             }
         }
         .onAppear {
             if let userCoord = location?.currentLocation?.coordinate {
                 cameraPosition = .camera(MapCamera(centerCoordinate: userCoord, distance: 400))
+                hasInitialCentered = true
             }
         }
     }
