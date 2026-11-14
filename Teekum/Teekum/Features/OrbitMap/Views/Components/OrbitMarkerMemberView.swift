@@ -18,32 +18,34 @@ struct OrbitMemberMarkerView: View {
         Circle()
             .fill(color)
             .frame(width: size, height: size)
-            .shadow(color: color.opacity(0.8), radius: 8)
             .overlay {
-                if isSelected {
+                if isSelected || isEmergency {
                     Circle()
-                        .strokeBorder(Color.yellowProfile, lineWidth: 2)
+                        .strokeBorder(isEmergency ? Color.alertRed : Color.yellowProfile, lineWidth: 2)
                         .padding(-4)
                 }
             }
             .overlay(alignment: .top) {
                 VStack(spacing: -2) {
                     Text(initials)
-                        .font(.custom("Futura", size: 13, relativeTo: .caption))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(isEmergency ? Color.alertRed : .black, in: .rect(cornerRadius: 6))
-                    if isEmergency {
+                        .font(.custom("Futura", size: isSelected ? 16 : 13, relativeTo: .caption))
+                        .foregroundStyle((isSelected && !isEmergency) ? .black : .white)
+                        .padding(.horizontal, isSelected ? 14 : 10)
+                        .padding(.vertical, isSelected ? 8 : 6)
+                        .background(
+                                                    isEmergency ? Color.alertRed : (isSelected ? Color.yellowProfile : .black),
+                                                    in: .rect(cornerRadius: isSelected ? 8 : 6)
+                                                )
+                    
+                    if isEmergency || isSelected {
                         Image(systemName: "triangle.fill")
-                            .font(.system(size: 10))
+                            .font(.system(size: isSelected ? 13 : 10))
                             .rotationEffect(.degrees(180))
-                            .foregroundStyle(Color.alertRed)
+                            .foregroundStyle(isEmergency ? Color.alertRed : (isSelected ? Color.yellowProfile : .black))
                     }
                 }
                 .fixedSize()
-                .shadow(color: isEmergency ? .alertRed.opacity(0.65) : .clear, radius: 12)
-                .alignmentGuide(.top) { $0[.bottom] + (isEmergency ? 1 : 12) }
+                .alignmentGuide(.top) { $0[.bottom] + (isEmergency || isSelected ? 2 : 12) }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Member \(initials)")
@@ -53,6 +55,7 @@ struct OrbitMemberMarkerView: View {
 #Preview("Normal and SOS markers") {
     HStack(spacing: 64) {
         OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile)
+        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile, isSelected: true)
         OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile, isEmergency: true)
     }
     .padding(80)
