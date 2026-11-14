@@ -256,10 +256,7 @@ final class SessionController {
             guard generation == current else { break }
             diagnostics = snapshot
             let losses = store.refreshMemberVisibility(now: .now, peers: snapshot.activeDirectPeers)
-            if !losses.isEmpty {
-                let initials = losses.map(\.initials).formatted(.list(type: .and))
-                notifications.notify(title: "Group activity", body: "Lost contact with \(initials).")
-            }
+            notifications.notifyGroupActivity(losses.map(\.initials), joined: false)
             meeting.checkExpiration()
             if let coordinate = location.currentLocation?.coordinate { meeting.checkArrival(userLocation: coordinate) }
             let stale = store.members.contains { $0.isWithinStaleRecoveryWindow() }
@@ -295,10 +292,14 @@ final class SessionController {
             routeDiscoveryService: routes, seenPacketCache: seen,
             onLocationPing: { [weak self] ping, inbound in
                 guard let self, generation == current else { return }
+                let isNew = !store.members.contains { $0.id == ping.senderInitials }
                 store.applyLocationPing(ping, inbound: inbound)
+                if isNew { notifications.notifyGroupActivity([ping.senderInitials], joined: true) }
             }, onSOS: { [weak self] payload, inbound in
                 guard let self, generation == current else { return }
+                let isNew = !store.members.contains { $0.id == payload.senderInitials }
                 store.applySOSLocation(payload, inbound: inbound)
+                if isNew { notifications.notifyGroupActivity([payload.senderInitials], joined: true) }
                 try? await sosEngine.handleInboundSOSPacket(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
             }, onACK: { [weak self] inbound in
                 guard let self, generation == current else { return }
@@ -340,7 +341,9 @@ final class SessionController {
             await routes.handleNeighborDisconnected(peerId: peer)
             guard generation == current else { return }
         }
+        let knownMembers = Set(store.members.map(\.id))
         store.applyPeerSnapshot(peers, connected: connected)
+        notifications.notifyGroupActivity(store.members.map(\.id).filter { !knownMembers.contains($0) }, joined: true)
         if !connected.isEmpty {
             location.publishCurrentState()
         }

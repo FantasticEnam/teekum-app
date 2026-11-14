@@ -14,6 +14,7 @@ import UIKit
 @Observable
 final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     var message: String?
+    private(set) var groupActivity: (message: String, memberID: String)?
     private var dismissTask: Task<Void, Never>?
 
     override init() {
@@ -27,12 +28,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     func notify(title: String, body: String, showBanner: Bool = true) {
         if showBanner {
-            message = "\(title): \(body)"
-            dismissTask?.cancel()
-            dismissTask = Task { [weak self] in
-                do { try await Task.sleep(for: .seconds(4)) } catch { return }
-                self?.message = nil
-            }
+            showMessage("\(title): \(body)")
         }
         guard UIApplication.shared.applicationState != .active else { return }
         let content = UNMutableNotificationContent()
@@ -43,10 +39,32 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().add(request)
     }
 
+    func notifyGroupActivity(_ members: [String], joined: Bool) {
+        guard let first = members.first else { return }
+        let names = members.formatted(.list(type: .and))
+        let body = joined
+            ? (members.count == 1 ? "\(names) has joined" : "\(names) have joined")
+            : "Lost contact with \(names)"
+        showMessage(body, memberID: first)
+        notify(title: "Group activity", body: body, showBanner: false)
+    }
+
+    private func showMessage(_ text: String, memberID: String? = nil) {
+        message = memberID == nil ? text : nil
+        groupActivity = memberID.map { (text, $0) }
+        dismissTask?.cancel()
+        dismissTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(4)) } catch { return }
+            self?.message = nil
+            self?.groupActivity = nil
+        }
+    }
+
     func clear() {
         dismissTask?.cancel()
         dismissTask = nil
         message = nil
+        groupActivity = nil
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }

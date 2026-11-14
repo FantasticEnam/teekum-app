@@ -73,6 +73,10 @@ struct OrbitMapView: View {
                 OrbitHeaderView(groupName: viewModel.groupName,
                     onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
 
+                if let activity = notifications?.groupActivity {
+                    groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
+                }
+
                 if location?.currentLocation == nil {
                     Label("Waiting for your location", systemImage: "location.slash")
                         .font(.caption).padding(8)
@@ -202,6 +206,22 @@ struct OrbitMapView: View {
             .overlay { SOSEdgeGlowView(sos: sos) }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         }
+    }
+
+    private func groupActivityPill(_ message: String, color: Color) -> some View {
+        Label {
+            Text(message).font(.subheadline.weight(.semibold))
+        } icon: {
+            Circle().fill(color).frame(width: 14, height: 14)
+                .accessibilityHidden(true)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(white: 0.19), in: .capsule)
+        .shadow(color: .white.opacity(0.26), radius: 5, y: 5)
+        .frame(maxWidth: .infinity)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
