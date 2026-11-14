@@ -262,7 +262,6 @@ final class SessionController {
             }
             meeting.checkExpiration()
             if let coordinate = location.currentLocation?.coordinate { meeting.checkArrival(userLocation: coordinate) }
-            sos.checkForNearbyHelp(members: store.visibleMembers)
             let stale = store.members.contains { $0.isWithinStaleRecoveryWindow() }
             if location.hasStalePeers != stale {
                 location.hasStalePeers = stale

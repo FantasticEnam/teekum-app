@@ -250,7 +250,7 @@ final class ChatSOSMigrationTests: XCTestCase {
     }
 
     @MainActor
-    func testSenderConfirmsHelpOnlyAfterNearbyPromptOrManualAction() async throws {
+    func testSenderCanEndSOSWithoutGPSAndTriggerAgain() async throws {
         let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
         let crypto = CryptoService()
         let transport = MessagingTestTransport()
@@ -258,39 +258,16 @@ final class ChatSOSMigrationTests: XCTestCase {
         let location = LocationService(isLiveSharingEnabled: false)
         let model = SOSViewModel(engine: engine, locationService: location, sessionProvider: { session })
         await model.start()
-        let now = Date.now
-        let coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
-        location.currentLocation = LocationPin(coordinate: coordinate, horizontalAccuracy: 4, timestamp: now)
         model.triggerSOS()
         for _ in 0..<100 where model.isSending { try await Task.sleep(for: .milliseconds(10)) }
         let eventId = try XCTUnwrap(model.outgoingEventId)
-        let far = Member(id: "FAR", coordinate: .init(latitude: 0.0002, longitude: 0),
-            horizontalAccuracy: 4, measurementTimestamp: now)
-        var nearby = Member(id: "ALX", coordinate: .init(latitude: 0.00005, longitude: 0),
-            horizontalAccuracy: 4, measurementTimestamp: now.addingTimeInterval(-31))
-        model.checkForNearbyHelp(members: [far, nearby], now: now)
-        XCTAssertFalse(model.asksAboutHelp)
-        nearby.measurementTimestamp = now
-        nearby.horizontalAccuracy = 20
-        model.checkForNearbyHelp(members: [nearby], now: now)
-        XCTAssertFalse(model.asksAboutHelp)
-        nearby.horizontalAccuracy = 4
-        model.checkForNearbyHelp(members: [nearby], now: now)
-        XCTAssertTrue(model.asksAboutHelp)
-        model.keepSOSActive()
-        model.checkForNearbyHelp(members: [nearby], now: now)
-        XCTAssertFalse(model.asksAboutHelp)
-        XCTAssertEqual(model.outgoingEventId, eventId)
-
-        location.currentLocation = nil
-        model.askAboutHelp()
         await transport.failNextResolutionEnqueue()
-        model.confirmHelpReceived()
+        model.endSOS()
         for _ in 0..<100 where model.isResolving { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertNotNil(model.resolutionError)
         XCTAssertEqual(model.outgoingEventId, eventId)
 
-        model.confirmHelpReceived()
+        model.endSOS()
         for _ in 0..<100 where model.isResolving { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertNil(model.outgoingEventId)
         XCTAssertFalse(model.showsEdgeGlow)
@@ -305,6 +282,10 @@ final class ChatSOSMigrationTests: XCTestCase {
             SOSResolvedPayload(senderInitials: "BOB", eventId: eventId))
         let engineEventId = await engine.activeSOSEventId
         XCTAssertNil(engineEventId)
+
+        model.triggerSOS()
+        for _ in 0..<100 where model.isSending { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNotEqual(try XCTUnwrap(model.outgoingEventId), eventId)
         await model.stop()
     }
 

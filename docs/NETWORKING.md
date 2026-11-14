@@ -34,7 +34,7 @@ Leave/rejoin stops the router, cancels the session task and probes, stops publis
 
 V3 has no leave packet. Orbit hides a member from its radar and friend list after 90 seconds without contact, unless the member still has a ready group link or an active SOS. A reconnect attempt counts as contact once the link is ready. Fresh location traffic can also make the member visible again. Routing and chat still use the session roster.
 
-Acknowledging an SOS closes the banner. The red edge glow stays active while any incoming SOS remains unresolved. The sender gets one automatic confirmation prompt per SOS when fresh GPS estimates place a friend within 10 m. The sender can also open the prompt from the active SOS button. A confirmed resolution is retained in memory for up to 10 minutes using the existing carry mechanism. A receiver clears the matching SOS when it receives the resolution.
+Acknowledging an SOS closes the receiver's banner. The red edge glow stays active while any incoming SOS remains unresolved. During an outgoing SOS, the sender has a persistent banner with one action, **End SOS**, which queues the resolution immediately. A queued resolution is retained in memory for up to 10 minutes using the existing carry mechanism. A receiver clears the matching SOS when it receives the resolution.
 
 While the receiver's app is active, the SOS tone and vibration repeat every two seconds before acknowledgment and every 90 seconds afterward. The first reminder is due 90 seconds after acknowledgment. A new SOS returns to the urgent cadence. Resolution of the final pending SOS or session teardown stops the loop. Background reception uses the existing iOS notification.
 

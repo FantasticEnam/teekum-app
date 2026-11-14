@@ -20,9 +20,9 @@ struct OrbitFeedbackView: View {
                     }
                 }
                 InactivityWarningView(guardService: sos.inactivityGuard)
-                if sos.asksAboutHelp {
-                    SOSHelpConfirmationView(isSending: sos.isResolving, error: sos.resolutionError,
-                        onConfirm: sos.confirmHelpReceived, onKeepActive: sos.keepSOSActive)
+                if sos.outgoingEventId != nil {
+                    ActiveSOSBannerView(deliveryState: sos.deliveryState, isEnding: sos.isResolving,
+                        error: sos.resolutionError, onEnd: sos.endSOS)
                 } else {
                     SOSDeliveryStatusView(state: sos.deliveryState, onRetry: sos.retrySOS, onDismiss: sos.dismissDeliveryStatus)
                 }

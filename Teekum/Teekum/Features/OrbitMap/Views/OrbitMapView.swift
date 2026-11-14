@@ -97,7 +97,7 @@ struct OrbitMapView: View {
                     },
                     onChat: openChat,
                     unreadCount: chat?.unreadCount ?? 0,
-                    onActiveSOS: isSOSActive ? { sos?.askAboutHelp() } : nil
+                    isSOSActive: isSOSActive
                 )
             }
             .padding(.horizontal)

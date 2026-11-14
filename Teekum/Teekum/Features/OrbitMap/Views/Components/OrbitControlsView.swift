@@ -12,22 +12,20 @@ struct OrbitControlsView: View {
     let onExpand: () -> Void
     var onChat: () -> Void = {}
     var unreadCount = 0
-    var onActiveSOS: (() -> Void)?
+    var isSOSActive = false
 
     private let friendsPanelHeight: CGFloat = 44
     
     var body: some View {
         HStack(alignment: .bottom) {
-            if let onActiveSOS {
-                Button("SOS", action: onActiveSOS)
+            if isSOSActive {
+                Text("SOS")
                     .font(.custom("Helvetica", size: 25, relativeTo: .title2).bold())
                     .foregroundStyle(.white)
                     .frame(width: 64, height: 64)
                     .background(Color.alertRed, in: .circle)
-                    .glassEffect(.regular.tint(.alertRed).interactive(), in: .circle)
-                    .buttonStyle(.plain)
+                    .glassEffect(.regular.tint(.alertRed), in: .circle)
                     .accessibilityLabel("SOS active")
-                    .accessibilityHint("Opens the confirmation to end the SOS")
             } else {
                 SOSSwipeButtonView(onSwipeCompleted: onSOS)
                     .zIndex(1)
