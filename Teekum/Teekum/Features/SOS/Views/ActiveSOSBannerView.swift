@@ -18,6 +18,7 @@ struct ActiveSOSBannerView: View {
             Label("SOS active", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
                 .accessibilityAddTraits(.isHeader)
+                .foregroundStyle(Color.yellowProfile)
             if let error {
                 Text(error)
                     .font(.subheadline)
@@ -31,12 +32,13 @@ struct ActiveSOSBannerView: View {
             } else {
                 Button("End SOS", action: onEnd)
                     .buttonStyle(.borderedProminent)
+                    .foregroundStyle(.black)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color.blackCard, in: .rect(cornerRadius: 18))
-        .tint(.yellowProfile)
+        .tint(Color.yellowProfile)
     }
 
 }

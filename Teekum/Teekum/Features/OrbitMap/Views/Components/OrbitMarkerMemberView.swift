@@ -17,7 +17,7 @@ struct OrbitMemberMarkerView: View {
     var lowBatteryPercentage: String?
 
     private var showsPointer: Bool { isEmergency || isSelected || lowBatteryPercentage != nil }
-    private var bubbleColor: Color { isEmergency ? .alertRed : (isSelected ? .yellowProfile : .black) }
+    private var bubbleColor: Color { isEmergency ? .alertRed : (isSelected ? .buttonPrimary : .black) }
     
     var body: some View {
         Circle()
@@ -28,7 +28,7 @@ struct OrbitMemberMarkerView: View {
             .overlay {
                 if isSelected || isEmergency {
                     Circle()
-                        .strokeBorder(isEmergency ? Color.alertRed : Color.yellowProfile, lineWidth: 2)
+                        .strokeBorder(isEmergency ? Color.alertRed : Color.buttonPrimary, lineWidth: 2)
                         .padding(-4)
                 }
             }
@@ -41,7 +41,7 @@ struct OrbitMemberMarkerView: View {
                         if let lowBatteryPercentage {
                             Label(lowBatteryPercentage, systemImage: "bolt.fill")
                                 .font(.caption2.weight(.semibold))
-                                .foregroundStyle(isSelected && !isEmergency ? .black : .yellowProfile)
+                                .foregroundStyle(isSelected && !isEmergency ? .black : .buttonPrimary)
                         }
                     }
                     .padding(.horizontal, isSelected ? 14 : 10)

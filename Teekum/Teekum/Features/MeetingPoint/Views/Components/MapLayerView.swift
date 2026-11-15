@@ -164,13 +164,13 @@ public struct MapLayerView: View {
             } label: {
                 Image(systemName: "globe.americas.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(isSatellite ? .yellow : .white) // Kuning saat satelit aktif
+                    .foregroundStyle(isSatellite ? Color.buttonPrimary : .white) // Kuning saat satelit aktif
                     .frame(width: 48, height: 48)
                     .background(Color.black.opacity(0.65))
                     .clipShape(Circle())
                     .overlay(
                         Circle()
-                            .stroke(isSatellite ? Color.yellow.opacity(0.6) : Color.white.opacity(0.2), lineWidth: 1)
+                            .stroke(isSatellite ? Color.buttonPrimary.opacity(0.6) : Color.white.opacity(0.2), lineWidth: 1)
                     )
                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
             }

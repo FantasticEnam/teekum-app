@@ -24,7 +24,7 @@ struct FooterAgreement: View {
                 HStack(alignment: .top, spacing: 11) {
                     Image(systemName: hasAgreed ? "checkmark.square.fill" : "square")
                         .font(.system(size: 16))
-                        .foregroundStyle(hasAgreed ? Color.yellowProfile : secondaryText)
+                        .foregroundStyle(hasAgreed ? Color.buttonPrimary : secondaryText)
                         .accessibilityHidden(true)
 
                     Text("I understand and agree to the above conditions and Teekum’s \(Text("Privacy Policy").underline()).")

@@ -20,12 +20,12 @@ struct FriendListMemberView: View {
             Text(member.initials)
                 .font(
                     .custom(
-                        "Helvetica",
+                        "Helvetica-Bold",
                         size: 22,
                         relativeTo: .title2
                     )
                 )
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(width: avatarSize, height: avatarSize)
