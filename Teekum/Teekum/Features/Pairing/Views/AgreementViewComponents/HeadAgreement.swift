@@ -21,6 +21,7 @@ struct HeadAgreement: View {
 
             Text("Together, Beyond the Signal")
                 .font(.custom("Helvetica", size: 20, relativeTo: .title3))
+                .bold()
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, 2)
 
