@@ -23,11 +23,11 @@ extension Color {
     static let buttonPrimary = Color(hex: 0xA9CFF5)
     
     // MARK: - Profile Color
-    static let yellowProfile = Color(hex: 0xDBCF69)
-    static let redProfile = Color(hex: 0xF17E7E)
-    static let greenProfile = Color(hex: 0x51CFA0)
-    static let purpleProfile = Color(hex: 0xB3A8F5)
-    static let pinkProfile = Color(hex: 0xD67EC9)
+    static let yellowProfile = Color(hex: 0xF3EBA3)
+    static let redProfile = Color(hex: 0xF4A5A6)
+    static let greenProfile = Color(hex: 0x9EEBCE)
+    static let purpleProfile = Color(hex: 0xBAAFE0)
+    static let pinkProfile = Color(hex: 0xE9ACE1)
    
 }
 
