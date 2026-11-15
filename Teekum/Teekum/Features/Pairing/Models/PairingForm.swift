@@ -12,15 +12,14 @@ import Foundation
 struct PairingForm: Equatable {
     var initials = ""
     var sessionName = ""
-    var profileColor: PairingProfileColor = .yellow
+    var profileColor: PairingProfileColor = .green
 
     var trimmedSessionName: String {
         sessionName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var hasValidInitials: Bool {
-        (1...3).contains(initials.count) &&
-        initials.allSatisfy { $0 >= "A" && $0 <= "Z" }
+        InitialsCodec.isValid(initials)
     }
 
     var canGenerateQR: Bool {

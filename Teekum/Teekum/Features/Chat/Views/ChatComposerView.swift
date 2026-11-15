@@ -33,7 +33,7 @@ struct ChatComposerView: View {
                 Button("Send", systemImage: "arrow.up", action: viewModel.sendDraft)
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderedProminent)
-                    .tint(.yellowProfile)
+                    .tint(.buttonPrimary)
                     .foregroundStyle(.black)
                     .disabled(!viewModel.canSend)
                     .frame(minWidth: 44, minHeight: 44)

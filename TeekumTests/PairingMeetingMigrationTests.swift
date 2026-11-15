@@ -47,14 +47,14 @@ final class PairingMeetingMigrationTests: XCTestCase {
         let store = SessionStore()
         var accepted: GroupSession?
         let viewModel = PairingViewModel(sessionStore: store) { accepted = $0 }
-        viewModel.form = PairingForm(initials: "ADI", sessionName: "Festival Crew", profileColor: .blue)
+        viewModel.form = PairingForm(initials: "ADI", sessionName: "Festival Crew", profileColor: .purple)
         viewModel.showQRPreview()
         XCTAssertNotNil(viewModel.draftSession)
         XCTAssertNil(store.activeSession)
         XCTAssertNil(accepted)
         viewModel.activateLocalSession()
         XCTAssertEqual(accepted?.sessionId, viewModel.draftSession?.sessionId)
-        XCTAssertEqual(accepted?.localColorCode, 7)
+        XCTAssertEqual(accepted?.localColorCode, 0x0A)
     }
 
     func testInvalidInviteAndInitialsCannotCreateParticipation() {

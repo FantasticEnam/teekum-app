@@ -143,13 +143,15 @@ struct OrbitSceneView: View {
     private func meetingMarker(_ point: MeetingPoint, projection: OrbitProjection, isSelected: Bool) -> some View {
         Button { onSelectMeetingPoint(point.id) } label: {
             Image(.meetPoint)
+                .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
+                .foregroundStyle(Color.buttonPrimary)
                 .frame(width: 23, height: 34)
                 .background {
                     if isSelected {
                         Circle()
-                            .strokeBorder(Color.yellowProfile, lineWidth: 2)
+                            .strokeBorder(Color.buttonPrimary, lineWidth: 2)
                             .frame(width: 42, height: 42)
                     }
                 }
@@ -178,7 +180,7 @@ struct OrbitSceneView: View {
             path.move(to: center)
             path.addLine(to: CGPoint(x: center.x + projection.x, y: center.y + projection.y))
         }
-        .stroke(isEmergency ? Color.alertRedFire : Color.yellowProfile, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+        .stroke(isEmergency ? Color.alertRedFire : Color.buttonPrimary, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
         .frame(width: size.width, height: size.height)
         .allowsHitTesting(false)
         .accessibilityHidden(true)

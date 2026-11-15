@@ -32,6 +32,7 @@ struct GroupPairingInviteView: View {
                     .accessibilityLabel("Group invitation QR code")
             } else {
                 Label("QR unavailable", systemImage: "qrcode")
+                    .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                     .frame(maxHeight: 186)
             }
 
