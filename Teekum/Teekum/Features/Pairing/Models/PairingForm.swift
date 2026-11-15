@@ -12,7 +12,7 @@ import Foundation
 struct PairingForm: Equatable {
     var initials = ""
     var sessionName = ""
-    var profileColor: PairingProfileColor = .yellow
+    var profileColor: PairingProfileColor = .green
 
     var trimmedSessionName: String {
         sessionName.trimmingCharacters(in: .whitespacesAndNewlines)
