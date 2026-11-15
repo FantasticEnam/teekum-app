@@ -1,14 +1,17 @@
-# TeeKum — Technical Requirements
+# Meepo — Technical Requirements
 
-**Fantasix · Last reviewed: 11 November 2026**
+**Fantasix · Product scope updated 15 November 2026**
 
 ## 1. Project Overview
 
-TeeKum helps groups coordinate at concerts and festivals when internet access is poor. The app connects private group invitations, an explicit public group, Orbit and friend finding, geographic meeting points, chat, SOS and optional inactivity monitoring. [Session migration](features/session-migration.md) records the comparison with prototype `f4c6393` and the verification limits. The original UI/import baseline is `796f586`.
+Meepo supports initial communication at a disaster relief post while internet or mobile data is unavailable. Relief-post coordinators share local instructions with volunteers and people at the post. Participants exchange short updates on services and supplies, check in with the group, and use meeting points to coordinate at a named location.
 
+- Use a private QR/invite group for relief-post communication. Chat carries short messages and check-ins such as **I'm safe**. Orbit displays the latest available member locations, and meeting-point updates identify a shared destination.
+- SOS alerts the local group and displays location when available. **I'll be there!** acknowledges the alert at the receiver. **End SOS** on the sender's device sends the resolution. Official emergency response follows the relief post's established channels.
+- Nearby participating iPhones can relay packets along multiple radio links. Use **about 30 m per hop** as the spacing in examples and field trials. Actual links govern forwarding. See [the relay example and runtime limits](NETWORKING.md#offline-relay-at-a-relief-post).
 - Team: Fantasix. Developers: Adiat, Daffa, Hasan and Nicho. Designers: Ayu and Ivanna.
 - Minimum iOS 27.0, Swift 6, SwiftUI with Observation and Feature-Driven MVVM.
-- The XcodeGen spec names the app Teekum and sets the bundle ID to `com.fantasticenam.meepo`.
+- The product name is **Meepo**. XcodeGen uses the existing `Teekum` project and scheme names and the bundle ID `com.fantasticenam.meepo`.
 
 ## 2. Technologies and Configuration
 
@@ -20,9 +23,10 @@ TeeKum helps groups coordinate at concerts and festivals when internet access is
 | Network / CoreBluetooth | `Core/Transport` manages Bonjour TCP and BLE. [Networking](NETWORKING.md) |
 | CryptoKit / Security | `Core/Security` seals/opens payloads, stores session keys and reserves outgoing sequence numbers. [Protocol specification](PROTOCOL_SPECIFICATION.md) |
 | CoreLocation / CoreMotion | `Core/Location` collects location/heading. `Features/SOS/Services/InactivityGuardService.swift` owns the opt-in inactivity timer. |
-| ActivityKit / WidgetKit | `Core/LiveActivity` manages the activity. `TeekumWidgets` renders the companion. |
+| AudioToolbox / UIKit / UserNotifications | SOS audio and haptics run while the app is active. Local notifications handle alerts when iOS permits background reception. |
+| ActivityKit / WidgetKit | `Core/LiveActivity` manages the activity. `TeekumWidgets` renders Lock Screen and Dynamic Island updates for group, chat, and SOS status. |
 
-`project.yml` declares the app, widget and XCTest targets along with privacy strings, Bonjour, the invite URL scheme and background modes. `project-parity.yml` adds the optional reference test targets. The specs declare no external dependencies.
+`project.yml` declares the app, widget and XCTest targets, privacy strings, Bonjour, URL handling, and background modes for location and Bluetooth central/peripheral. The app uses no external Swift dependencies.
 
 ## 3. Architecture — MVVM Feature-Driven
 
@@ -48,7 +52,7 @@ Teekum/Teekum/
 ├── Core/
 │   ├── Session/       Identity, roster, shared meeting state and recovery
 │   ├── Location/      Sensor samples, adaptive cadence and publishing
-│   ├── Packets/       V3 envelope, wire frame and Payloads/
+│   ├── Packets/       Wire envelope, wire frame and Payloads/
 │   ├── Transport/     Bonjour, TCP/BLE, framing, queue and carry
 │   ├── Mesh/          Packet dispatch and dedup, with Routing/ and Relay/
 │   ├── Security/      Crypto, Keychain and sequence allocation
@@ -64,28 +68,30 @@ TeekumTests/           XCTest and Support/ fixtures
 
 Start at the entry point for a screen or action. Follow the owner column when changing behavior.
 
-| Feature or behavior | Entry point | State or behavior owner | XCTest to inspect |
-| :--- | :--- | :--- | :--- |
-| Create/join, QR, link and fingerprint | [GroupPairingView](../Teekum/Teekum/Features/Pairing/Views/GroupPairingView.swift), [GroupQRCodeView](../Teekum/Teekum/Features/Pairing/Views/GroupQRCodeView.swift) | [PairingViewModel](../Teekum/Teekum/Features/Pairing/ViewModels/PairingViewModel.swift), [GroupSessionFactory](../Teekum/Teekum/Features/Pairing/Services/GroupSessionFactory.swift), [GroupSession](../Teekum/Teekum/Core/Session/GroupSession.swift) | `PairingMeetingMigrationTests` |
-| Agreement, restore and leave | [AgreementView](../Teekum/Teekum/Features/Pairing/Views/AgreementView.swift), [AppRootView](../Teekum/Teekum/App/AppRootView.swift) | [SessionController](../Teekum/Teekum/App/SessionController.swift), [SessionPersistence](../Teekum/Teekum/Core/Session/SessionPersistence.swift) | `SessionSafetyTests`, `PairingMeetingMigrationTests` |
-| Orbit markers, friend highlight and finder | [OrbitMapView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitMapView.swift), [FriendListSheet](../Teekum/Teekum/Features/OrbitMap/Views/FriendListSheet.swift) | [OrbitMapViewModel](../Teekum/Teekum/Features/OrbitMap/ViewModels/OrbitMapViewModel.swift), [OrbitProjection](../Teekum/Teekum/Features/OrbitMap/Models/OrbitProjection.swift), [SessionStore](../Teekum/Teekum/Core/Session/SessionStore.swift) | `SessionSafetyTests` |
-| GPS, heading and outgoing pings | [LocationService](../Teekum/Teekum/Core/Location/LocationService.swift), [LocationPublisher](../Teekum/Teekum/Core/Location/LocationPublisher.swift) | `Core/Location` for cadence and sending, `SessionStore.applyLocationPing` for accepted peer measurements | `ParityContractTests`, `SessionSafetyTests` |
-| Set, show and cancel meeting point, RSVP | [MainMapView](../Teekum/Teekum/Features/MeetingPoint/Views/MainMapView.swift), `OrbitMapView` for its marker | [MeetingPointViewModel](../Teekum/Teekum/Features/MeetingPoint/ViewModels/MeetingPointViewModel.swift), [MeetingPointService](../Teekum/Teekum/Features/MeetingPoint/Services/MeetingPointService.swift), `SessionStore.activeMeetingPoint` | `PairingMeetingMigrationTests`, `SessionSafetyTests` |
-| Send chat and track recipient ACK | [ChatSheetView](../Teekum/Teekum/Features/Chat/Views/ChatSheetView.swift) | [ChatViewModel](../Teekum/Teekum/Features/Chat/ViewModels/ChatViewModel.swift), [ChatMessageEngine](../Teekum/Teekum/Features/Chat/Services/ChatMessageEngine.swift) and its inbound/outbound/delivery extensions | `ChatSOSMigrationTests`, `ParityContractTests` |
-| SOS swipe, receiver alert, sound/haptics and retry | [SOSSwipeButtonView](../Teekum/Teekum/Features/SOS/Views/SOSSwipeButtonView.swift), [IncomingSOSAlertBannerView](../Teekum/Teekum/Features/SOS/Views/IncomingSOSAlertBannerView.swift) | [SOSViewModel](../Teekum/Teekum/Features/SOS/ViewModels/SOSViewModel.swift), [SOSForwardingEngine](../Teekum/Teekum/Features/SOS/Services/SOSForwardingEngine.swift), [DefaultSOSAudioAlerter](../Teekum/Teekum/Features/SOS/Services/DefaultSOSAudioAlerter.swift) | `ChatSOSMigrationTests`, `ParityContractTests` |
-| Inactivity opt-in and countdown | [InactivitySettingsView](../Teekum/Teekum/Features/SOS/Views/InactivitySettingsView.swift), [InactivityWarningView](../Teekum/Teekum/Features/SOS/Views/InactivityWarningView.swift) | [InactivityGuardService](../Teekum/Teekum/Features/SOS/Services/InactivityGuardService.swift), `SOSViewModel` | `ChatSOSMigrationTests`, `ParityContractTests` |
-| Discovery, framing and carry | [PeerTransportService](../Teekum/Teekum/Core/Transport/PeerTransportService.swift) | `Core/Transport` owns Wi-Fi/BLE links, framing, priority queue and carry | `NetworkMigrationTests`, `ParityContractTests` |
-| Relay and route discovery | [PacketRouter](../Teekum/Teekum/Core/Mesh/PacketRouter.swift) | [RelayPolicyManager](../Teekum/Teekum/Core/Mesh/Relay/RelayPolicyManager.swift), [RouteDiscoveryService](../Teekum/Teekum/Core/Mesh/Routing/RouteDiscoveryService.swift), [SeenPacketCache](../Teekum/Teekum/Core/Mesh/SeenPacketCache.swift) | `NetworkMigrationTests` |
-| Wire bytes, key and sequence | [RawWirePacket](../Teekum/Teekum/Core/Packets/RawWirePacket.swift), [CleartextEnvelope](../Teekum/Teekum/Core/Packets/CleartextEnvelope.swift) | [CryptoService](../Teekum/Teekum/Core/Security/CryptoService.swift), [PacketSequenceAllocator](../Teekum/Teekum/Core/Security/PacketSequenceAllocator.swift) | `ParityContractTests`, `SessionSafetyTests` |
-| Connection diagnostics and packet log | [OrbitSettingsView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitSettingsView.swift) | [PeerTransportService+Diagnostics](../Teekum/Teekum/Core/Transport/PeerTransportService+Diagnostics.swift), [TransportDiagnostics](../Teekum/Teekum/Core/Transport/TransportDiagnostics.swift) | `NetworkMigrationTests` |
-| Lost-contact notification and Group activity log | [OrbitSettingsView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitSettingsView.swift) | [SessionStore](../Teekum/Teekum/Core/Session/SessionStore.swift) records losses. [SessionController](../Teekum/Teekum/App/SessionController.swift) sends notifications. | `SessionSafetyTests` |
-| Live Activity | [LiveActivityManager](../Teekum/Teekum/Core/LiveActivity/LiveActivityManager.swift), [TeekumWidgets](../TeekumWidgets) | `SessionController` drives updates and teardown. Widget verification requires a device. | Device check |
+| Feature or behavior | Entry point | State or behavior owner |
+| :--- | :--- | :--- |
+| Create/join, QR, link and fingerprint | [GroupPairingView](../Teekum/Teekum/Features/Pairing/Views/GroupPairingView.swift), [GroupQRCodeView](../Teekum/Teekum/Features/Pairing/Views/GroupQRCodeView.swift) | [PairingViewModel](../Teekum/Teekum/Features/Pairing/ViewModels/PairingViewModel.swift), [GroupSessionFactory](../Teekum/Teekum/Features/Pairing/Services/GroupSessionFactory.swift), [GroupSession](../Teekum/Teekum/Core/Session/GroupSession.swift) |
+| Agreement, restore and leave | [AgreementView](../Teekum/Teekum/Features/Pairing/Views/AgreementView.swift), [AppRootView](../Teekum/Teekum/App/AppRootView.swift) | [SessionController](../Teekum/Teekum/App/SessionController.swift), [SessionPersistence](../Teekum/Teekum/Core/Session/SessionPersistence.swift) |
+| Orbit markers, friend highlight and finder | [OrbitMapView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitMapView.swift), [FriendListSheet](../Teekum/Teekum/Features/OrbitMap/Views/FriendListSheet.swift) | [OrbitMapViewModel](../Teekum/Teekum/Features/OrbitMap/ViewModels/OrbitMapViewModel.swift), [OrbitProjection](../Teekum/Teekum/Features/OrbitMap/Models/OrbitProjection.swift), [SessionStore](../Teekum/Teekum/Core/Session/SessionStore.swift) |
+| GPS, heading and outgoing pings | [LocationService](../Teekum/Teekum/Core/Location/LocationService.swift), [LocationPublisher](../Teekum/Teekum/Core/Location/LocationPublisher.swift) | `Core/Location` for cadence and sending, `SessionStore.applyLocationPing` for accepted peer measurements |
+| Set, show and cancel meeting point, RSVP | [MainMapView](../Teekum/Teekum/Features/MeetingPoint/Views/MainMapView.swift), `OrbitMapView` for its marker | [MeetingPointViewModel](../Teekum/Teekum/Features/MeetingPoint/ViewModels/MeetingPointViewModel.swift), [MeetingPointService](../Teekum/Teekum/Features/MeetingPoint/Services/MeetingPointService.swift), `SessionStore.activeMeetingPoint` |
+| Send chat and track recipient ACK | [ChatSheetView](../Teekum/Teekum/Features/Chat/Views/ChatSheetView.swift) | [ChatViewModel](../Teekum/Teekum/Features/Chat/ViewModels/ChatViewModel.swift), [ChatMessageEngine](../Teekum/Teekum/Features/Chat/Services/ChatMessageEngine.swift) and its inbound/outbound/delivery extensions |
+| SOS swipe, receiver alert, sound/haptics and retry | [SOSSwipeButtonView](../Teekum/Teekum/Features/SOS/Views/SOSSwipeButtonView.swift), [IncomingSOSAlertBannerView](../Teekum/Teekum/Features/SOS/Views/IncomingSOSAlertBannerView.swift) | [SOSViewModel](../Teekum/Teekum/Features/SOS/ViewModels/SOSViewModel.swift), [SOSForwardingEngine](../Teekum/Teekum/Features/SOS/Services/SOSForwardingEngine.swift), [DefaultSOSAudioAlerter](../Teekum/Teekum/Features/SOS/Services/DefaultSOSAudioAlerter.swift) |
+| Inactivity opt-in and countdown | [InactivitySettingsView](../Teekum/Teekum/Features/SOS/Views/InactivitySettingsView.swift), [InactivityWarningView](../Teekum/Teekum/Features/SOS/Views/InactivityWarningView.swift) | [InactivityGuardService](../Teekum/Teekum/Features/SOS/Services/InactivityGuardService.swift), `SOSViewModel` |
+| Discovery, framing and carry | [PeerTransportService](../Teekum/Teekum/Core/Transport/PeerTransportService.swift) | `Core/Transport` owns Wi-Fi/BLE links, framing, priority queue and carry |
+| Relay and route discovery | [PacketRouter](../Teekum/Teekum/Core/Mesh/PacketRouter.swift) | [RelayPolicyManager](../Teekum/Teekum/Core/Mesh/Relay/RelayPolicyManager.swift), [RouteDiscoveryService](../Teekum/Teekum/Core/Mesh/Routing/RouteDiscoveryService.swift), [SeenPacketCache](../Teekum/Teekum/Core/Mesh/SeenPacketCache.swift) |
+| Wire bytes, key and sequence | [RawWirePacket](../Teekum/Teekum/Core/Packets/RawWirePacket.swift), [CleartextEnvelope](../Teekum/Teekum/Core/Packets/CleartextEnvelope.swift) | [CryptoService](../Teekum/Teekum/Core/Security/CryptoService.swift), [PacketSequenceAllocator](../Teekum/Teekum/Core/Security/PacketSequenceAllocator.swift) |
+| Connection diagnostics and packet log | [OrbitSettingsView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitSettingsView.swift) | [PeerTransportService+Diagnostics](../Teekum/Teekum/Core/Transport/PeerTransportService+Diagnostics.swift), [TransportDiagnostics](../Teekum/Teekum/Core/Transport/TransportDiagnostics.swift) |
+| Lost-contact notification and Group activity log | [OrbitSettingsView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitSettingsView.swift) | [SessionStore](../Teekum/Teekum/Core/Session/SessionStore.swift) records losses. [SessionController](../Teekum/Teekum/App/SessionController.swift) sends notifications. |
+| Live Activity | [LiveActivityManager](../Teekum/Teekum/Core/LiveActivity/LiveActivityManager.swift), [TeekumWidgets](../TeekumWidgets) | `SessionController` drives updates and teardown. Widget verification requires a device. |
 
 ### 3.4 Session Data Flow
 
 `GroupPairingView` pushes Agreement. Accepting activates the session and the root shows Orbit. Closing the friends or map modal returns to Orbit. Confirming Leave calls `SessionController.leave()`, which tears down session work and returns to Pairing.
 
 Radio → transport framing → `SessionController` → `PacketRouter` → authenticated callbacks → shared state or feature engine → observing UI. The outgoing location, chat, SOS, meeting and route paths use the shared sequence allocator and crypto before transport queues.
+
+Session restore reads metadata from UserDefaults and the group key from the device Keychain. Chat history and the relay carry queue are in memory. Orbit uses GPS and heading to place members and the meeting point. Pinching adjusts the displayed range from 30 to 120 m, with a default of 60 m. That range controls the radar display.
 
 ### 3.5 Four-Developer Collaboration Baseline
 
@@ -96,12 +102,14 @@ Radio → transport framing → `SessionController` → `PacketRouter` → authe
 | C | Orbit, friends, geographic UI, location and power | A reviews lifecycle. B reviews telemetry mapping. |
 | D | Meeting behavior, chat, SOS and inactivity | B reviews delivery contracts. C reviews location/UI integration. |
 
-Confirm names and reviewers in the issue. See [agent.md](agent.md#4-documentation-and-handoff) for the handoff format and [migration backlog](MIGRATION_BACKLOG.md) for historical scope.
+See the [developer guide](agent.md#4-documentation-and-handoff) for the review handoff.
 
 ## 4. Verification Plan
 
-- Run the focused XCTest target from the `Teekum` scheme. `TeekumParity` adds the same contract cases against the read-only prototype. The older Swift Testing file remains excluded. See [Session migration](features/session-migration.md#verification) for the executed cases and setup.
+- Run XCTest from the `Teekum` scheme with local simulator signing for Keychain access. Coverage includes session recovery, packet encoding and authentication, sequence allocation, framing and relay, Orbit projection, meeting points, chat acknowledgments, and SOS. An existing envelope fixture still expects byte `0x31` while the app emits `0x11`. See [payload encoding](PAYLOAD_GUIDE.md#5-envelope-and-nonce-example) for the current format.
 - Keep UI verification manual. Exercise create/join, restore, location and Orbit, chat, meeting, SOS and leave/rejoin on physical iPhones. Use physical devices for Bonjour/BLE, backgrounding, GPS, Live Activity and notification feedback.
+- Verify the relief-post workflow with three physical iPhones and internet access unavailable. Exercise a direct link, then a path through a relay with the endpoints out of direct reach. Start with roughly 30 m between adjacent phones where conditions allow. Record the actual distances, link conditions, dispatch, and recipient ACK. Repeat with the relay removed and check how the UI reports incomplete delivery. Verify that a receiver's SOS alert clears only after its device receives the sender's resolution.
+- Verify QR and pasted invitations separately from opening a shared link directly. The invite parser accepts `meepo://join`, while the generated project registers `teekum` for system URL handling.
 - Record the revision, environment, command and result. Simulator tests establish selected logic contracts. Device runs establish radio and sensor behavior in the tested conditions.
 
 ## 5. Git Workflow
@@ -178,33 +186,12 @@ The `f/` branch prefix does not change the conventional commit types below.
 | :--- | :--- |
 | [Technical Requirements](#33-feature-map) | Feature entry points, file ownership, team workflow and verification. |
 | [Developer & Agent Guide](agent.md) | File placement, contracts and handoff. |
-| [Migration Backlog](MIGRATION_BACKLOG.md) | Historical migration tasks and feature scope. |
 | [Networking](NETWORKING.md) | Discovery, transport, mesh and diagnostics. |
-| [Payload Guide](PAYLOAD_GUIDE.md) | V3 field layouts and encoding. |
+| [Payload Guide](PAYLOAD_GUIDE.md) | Packet field layouts and encoding. |
 | [Protocol Specification](PROTOCOL_SPECIFICATION.md) | Authentication, keys, nonce, sequence, relay and replay. |
-| [Session Migration](features/session-migration.md) | Reference comparison, verification and remaining protocol decisions. |
 
-## 7. Open Team Decisions
+## 7. Technical Limits
 
-The [session migration note](features/session-migration.md#remaining-protocol-decisions) tracks open decisions about sender identity, slot collisions, replay, same-SID SOS forwarding and meeting conflict ordering. G1–G12 below record the static findings at the pre-integration baseline `796f586`.
-
-<details>
-<summary>Historical findings at 796f586</summary>
-
-| ID | Finding / decision | Source evidence and next action |
-| :--- | :--- | :--- |
-| G1 | Session contract split | GroupSession.id is UInt16 while sessionId is UInt32. PairingViewModel passes localMemberId, and MapPointViewModel reads it, but the imported GroupSession has no such API. Reconcile identity, initializers and fixtures before claiming the UI builds. |
-| G2 | Member/sample split | Member now uses String initials IDs, coordinate/lastSeen/color. SessionStore/preview, FriendListSheet and FriendListMemberView still expect parts of the previous MemberID/latestLocation API. LocationSample and LocationPin both exist. Agree canonical state, measurement versus receipt time and color mapping. |
-| G3 | Missing or renamed legacy dependencies | PacketRouter references GroupSessionViewModel, SOSViewModel, MeetingPointViewModel, ChatViewModel and NotificationService; their definitions were not located. LocationService conforms to LocationServiceProvider while the imported protocol is LocationServiceProtocol. Compare legacy and adapt responsibilities; do not add empty stand-ins. |
-| G4 | Session ID width and wire compatibility | Constants/serializers describe V3, 56 bytes and a 24-bit SID. Both CleartextEnvelope.deserialize and PacketCodec.decodeEnvelope narrow to UInt16; invite/replay APIs also retain UInt16. Resolve all consumers and roundtrip/authentication inputs together. |
-| G5 | Key, member-slot and counter lifecycle | Imported GroupSession has a deterministic default key and an initials-derived slot; independent engines maintain counters. Private-group key generation, unique sender allocation, restart/wrap behavior, rotation and purging are not established. See PROTOCOL_SPECIFICATION. |
-| G6 | Actual inbound ownership / layering | Core PacketRouter depends on feature engines/ViewModels, includes special ACK/SOS paths and relay alternatives. Decide one authoritative authenticated ingestion/forwarding path; review replay ordering and teardown before wiring it. |
-| G7 | Status and delivery semantics | Current ping has no status/target fields; chat presets and old SessionStore fields coexist. ACK relay receipt is not friend delivery. Agree status transport and meeting/chat/SOS state mappings. |
-| G8 | SOS / inactivity thresholds | UI hold is 1.5 s versus configuration 3 s. Local guard uses 180 s + 30 s defaults and lacks app wiring. Confirm research/use-case evidence, consent, cancellation, unavailable sensors and false-positive handling before enabling safety alerts. |
-| G9 | Location, power and background | Reconcile duplicate configuration sources and effective cutoffs, sharing intent, permission denial, sampling and stale data. No configured background/Live Activity runtime or continuous execution guarantee is established. |
-| G10 | Meeting synchronization | Local MapPoint changes are not sent. Imported payload has createdAt/radius/flags rather than the old landmark layout. Agree identities, conflict ordering, cancellation, expiry and reconnect behavior. |
-| G11 | Relay policy and routing | Imported Mesh includes multiple forwarding paths/policies. Confirm Phase 1 versus later scope, opt-in UX, neighbor eligibility, hop/rate limits and abuse handling; comments marked “approved” are not new team acceptance. |
-| G12 | Missing/deferred feature support and configuration | Recovery storage, Live Activity/Finder/Diagnostics UI and notification service were not located as complete features. Local-network/Bonjour/motion/URL/background configuration and legacy helpers need comparison. Classify unknown/missing/deferred explicitly. |
-
-
-</details>
+- Radio reach, multi-hop delivery, locked-screen reception and offline map availability depend on device and operating conditions. Verify them on physical iPhones before relying on them in a relief-post drill.
+- Group-key possession authenticates group traffic. Initials and eight-bit sender slots can collide, and the receiver cannot verify individual identity from the group key. Replay state is scoped to the active session. [Protocol specification](PROTOCOL_SPECIFICATION.md#authentication-replay-and-relaying)
+- The inactivity guard is opt-in. Its default timing is an app setting and needs field validation for this use case.
