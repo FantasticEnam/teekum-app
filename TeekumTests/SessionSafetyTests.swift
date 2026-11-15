@@ -205,8 +205,8 @@ final class SessionSafetyTests: XCTestCase {
         let orbit = OrbitMapViewModel(sessionStore: store)
         XCTAssertEqual(orbit.localProfileColor, .yellow)
 
-        store.activeSession?.localColorCode = PairingProfileColor.blue.wireColorCode
-        XCTAssertEqual(orbit.localProfileColor, .darkSkyBlue)
+        store.activeSession?.localColorCode = PairingProfileColor.purple.wireColorCode
+        XCTAssertEqual(orbit.localProfileColor, .purple)
     }
 
     func testOrbitProjectionUsesCompassHeadingAndClampsDistantMembers() {

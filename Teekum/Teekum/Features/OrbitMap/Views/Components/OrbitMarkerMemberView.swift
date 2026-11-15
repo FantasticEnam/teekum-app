@@ -65,8 +65,8 @@ struct OrbitMemberMarkerView: View {
 
 #Preview("Low battery markers") {
     HStack(spacing: 64) {
-        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile, lowBatteryPercentage: "20%")
-        OrbitMemberMarkerView(initials: "NIC", color: .peachProfile, isEmergency: true, lowBatteryPercentage: "12%")
+        OrbitMemberMarkerView(initials: "AYU", color: .yellowProfile, lowBatteryPercentage: "20%")
+        OrbitMemberMarkerView(initials: "NIC", color: .redProfile, isEmergency: true, lowBatteryPercentage: "12%")
     }
     .padding(80)
     .background(.black)
@@ -74,9 +74,8 @@ struct OrbitMemberMarkerView: View {
 
 #Preview("Normal and SOS markers") {
     HStack(spacing: 64) {
-        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile)
-        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile, isSelected: true)
-        OrbitMemberMarkerView(initials: "AYU", color: .orangeProfile, isEmergency: true)
+        OrbitMemberMarkerView(initials: "AYU", color: .pinkProfile)
+        OrbitMemberMarkerView(initials: "AYU", color: .pinkProfile, isEmergency: true)
     }
     .padding(80)
     .background(.black)

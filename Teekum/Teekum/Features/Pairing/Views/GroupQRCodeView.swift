@@ -26,7 +26,7 @@ struct GroupQRCodeView: View {
 
             if !isDraft {
                 Label("Key fingerprint \(session.keyFingerprint)", systemImage: "lock.shield")
-                    .font(.caption.monospaced())
+                    .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.top, 12)
