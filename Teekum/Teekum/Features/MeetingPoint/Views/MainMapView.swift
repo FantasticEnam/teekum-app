@@ -29,7 +29,7 @@ public struct MainMapView: View {
                         dismiss() // Menutup peta dan kembali ke Orbit
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold)) // 👈 Dari 30 diubah ke 16
+                            .font(.system(size: 16, weight: .semibold))
                     }
                     .buttonStyle(.glass)
                     .buttonBorderShape(.circle)
