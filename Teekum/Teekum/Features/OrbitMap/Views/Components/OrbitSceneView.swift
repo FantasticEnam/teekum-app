@@ -13,7 +13,7 @@ struct OrbitSceneView: View {
         case member(Member.ID)
         case meetingPoint(MeetingPoint.ID)
     }
-
+    
     let userColor: Color
     var members: [Member] = []
     var meetingPoint: MeetingPoint?
@@ -22,6 +22,7 @@ struct OrbitSceneView: View {
     var selectedTarget: Target?
     var isUserSOSActive = false
     var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
+<<<<<<< HEAD
 
     private static let ringDiameterScales = [0.55, 1.1, 1.55]
 
@@ -30,6 +31,13 @@ struct OrbitSceneView: View {
     @State private var isRulerVisible = false
     @GestureState private var pinchMagnification: Double?
 
+=======
+    var onSelectMember: (Member.ID) -> Void = { _ in }
+    
+    @State private var zoom = 1.0
+    @GestureState private var pinchMagnification = 1.0
+    
+>>>>>>> cd84e39dced3dee4f9c878edaf258d469b88545f
     private var radarRange: Double {
         MeepoConfiguration.Navigation.tacticalRadarRangeMeters / boundedZoom(zoom * (pinchMagnification ?? 1))
     }
@@ -98,12 +106,12 @@ struct OrbitSceneView: View {
                     
                     userMarker.positionMarker
                         .allowsHitTesting(false)
-
+                    
                     if let location {
                         ForEach(members) { member in
                             if let coordinate = member.coordinate {
                                 let projection = OrbitProjection(from: location, to: coordinate, heading: heading,
-                                    radius: markerRadius, range: range)
+                                                                 radius: markerRadius, range: range)
                                 let isSelected = selectedTarget == .member(member.id)
                                 if isSelected {
                                     targetLine(to: projection, in: size, isEmergency: member.isEmergency)
@@ -111,10 +119,10 @@ struct OrbitSceneView: View {
                                 memberMarker(member, projection: projection, isSelected: isSelected)
                             }
                         }
-
+                        
                         if let meetingPoint {
                             let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading,
-                                radius: markerRadius, range: range)
+                                                             radius: markerRadius, range: range)
                             let isSelected = selectedTarget == .meetingPoint(meetingPoint.id)
                             if isSelected {
                                 targetLine(to: projection, in: size)
@@ -177,28 +185,33 @@ struct OrbitSceneView: View {
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
-
+    
     private func boundedZoom(_ scale: Double) -> Double {
         let minimumRadius = 5.0
         let maximumZoom = MeepoConfiguration.Navigation.tacticalRadarRangeMeters / minimumRadius
         return min(max(scale, 0.5), maximumZoom)
     }
-
+    
     private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
         let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
         let lowBatteryPercentage = member.batteryLevel.flatMap { level in
             let threshold = Float(MeepoConfiguration.Battery.survivalThresholdPercent) / 100
             return (0...threshold).contains(level) ? level.formattedBatteryPercentage : nil
         }
-        return OrbitMemberMarkerView(
-            initials: member.initials,
-            color: member.color.swiftUIColor,
-            isSelected: isSelected,
-            isEmergency: member.isEmergency,
-            showsBloom: projection.isClamped,
-            lowBatteryPercentage: lowBatteryPercentage
-        )
-        .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
+        return Button {
+            onSelectMember(member.id)
+        } label: {
+            OrbitMemberMarkerView(
+                initials: member.initials,
+                color: member.color.swiftUIColor,
+                isSelected: isSelected,
+                isEmergency: member.isEmergency,
+                showsBloom: projection.isClamped,
+                lowBatteryPercentage: lowBatteryPercentage
+            )
+            .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
+        }
+        .buttonStyle(.plain)
         .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
         .frame(minWidth: 44, minHeight: 44)
         .accessibilityElement(children: .ignore)
@@ -209,7 +222,7 @@ struct OrbitSceneView: View {
         .offset(x: projection.x, y: projection.y)
         .zIndex(isSelected ? 2 : 0)
     }
-
+    
     private func meetingMarker(_ point: MeetingPoint, projection: OrbitProjection, isSelected: Bool) -> some View {
         Button { onSelectMeetingPoint(point.id) } label: {
             Image(.meetPoint)
@@ -236,14 +249,14 @@ struct OrbitSceneView: View {
         .offset(x: projection.x, y: projection.y)
         .zIndex(isSelected ? 2 : 1)
     }
-
+    
     private func distanceLabel(_ projection: OrbitProjection) -> some View {
         Text("\(projection.isClamped ? "↗ " : "")\(projection.distance.formattedDistance())")
             .font(.caption2)
             .foregroundStyle(.white)
             .fixedSize()
     }
-
+    
     private func targetLine(to projection: OrbitProjection, in size: CGSize, isEmergency: Bool = false) -> some View {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         return Path { path in
@@ -260,14 +273,14 @@ struct OrbitSceneView: View {
 
 #Preview("Near and distant friends with low battery") {
     let location = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 5)
-
+    
     OrbitSceneView(
         userColor: .yellowProfile,
         members: [
             Member(id: "NIC", coordinate: .init(latitude: 0.00025, longitude: -0.0001), batteryLevel: 0.2,
-                color: .greenishTeal, measurementTimestamp: .now),
+                   color: .greenishTeal, measurementTimestamp: .now),
             Member(id: "ADI", coordinate: .init(latitude: -0.0004, longitude: 0.0005),
-                color: .apricot, measurementTimestamp: .now)
+                   color: .apricot, measurementTimestamp: .now)
         ],
         location: location
     )
@@ -290,7 +303,7 @@ struct OrbitSceneView: View {
     if let index = sosMembers.firstIndex(where: { $0.id == "ADI" }) {
         sosMembers[index].isEmergency = true
     }
-
+    
     return OrbitSceneView(
         userColor: .yellowProfile,
         members: sosMembers,
