@@ -163,7 +163,7 @@ struct OrbitMapView: View {
                 }
             }
         } message: {
-            Text("Point your radar line and heading arrow towards \(memberToFollow?.initials ?? "this friend").")
+            Text("You will be guided towards \(memberToFollow?.initials ?? "this friend").")
         }
         
         // 2. Alert Konfirmasi Berhenti Follow

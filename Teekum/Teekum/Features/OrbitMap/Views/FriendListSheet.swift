@@ -201,7 +201,7 @@ struct FriendListSheet: View {
             if selectedMemberId == memberToConfirm?.id {
                 Text("Stop following \(memberToConfirm?.initials ?? "this friend") on the radar?")
             } else {
-                Text("Point your radar line and heading arrow towards \(memberToConfirm?.initials ?? "this friend").")
+                Text("You will be guided towards \(memberToConfirm?.initials ?? "this friend").")
             }
         }
     }
