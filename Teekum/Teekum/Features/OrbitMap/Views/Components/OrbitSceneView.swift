@@ -22,7 +22,7 @@ struct OrbitSceneView: View {
     var selectedTarget: Target?
     var isUserSOSActive = false
     var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
-<<<<<<< HEAD
+    var onSelectMember: (Member.ID) -> Void = { _ in }
 
     private static let ringDiameterScales = [0.55, 1.1, 1.55]
 
@@ -31,13 +31,6 @@ struct OrbitSceneView: View {
     @State private var isRulerVisible = false
     @GestureState private var pinchMagnification: Double?
 
-=======
-    var onSelectMember: (Member.ID) -> Void = { _ in }
-    
-    @State private var zoom = 1.0
-    @GestureState private var pinchMagnification = 1.0
-    
->>>>>>> cd84e39dced3dee4f9c878edaf258d469b88545f
     private var radarRange: Double {
         MeepoConfiguration.Navigation.tacticalRadarRangeMeters / boundedZoom(zoom * (pinchMagnification ?? 1))
     }
