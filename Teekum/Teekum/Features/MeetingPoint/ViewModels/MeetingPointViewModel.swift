@@ -24,10 +24,6 @@ public final class MeetingPointViewModel {
     public var isShowingStopAlert: Bool = false
     public var isShowingLockedAlert: Bool = false //
     public var isShowingRSVPAlert: Bool = false
-    public var isShowingTimeOptions = false
-    public var timePreset: MeetingTimePreset = .rightNow
-    public var isCustomTime = false
-    public var customTime = Date.now
     
     public init(sessionStore: SessionStore, meetingService: MeetingPointService? = nil) {
         self.sessionStore = sessionStore
@@ -78,16 +74,13 @@ public final class MeetingPointViewModel {
         guard sessionStore.hasActiveSession,
               let coord = candidateCoordinate else { return }
 
-        meetingService.proposeMeetingPoint(coordinate: coord,
-            meetupTime: isCustomTime ? customTime : timePreset.targetDate(),
-            isRightNow: !isCustomTime && timePreset == .rightNow)
+        meetingService.proposeMeetingPoint(coordinate: coord)
     }
     
     // 3. saat batal di konfirmasi
     public func cancelSetMeetingPoint() {
         self.candidateCoordinate = nil
         self.isShowingSetAlert = false
-        self.isShowingTimeOptions = false
     }
     
     // 4. saat titik pin meeting poin di tap di map

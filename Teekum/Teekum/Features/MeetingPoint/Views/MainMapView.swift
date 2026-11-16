@@ -12,10 +12,10 @@ public struct MainMapView: View {
     @State private var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
     @Environment(\.dismiss) private var dismiss
-
+    
     public init(sessionStore: SessionStore, meetingService: MeetingPointService? = nil, location: LocationService? = nil) {
-            _viewModel = State(initialValue: MeetingPointViewModel(sessionStore: sessionStore, meetingService: meetingService))
-            self.location = location
+        _viewModel = State(initialValue: MeetingPointViewModel(sessionStore: sessionStore, meetingService: meetingService))
+        self.location = location
     }
     
     public var body: some View {
@@ -29,14 +29,12 @@ public struct MainMapView: View {
                         dismiss() // Menutup peta dan kembali ke Orbit
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                            .padding(12)
-                            .background(Color.black.opacity(0.75))
-                            .foregroundStyle(.white)
-                            .clipShape(Circle())
+                            .font(.system(size: 16, weight: .semibold))
                     }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
+                    .controlSize(.large)
                     .accessibilityLabel("Back to Orbit")
-                    .frame(minWidth: 44, minHeight: 44)
                     .padding(.leading, 16)
                     
                     Spacer()
@@ -62,15 +60,11 @@ public struct MainMapView: View {
             Button("Not Yet", role: .cancel) {
                 viewModel.cancelSetMeetingPoint()
             }
-            Button("Continue") {
-                viewModel.isShowingTimeOptions = true
+            Button("Set Point") {
+                viewModel.confirmSetMeetingPoint()
             }
         } message: {
             Text("Has Everyone Joined? Friends who haven't joined the group won't be able to see your meeting point.")
-        }
-        .sheet(isPresented: $viewModel.isShowingTimeOptions, onDismiss: viewModel.cancelSetMeetingPoint) {
-            MeetingTimeOptionsView(viewModel: viewModel)
-                .presentationDetents([.medium, .large])
         }
         
         // 2. Alert Creator: Stop Meeting Point
