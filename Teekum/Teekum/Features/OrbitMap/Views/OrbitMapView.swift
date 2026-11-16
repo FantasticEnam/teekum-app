@@ -13,6 +13,7 @@ struct OrbitMapView: View {
     @State private var selectedTarget: OrbitSceneView.Target?
     @State private var isLeavingGroup = false
     @State private var isShowingChat = false
+    @State private var opensChatAfterModalDismissal = false
     @State private var memberToFollow: Member? = nil
     @State private var isShowingFollowAlert = false
     @State private var isShowingStopFollowAlert = false
@@ -108,7 +109,8 @@ struct OrbitMapView: View {
             if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
         }
         .overlay(alignment: .top) {
-            OrbitFeedbackView(sos: sos, notifications: notifications)
+            OrbitFeedbackView(sos: sos, notifications: notifications,
+                showsChatAlert: !isShowingChat, onOpenChat: openChat)
         }
         .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         .disabled(isLeavingGroup)
@@ -131,12 +133,6 @@ struct OrbitMapView: View {
         .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
             if let chat {
                 ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
-                    .overlay(alignment: .top) {
-                        if let alert = notifications?.chatAlert {
-                            OrbitFeedbackView.chatBanner(sender: alert.sender, message: alert.body)
-                                .padding(.horizontal)
-                        }
-                    }
                     .safeAreaInset(edge: .top) {
                         OrbitFeedbackView(sos: sos, notifications: notifications, showsChatAlert: false)
                     }
@@ -228,7 +224,9 @@ struct OrbitMapView: View {
                     .presentationBackground(.black)
                 }
             } }
-            .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
+            .safeAreaInset(edge: .top) {
+                OrbitFeedbackView(sos: sos, notifications: notifications, onOpenChat: openChat)
+            }
             .overlay { SOSEdgeGlowView(sos: sos) }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         }
@@ -286,13 +284,24 @@ struct OrbitMapView: View {
     }
     
     private func finishModalDismissal() {
-        guard isLeavingGroup else { return }
-        isLeavingGroup = false
-        viewModel.leaveGroup()
+        if isLeavingGroup {
+            isLeavingGroup = false
+            opensChatAfterModalDismissal = false
+            viewModel.leaveGroup()
+        } else if opensChatAfterModalDismissal {
+            opensChatAfterModalDismissal = false
+            openChat()
+        }
     }
     
     private func openChat() {
         sos?.recordUserInteraction()
+        notifications?.dismissChatAlert()
+        if activeModal != nil {
+            opensChatAfterModalDismissal = true
+            activeModal = nil
+            return
+        }
         chat?.isChatSheetPresented = true
         isShowingChat = true
     }

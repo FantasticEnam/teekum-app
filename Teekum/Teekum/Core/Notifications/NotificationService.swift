@@ -50,9 +50,17 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         notify(title: "Group activity", body: body, showBanner: false)
     }
 
-    func notifyChat(sender: String, body: String) {
-        showMessage(body, chatSender: sender)
+    func notifyChat(sender: String, body: String, showBanner: Bool = true) {
+        if showBanner {
+            showMessage(body, chatSender: sender)
+        } else {
+            dismissChatAlert()
+        }
         notify(title: sender, body: body, showBanner: false)
+    }
+
+    func dismissChatAlert() {
+        chatAlert = nil
     }
 
     private func showMessage(_ text: String, memberID: String? = nil, chatSender: String? = nil) {
