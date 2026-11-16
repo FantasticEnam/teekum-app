@@ -14,22 +14,13 @@ struct OrbitUserMarkerView: View {
     var isTargetSelected = false
 
     var body: some View {
+        positionMarker.overlay { directionArrow }
+    }
+
+    var positionMarker: some View {
         Circle()
             .fill(isEmergency ? Color.alertRed : color)
             .frame(width: 30, height: 30)
-            .overlay {
-                if let heading {
-                    Image(systemName: "location.north.fill")
-                        .font(.system(size: isTargetSelected ? 30 : 20, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(
-                            width: isTargetSelected ? 120 : 90,
-                            height: isTargetSelected ? 120 : 90,
-                            alignment: .top
-                        )
-                        .rotationEffect(heading)
-                }
-            }
             .overlay(alignment: .bottom) {
                 Text("YOU")
                     .font(.custom("Helvetica", size: 13, relativeTo: .caption))
@@ -46,6 +37,23 @@ struct OrbitUserMarkerView: View {
             .accessibilityValue(
                 isEmergency ? "SOS active" : (heading == nil ? "Direction unavailable" : "Direction available")
             )
+    }
+
+    @ViewBuilder
+    var directionArrow: some View {
+        if let heading {
+            Image(systemName: "location.north.fill")
+                .font(.system(size: isTargetSelected ? 30 : 20, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(
+                    width: isTargetSelected ? 120 : 90,
+                    height: isTargetSelected ? 120 : 90,
+                    alignment: .top
+                )
+                .rotationEffect(heading)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 }
 
