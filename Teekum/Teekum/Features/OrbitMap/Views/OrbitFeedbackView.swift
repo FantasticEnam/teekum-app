@@ -11,6 +11,9 @@ struct OrbitFeedbackView: View {
     var sos: SOSViewModel?
     var notifications: NotificationService?
     var showsChatAlert = true
+    var onOpenChat: () -> Void = {}
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 8) {
@@ -29,7 +32,9 @@ struct OrbitFeedbackView: View {
                 }
             }
             if showsChatAlert, let alert = notifications?.chatAlert {
-                Self.chatBanner(sender: alert.sender, message: alert.body)
+                ChatNotificationBannerView(sender: alert.sender, message: alert.body,
+                    onOpen: onOpenChat, onDismiss: dismissChatAlert)
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             } else if let message = notifications?.message {
                 Text(message)
                     .font(.subheadline)
@@ -40,24 +45,11 @@ struct OrbitFeedbackView: View {
             }
         }
         .padding(.horizontal)
+        .animation(.easeOut(duration: 0.2), value: notifications?.chatAlert != nil)
     }
 
-    static func chatBanner(sender: String, message: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(sender)
-                .font(.title3.bold())
-            Text(message)
-                .font(.body.weight(.medium))
-                .lineLimit(3)
-        }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 32)
-        .padding(.vertical, 18)
-        .background(Color(white: 0.26), in: .rect(cornerRadius: 32))
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.updatesFrequently)
-        .allowsHitTesting(false)
+    private func dismissChatAlert() {
+        notifications?.dismissChatAlert()
     }
 }
 
@@ -71,10 +63,4 @@ struct OrbitFeedbackView: View {
         .preferredColorScheme(.dark)
 }
 
-#Preview("Chat notification") {
-    OrbitFeedbackView.chatBanner(sender: "NIC", message: "aku mau pipis")
-        .padding()
-        .background(.black)
-        .preferredColorScheme(.dark)
-}
 #endif

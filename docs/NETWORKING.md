@@ -53,6 +53,8 @@ While the receiver's app is active, the SOS tone and vibration repeat every two 
 
 When a member becomes unreachable, the receiving device shows a **Lost contact** notification and records the member's initials and detection time under **Group settings → Group activity**. Each device detects the loss from its own radio state. The log keeps the latest 100 losses for the active session. Recovery lets a later loss generate a new entry, and leaving clears the log.
 
+Chat notification banners open the chat sheet when tapped and dismiss with an upward swipe. Opening chat clears its current banner. Incoming messages update the conversation while the chat sheet is open, and in-app chat banners resume for new messages after it closes. Chat banners shown over another modal dismiss that modal before opening chat.
+
 ## Verification boundary
 
 `OrbitSettingsView` shows GPS availability, power state, location accuracy and measurement age, the transport snapshot, and the latest 100 packet events for the active session. Relay participation is enabled through Agreement. Group settings presents location information as read-only status. The log uses header and link metadata and distinguishes packets received with another group ID from relays dispatched on TCP or BLE. A dispatch entry records local link completion and recipient confirmation still uses the protocol ACK. Simulator XCTest covers framing, queue/carry policy, auth boundaries and selected feature behavior. Physical phones are needed to verify radio discovery, multi-hop, reconnect, locked/background behavior, permissions and end-to-end delivery. See [Payload guide](PAYLOAD_GUIDE.md) for wire fields.
