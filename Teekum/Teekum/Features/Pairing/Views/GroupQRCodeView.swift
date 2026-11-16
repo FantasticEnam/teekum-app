@@ -15,7 +15,7 @@ struct GroupQRCodeView: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(session.sessionName)
-                .font(.custom("Futura", size: 22, relativeTo: .title2))
+                .font(.custom("Helvetica", size: 22, relativeTo: .title2))
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
                 .fixedSize(horizontal: false, vertical: true)
@@ -26,7 +26,7 @@ struct GroupQRCodeView: View {
 
             if !isDraft {
                 Label("Key fingerprint \(session.keyFingerprint)", systemImage: "lock.shield")
-                    .font(.caption.monospaced())
+                    .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.top, 12)
@@ -38,7 +38,7 @@ struct GroupQRCodeView: View {
                 message: Text("Join my group on Meepo: \(session.sessionName)")
             ) {
                 Text("Share Invite Link")
-                    .font(.custom("Futura", size: 14, relativeTo: .subheadline))
+                    .font(.custom("Helvetica", size: 14, relativeTo: .subheadline))
                     .padding(.horizontal, 12)
                     .frame(maxWidth: .infinity, minHeight: 36)
                     .background(Color(white: 0.11), in: Capsule())

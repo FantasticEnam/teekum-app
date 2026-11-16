@@ -13,7 +13,7 @@ struct InactivitySettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Toggle("Inactivity Guard", isOn: $isEnabled)
-                .tint(.yellowProfile)
+                .tint(.buttonPrimary)
             Text("After 3 minutes without detected movement or interaction, a 30-second warning lets you cancel before an SOS is sent.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

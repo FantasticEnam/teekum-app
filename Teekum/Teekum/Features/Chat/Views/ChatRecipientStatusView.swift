@@ -26,7 +26,7 @@ struct ChatRecipientStatusView: View {
             }
         }
         .font(.caption)
-        .tint(.yellowProfile)
+        .tint(.buttonPrimary)
     }
 
     private func title(for state: RecipientDeliveryState) -> LocalizedStringResource {

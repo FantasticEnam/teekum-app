@@ -10,6 +10,7 @@ import SwiftUI
 struct GroupNameField: View {
     @Binding var groupName: String
     var focusedField: FocusState<PairingField?>.Binding
+    let onSubmit: () -> Void
     @State private var isHovered = false
 
     private var isFocused: Bool {
@@ -25,9 +26,9 @@ struct GroupNameField: View {
             )
             .focused(focusedField, equals: .groupName)
             .submitLabel(.done)
-            .onSubmit { focusedField.wrappedValue = nil }
+            .onSubmit(onSubmit)
             .textFieldStyle(.plain)
-            .font(.custom("Futura", size: 16, relativeTo: .body))
+            .font(.custom("Helvetica", size: 16, relativeTo: .body))
             .foregroundStyle(.white)
             .textInputAutocapitalization(.words)
             .padding(.horizontal, 24)
@@ -44,7 +45,9 @@ struct GroupNameField: View {
     @Previewable @State var groupName = ""
     @Previewable @FocusState var focusedField: PairingField?
 
-    GroupNameField(groupName: $groupName, focusedField: $focusedField)
+    GroupNameField(groupName: $groupName, focusedField: $focusedField) {
+        focusedField = nil
+    }
         .padding(24)
         .background(.black)
         .preferredColorScheme(.dark)

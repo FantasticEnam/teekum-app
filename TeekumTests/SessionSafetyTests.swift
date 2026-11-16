@@ -205,14 +205,15 @@ final class SessionSafetyTests: XCTestCase {
         let orbit = OrbitMapViewModel(sessionStore: store)
         XCTAssertEqual(orbit.localProfileColor, .yellow)
 
-        store.activeSession?.localColorCode = PairingProfileColor.blue.wireColorCode
-        XCTAssertEqual(orbit.localProfileColor, .darkSkyBlue)
+        store.activeSession?.localColorCode = PairingProfileColor.purple.wireColorCode
+        XCTAssertEqual(orbit.localProfileColor, .purple)
     }
 
     func testOrbitProjectionUsesCompassHeadingAndClampsDistantMembers() {
         let north = OrbitProjection(distance: 30, bearing: 0, heading: 0, radius: 100)
         XCTAssertEqual(north.x, 0, accuracy: 0.001)
         XCTAssertLessThan(north.y, 0)
+        XCTAssertFalse(north.isClamped)
         let eastWhenFacingEast = OrbitProjection(distance: 600, bearing: 90, heading: 90, radius: 100)
         XCTAssertEqual(eastWhenFacingEast.x, 0, accuracy: 0.001)
         XCTAssertEqual(eastWhenFacingEast.y, -100, accuracy: 0.001)
@@ -230,6 +231,12 @@ final class SessionSafetyTests: XCTestCase {
         XCTAssertEqual(facingEast.y, -100, accuracy: 0.001)
         XCTAssertTrue(facingEast.isClamped)
         XCTAssertEqual(facingEast.distance, 111.3, accuracy: 0.5)
+
+        let zoomedOut = OrbitProjection(from: location, to: point.coordinate, heading: 0,
+            radius: 100, range: 120)
+        XCTAssertEqual(zoomedOut.x, facingNorth.distance / 120 * 100, accuracy: 0.001)
+        XCTAssertFalse(zoomedOut.isClamped)
+        XCTAssertEqual(zoomedOut.distance, facingNorth.distance)
     }
 
     private func removeKeychainItems(service: String) {

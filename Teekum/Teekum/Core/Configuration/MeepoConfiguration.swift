@@ -157,9 +157,6 @@ nonisolated public enum MeepoConfiguration {
     
     // MARK: - 4. Emergency SOS Parameters
     public enum SOS {
-        /// Continuous press-and-hold duration required to trigger emergency alarm (default: 3.0s).
-        public static let holdDuration: TimeInterval = 1.5
-        
         /// Inactivity stillness duration before triggering pre-alarm warning countdown (default: 180.0s = 3 minutes).
         public static let inactivityStillnessDuration: TimeInterval = 180.0
         

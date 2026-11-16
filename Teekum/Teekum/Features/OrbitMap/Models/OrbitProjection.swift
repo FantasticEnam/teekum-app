@@ -13,12 +13,14 @@ struct OrbitProjection {
     let distance: CLLocationDistance
     let isClamped: Bool
 
-    init(from location: LocationPin, to coordinate: CLLocationCoordinate2D, heading: Double, radius: Double) {
+    init(from location: LocationPin, to coordinate: CLLocationCoordinate2D, heading: Double, radius: Double,
+         range: Double = MeepoConfiguration.Navigation.tacticalRadarRangeMeters) {
         self.init(distance: location.distance(to: coordinate), bearing: location.bearing(to: coordinate),
-            heading: heading, radius: radius)
+            heading: heading, radius: radius, range: range)
     }
 
-    init(distance: Double, bearing: Double, heading: Double, radius: Double, range: Double = 60) {
+    init(distance: Double, bearing: Double, heading: Double, radius: Double,
+         range: Double = MeepoConfiguration.Navigation.tacticalRadarRangeMeters) {
         let angle = (bearing - heading) * .pi / 180
         let length = min(max(0, distance) / range, 1) * radius
         x = sin(angle) * length

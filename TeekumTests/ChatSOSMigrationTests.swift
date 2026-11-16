@@ -12,17 +12,62 @@ import CoreLocation
 
 final class ChatSOSMigrationTests: XCTestCase {
     @MainActor
+    func testSOSFeedbackSwitchesToDelayedRemindersAndStops() async {
+        let repeated = XCTestExpectation(description: "SOS plays a second pulse")
+        let reminded = XCTestExpectation(description: "Acknowledged SOS plays a reminder")
+        let afterStop = XCTestExpectation(description: "SOS stays quiet after stopping")
+        afterStop.isInverted = true
+        var pulses = 0
+        var firstReminderPulse: Int?
+        var stopped = false
+        let alerter = DefaultSOSAudioAlerter(interval: .milliseconds(25), reminderInterval: .milliseconds(80)) {
+            if stopped { afterStop.fulfill() }
+            pulses += 1
+            if pulses == 2 { repeated.fulfill() }
+            if pulses == firstReminderPulse { reminded.fulfill() }
+        }
+        await alerter.triggerEmergencyAlertFeedback()
+        await alerter.triggerEmergencyAlertFeedback()
+        XCTAssertEqual(pulses, 1)
+        let repeatResult = await XCTWaiter.fulfillment(of: [repeated], timeout: 1)
+        XCTAssertEqual(repeatResult, .completed)
+        let beforeAcknowledgment = pulses
+        await alerter.scheduleEmergencyReminder()
+        firstReminderPulse = beforeAcknowledgment + 1
+        XCTAssertEqual(pulses, beforeAcknowledgment)
+        let reminderStart = ContinuousClock.now
+        let reminderResult = await XCTWaiter.fulfillment(of: [reminded], timeout: 1)
+        XCTAssertEqual(reminderResult, .completed)
+        XCTAssertGreaterThanOrEqual(reminderStart.duration(to: .now), .milliseconds(70))
+        await alerter.stopEmergencyAlertFeedback()
+        stopped = true
+        let stopResult = await XCTWaiter.fulfillment(of: [afterStop], timeout: 0.12)
+        XCTAssertEqual(stopResult, .completed)
+    }
+
+    @MainActor
+    func testSOSSwipeRequiresFullUpwardTravel() {
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(.zero))
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 0, height: -63)))
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 0, height: 64)))
+        XCTAssertFalse(SOSSwipeButtonView.completesSwipe(CGSize(width: 75, height: -64)))
+        XCTAssertTrue(SOSSwipeButtonView.completesSwipe(CGSize(width: 12, height: -64)))
+    }
+
+    @MainActor
     func testChatNameColorsDistinguishYellowFromCreamAcrossV3Payloads() throws {
         let cream = PairingProfileColor.cream
         let yellow = PairingProfileColor.yellow
         XCTAssertEqual(cream.wireColorCode, 0x04)
         XCTAssertEqual(yellow.wireColorCode, 0x09)
 
-        let session = GroupSession(localInitials: "ALX", localColorCode: cream.wireColorCode)
+        let session = GroupSession(localInitials: "ALX", localColorCode: PairingProfileColor.purple.wireColorCode)
         let store = SessionStore(activeSession: session)
-        XCTAssertEqual(store.profileColor(for: "ALX"), .apricot)
+        XCTAssertEqual(store.profileColor(for: "ALX"), .purple)
         XCTAssertEqual(store.profileColor(for: "BOB"), .deterministicColor(for: "BOB"))
 
+        let yellow = PairingProfileColor.yellow
+        let pink = PairingProfileColor.pink
         let coordinate = CLLocationCoordinate2D(latitude: 1, longitude: 2)
         let ping = LocationPingPayload(coordinate: coordinate, accuracy: 5, senderInitials: "BOB",
             batteryLevel: 84, colorCode: yellow.wireColorCode).serialize()
@@ -36,10 +81,10 @@ final class ChatSOSMigrationTests: XCTestCase {
         XCTAssertNotEqual(store.profileColor(for: "BOB").swiftUIColor, store.profileColor(for: "ALX").swiftUIColor)
 
         let sos = SOSPayload(coordinate: coordinate, accuracy: 5, sosEventId: 1, senderInitials: "BOB",
-            batteryLevel: 84, colorCode: yellow.wireColorCode).serialize()
+            batteryLevel: 84, colorCode: pink.wireColorCode).serialize()
         XCTAssertEqual(sos.count, 30)
-        XCTAssertEqual(sos[22], 0x09)
-        XCTAssertEqual(try SOSPayload.deserialize(from: sos).colorCode, 0x09)
+        XCTAssertEqual(sos[22], 0x0B)
+        XCTAssertEqual(try SOSPayload.deserialize(from: sos).colorCode, 0x0B)
     }
 
     private let keyData = Data(repeating: 0x42, count: 32)
@@ -143,8 +188,9 @@ final class ChatSOSMigrationTests: XCTestCase {
     func testDismissingSOSFeedbackKeepsEmergencyUntilMatchingResolution() async throws {
         let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
         let crypto = CryptoService()
+        let audio = MessagingTestAudio()
         let engine = SOSForwardingEngine(transport: MessagingTestTransport(), cryptoService: crypto,
-            sessionProvider: { session })
+            sessionProvider: { session }, audioAlerter: audio)
         let model = SOSViewModel(engine: engine, locationService: LocationService(isLiveSharingEnabled: false),
             sessionProvider: { session })
         await model.start()
@@ -181,14 +227,20 @@ final class ChatSOSMigrationTests: XCTestCase {
         let result = await XCTWaiter.fulfillment(of: [received], timeout: 2)
         XCTAssertEqual(result, .completed)
         XCTAssertTrue(model.showsEdgeGlow)
-        model.dismissIncomingAlert()
-        XCTAssertFalse(model.showsEdgeGlow)
+        await model.acknowledgeIncomingAlert()
+        XCTAssertNil(model.incomingAlert)
+        XCTAssertTrue(model.showsEdgeGlow)
+        XCTAssertEqual(audio.reminderCount, 1)
         XCTAssertTrue(store.members[0].isEmergency)
 
         await model.acceptResolution(.init(senderInitials: "NIC", eventId: 77))
         XCTAssertTrue(store.members[0].isEmergency)
+        XCTAssertTrue(model.showsEdgeGlow)
+        XCTAssertEqual(audio.stopCount, 0)
         await model.acceptResolution(.init(senderInitials: "ALX", eventId: 77))
         XCTAssertFalse(store.members[0].isEmergency)
+        XCTAssertFalse(model.showsEdgeGlow)
+        XCTAssertEqual(audio.stopCount, 1)
         try await engine.handleInboundSOSPacket(rawPacket: packet, fromPeerId: "ALX")
         XCTAssertNil(model.incomingAlert)
 
@@ -200,7 +252,7 @@ final class ChatSOSMigrationTests: XCTestCase {
     }
 
     @MainActor
-    func testSenderConfirmsHelpOnlyAfterNearbyPromptOrManualAction() async throws {
+    func testSenderCanEndSOSWithoutGPSAndTriggerAgain() async throws {
         let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
         let crypto = CryptoService()
         let transport = MessagingTestTransport()
@@ -208,39 +260,16 @@ final class ChatSOSMigrationTests: XCTestCase {
         let location = LocationService(isLiveSharingEnabled: false)
         let model = SOSViewModel(engine: engine, locationService: location, sessionProvider: { session })
         await model.start()
-        let now = Date.now
-        let coordinate = CLLocationCoordinate2D(latitude: 0, longitude: 0)
-        location.currentLocation = LocationPin(coordinate: coordinate, horizontalAccuracy: 4, timestamp: now)
         model.triggerSOS()
         for _ in 0..<100 where model.isSending { try await Task.sleep(for: .milliseconds(10)) }
         let eventId = try XCTUnwrap(model.outgoingEventId)
-        let far = Member(id: "FAR", coordinate: .init(latitude: 0.0002, longitude: 0),
-            horizontalAccuracy: 4, measurementTimestamp: now)
-        var nearby = Member(id: "ALX", coordinate: .init(latitude: 0.00005, longitude: 0),
-            horizontalAccuracy: 4, measurementTimestamp: now.addingTimeInterval(-31))
-        model.checkForNearbyHelp(members: [far, nearby], now: now)
-        XCTAssertFalse(model.asksAboutHelp)
-        nearby.measurementTimestamp = now
-        nearby.horizontalAccuracy = 20
-        model.checkForNearbyHelp(members: [nearby], now: now)
-        XCTAssertFalse(model.asksAboutHelp)
-        nearby.horizontalAccuracy = 4
-        model.checkForNearbyHelp(members: [nearby], now: now)
-        XCTAssertTrue(model.asksAboutHelp)
-        model.keepSOSActive()
-        model.checkForNearbyHelp(members: [nearby], now: now)
-        XCTAssertFalse(model.asksAboutHelp)
-        XCTAssertEqual(model.outgoingEventId, eventId)
-
-        location.currentLocation = nil
-        model.askAboutHelp()
         await transport.failNextResolutionEnqueue()
-        model.confirmHelpReceived()
+        model.endSOS()
         for _ in 0..<100 where model.isResolving { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertNotNil(model.resolutionError)
         XCTAssertEqual(model.outgoingEventId, eventId)
 
-        model.confirmHelpReceived()
+        model.endSOS()
         for _ in 0..<100 where model.isResolving { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertNil(model.outgoingEventId)
         XCTAssertFalse(model.showsEdgeGlow)
@@ -255,6 +284,10 @@ final class ChatSOSMigrationTests: XCTestCase {
             SOSResolvedPayload(senderInitials: "BOB", eventId: eventId))
         let engineEventId = await engine.activeSOSEventId
         XCTAssertNil(engineEventId)
+
+        model.triggerSOS()
+        for _ in 0..<100 where model.isSending { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNotEqual(try XCTUnwrap(model.outgoingEventId), eventId)
         await model.stop()
     }
 
@@ -332,8 +365,11 @@ private final class MessagingTestAudio: SOSAudioAlerting, @unchecked Sendable {
     private let lock = NSLock()
     private var triggers = 0
     private var stops = 0
+    private var reminders = 0
     var triggerCount: Int { lock.withLock { triggers } }
     var stopCount: Int { lock.withLock { stops } }
+    var reminderCount: Int { lock.withLock { reminders } }
+    func scheduleEmergencyReminder() { lock.withLock { reminders += 1 } }
     func triggerEmergencyAlertFeedback() { lock.withLock { triggers += 1 } }
     func stopEmergencyAlertFeedback() { lock.withLock { stops += 1 } }
 }

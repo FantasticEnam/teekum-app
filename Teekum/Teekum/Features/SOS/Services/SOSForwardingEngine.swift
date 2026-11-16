@@ -50,6 +50,7 @@ public actor SOSForwardingEngine {
     var seenSOSEvents: Set<SOSResolvedPayload> = []
     // shortcut: resolution history lasts for this session; persist it if same-group rejoin must reject old alerts.
     var resolvedSOSEvents: Set<SOSResolvedPayload> = []
+    var pendingSOSEvents: Set<SOSResolvedPayload> = []
     public internal(set) var activeIncomingAlert: IncomingSOSAlert?
     public internal(set) var isSirenActive: Bool = false
     
@@ -134,25 +135,27 @@ public actor SOSForwardingEngine {
         onDeliveryStateChanged?(newState)
     }
     
-    public func dismissIncomingAlert() {
+    public func dismissIncomingAlert() async {
+        pendingSOSEvents.removeAll()
         activeIncomingAlert = nil
         isSirenActive = false
-        audioAlerter?.stopEmergencyAlertFeedback()
+        await audioAlerter?.stopEmergencyAlertFeedback()
     }
 
-    func dismissIncomingAlert(matching event: SOSResolvedPayload) {
+    func acknowledgeIncomingAlert(matching event: SOSResolvedPayload) async {
         guard activeIncomingAlert?.id == event.eventId,
               activeIncomingAlert?.senderInitials == event.senderInitials else { return }
-        dismissIncomingAlert()
+        activeIncomingAlert = nil
+        await audioAlerter?.scheduleEmergencyReminder()
     }
     
-    public func reset() {
+    public func reset() async {
         sessionGeneration = UUID()
         cancelOutgoingSOS()
-        dismissIncomingAlert()
         seenSOSEvents.removeAll()
         resolvedSOSEvents.removeAll()
         measurementProvider = nil
+        await dismissIncomingAlert()
     }
 
     public func cancelOutgoingSOS() {

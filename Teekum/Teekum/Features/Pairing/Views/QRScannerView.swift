@@ -23,7 +23,7 @@ struct QRScannerView: View {
                 VStack(spacing: 8) {
                     Text(cameraMessage)
                     Button("Open Settings", action: openSettings)
-                        .foregroundStyle(Color.yellowProfile)
+                        .foregroundStyle(Color.buttonPrimary)
                 }
                 .padding(8)
                 .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
@@ -34,7 +34,7 @@ struct QRScannerView: View {
                 Color.clear
             }
         }
-        .font(.custom("Futura", size: 14, relativeTo: .body))
+        .font(.custom("Helvetica", size: 14, relativeTo: .body))
         .multilineTextAlignment(.center)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
