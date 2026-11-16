@@ -13,6 +13,10 @@ struct OrbitMapView: View {
     @State private var selectedTarget: OrbitSceneView.Target?
     @State private var isLeavingGroup = false
     @State private var isShowingChat = false
+    @State private var memberToFollow: Member? = nil
+    @State private var isShowingFollowAlert = false
+    @State private var isShowingStopFollowAlert = false
+    
     private let location: LocationService?
     private let chat: ChatViewModel?
     private let sos: SOSViewModel?
@@ -21,11 +25,11 @@ struct OrbitMapView: View {
     private let relayState: RelayPolicyState
     private let diagnostics: @MainActor () -> TransportDiagnostics?
     private let notifications: NotificationService?
-
+    
     private var meetingPoint: MeetingPoint? { viewModel.sessionStore.activeMeetingPoint }
     private var visibleMembers: [Member] { viewModel.sessionStore.visibleMembers }
     private var isSOSActive: Bool { sos?.outgoingEventId != nil }
-
+    
     private var orbitScene: some View {
         OrbitSceneView(
             userColor: viewModel.localProfileColor.swiftUIColor,
@@ -35,16 +39,16 @@ struct OrbitMapView: View {
             heading: location?.currentHeading ?? 0,
             selectedTarget: selectedTarget,
             isUserSOSActive: isSOSActive,
-            onSelectMeetingPoint: selectMeetingPoint
+            onSelectMeetingPoint: selectMeetingPoint,
+            onSelectMember: selectMember
         )
-        .ignoresSafeArea()
     }
-
+    
     private var selectedMember: Member? {
         guard case .member(let id) = selectedTarget else { return nil }
         return visibleMembers.first { $0.id == id }
     }
-
+    
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
          sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
          relayPolicy: RelayPolicyManager? = nil, relayState: RelayPolicyState = .init(mode: .disabled),
@@ -65,17 +69,17 @@ struct OrbitMapView: View {
         ZStack {
             Color.black
                 .ignoresSafeArea()
-
+            
             orbitScene
-
+            
             VStack(alignment: .leading) {
                 OrbitHeaderView(groupName: viewModel.groupName,
-                    onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
-
+                                onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
+                
                 if let activity = notifications?.groupActivity {
                     groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
                 }
-
+                
                 if location?.currentLocation == nil {
                     Label("Waiting for your location", systemImage: "location.slash")
                         .font(.caption).padding(8)
@@ -87,9 +91,9 @@ struct OrbitMapView: View {
                         .buttonStyle(.glass)
                     }
                 }
-
+                
                 targetSummary
-
+                
                 Spacer()
                 OrbitControlsView(
                     onSOS: {
@@ -122,14 +126,11 @@ struct OrbitMapView: View {
             if case .member(let id) = selectedTarget, !ids.contains(id) {
                 selectedTarget = nil
             }
-            if case .finder(let id) = activeModal, !ids.contains(id) {
-                activeModal = nil
-            }
         }
         .onChange(of: viewModel.sessionStore.pendingDeepLink, initial: true) { _, url in
             guard let url else { return }
             if url.host == "meeting" { activeModal = .mapPoint }
-            if url.host == "sos", let alert = sos?.incomingAlert { activeModal = .finder(alert.senderInitials) }
+            if url.host == "sos", let alert = sos?.incomingAlert { selectedTarget = .member(alert.senderInitials) }
             viewModel.sessionStore.pendingDeepLink = nil
         }
         .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
@@ -148,6 +149,36 @@ struct OrbitMapView: View {
             }
         }
         .allowsHitTesting(activeModal != .invite)
+        
+        // 1. Alert Konfirmasi Mulai Follow
+        .alert(
+            "Follow \(memberToFollow?.initials ?? "Friend")?",
+            isPresented: $isShowingFollowAlert
+        ) {
+            Button("Cancel", role: .cancel) { }
+            Button("Follow") {
+                if let member = memberToFollow {
+                    selectedTarget = .member(member.id)
+                }
+            }
+        } message: {
+            Text("You will be guided towards \(memberToFollow?.initials ?? "this friend").")
+        }
+        
+        // 2. Alert Konfirmasi Berhenti Follow
+        .alert("Stop Following?", isPresented: $isShowingStopFollowAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Stop", role: .destructive) {
+                selectedTarget = nil
+            }
+        } message: {
+            if let name = selectedMember?.initials {
+                Text("Are you sure you want to stop following \(name)?")
+            } else {
+                Text("Are you sure you want to stop following this target?")
+            }
+        }
+        
         .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
             Group { switch modal {
             case .mapPoint:
@@ -163,7 +194,7 @@ struct OrbitMapView: View {
                         .buttonStyle(.plain)
                         .ignoresSafeArea()
                         .accessibilityHidden(true)
-
+                        
                         FriendListSheet(
                             sessionStore: viewModel.sessionStore,
                             onAddFriend: {
@@ -174,7 +205,13 @@ struct OrbitMapView: View {
                                 selectedTarget = .member(member.id)
                                 activeModal = nil
                             },
-                            onLeaveGroup: requestLeaveGroup
+                            onLeaveGroup: requestLeaveGroup,
+                            selectedMemberId: selectedMember?.id,
+                            onStopFollow: {       
+                                sos?.recordUserInteraction()
+                                selectedTarget = nil
+                                activeModal = nil
+                            }
                         )
                         .frame(
                             width: geometry.size.width,
@@ -186,27 +223,14 @@ struct OrbitMapView: View {
                 .presentationBackground(.clear)
             case .settings:
                 OrbitSettingsView(location: location, sos: sos, relayPolicy: relayPolicy,
-                    relayState: relayState, memberContactLog: { viewModel.sessionStore.memberContactLog },
-                    diagnostics: diagnostics)
+                                  relayState: relayState, memberContactLog: { viewModel.sessionStore.memberContactLog },
+                                  diagnostics: diagnostics)
             case .invite:
-                NavigationStack {
-                    ZStack {
-                        Color.black.ignoresSafeArea()
-                        if let session = viewModel.sessionStore.activeSession {
-                            GroupQRCodeView(session: session)
-                                .padding()
-                        }
+                if let session = viewModel.sessionStore.activeSession {
+                    ShareInviteView(session: session) {
+                        activeModal = .friends
                     }
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Close", systemImage: "xmark") { activeModal = nil }
-                        }
-                    }
-                }
-                .presentationBackground(.black)
-            case .finder(let id):
-                if let member = visibleMembers.first(where: { $0.id == id }) {
-                    FriendFinderView(member: member, location: location)
+                    .presentationBackground(.black)
                 }
             } }
             .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
@@ -214,7 +238,7 @@ struct OrbitMapView: View {
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         }
     }
-
+    
     private func groupActivityPill(_ message: String, color: Color) -> some View {
         Label {
             Text(message).font(.subheadline.weight(.semibold))
@@ -230,7 +254,7 @@ struct OrbitMapView: View {
         .frame(maxWidth: .infinity)
         .allowsHitTesting(false)
     }
-
+    
     @ViewBuilder
     private var targetSummary: some View {
         let member = selectedMember
@@ -250,32 +274,44 @@ struct OrbitMapView: View {
                         }
                     }
                 }
-                Button("Clear target", systemImage: "xmark") { selectedTarget = nil }
-                    .labelStyle(.iconOnly)
-                    .frame(minWidth: 44, minHeight: 44)
+                Button("Clear target", systemImage: "xmark") {
+                    isShowingStopFollowAlert = true
+                }
+                .labelStyle(.iconOnly)
+                .frame(minWidth: 44, minHeight: 44)
             }
             .padding(.leading, 12)
             .background(Color.blackCard, in: .rect(cornerRadius: 12))
         }
     }
-
+    
     private func requestLeaveGroup() {
         isLeavingGroup = true
         activeModal = nil
     }
-
+    
     private func finishModalDismissal() {
         guard isLeavingGroup else { return }
         isLeavingGroup = false
         viewModel.leaveGroup()
     }
-
+    
     private func openChat() {
         sos?.recordUserInteraction()
         chat?.isChatSheetPresented = true
         isShowingChat = true
     }
-
+    
+    private func selectMember(_ id: Member.ID) {
+        sos?.recordUserInteraction()
+        if selectedTarget == .member(id) {
+            isShowingStopFollowAlert = true
+        } else if let member = visibleMembers.first(where: { $0.id == id }) {
+            memberToFollow = member
+            isShowingFollowAlert = true
+        }
+    }
+    
     private func selectMeetingPoint(_ id: MeetingPoint.ID) {
         sos?.recordUserInteraction()
         let target = OrbitSceneView.Target.meetingPoint(id)
