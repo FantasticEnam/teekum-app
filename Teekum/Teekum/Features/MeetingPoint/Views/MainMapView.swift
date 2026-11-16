@@ -62,15 +62,11 @@ public struct MainMapView: View {
             Button("Not Yet", role: .cancel) {
                 viewModel.cancelSetMeetingPoint()
             }
-            Button("Continue") {
-                viewModel.isShowingTimeOptions = true
+            Button("Set Point") {
+                viewModel.confirmSetMeetingPoint()
             }
         } message: {
             Text("Has Everyone Joined? Friends who haven't joined the group won't be able to see your meeting point.")
-        }
-        .sheet(isPresented: $viewModel.isShowingTimeOptions, onDismiss: viewModel.cancelSetMeetingPoint) {
-            MeetingTimeOptionsView(viewModel: viewModel)
-                .presentationDetents([.medium, .large])
         }
         
         // 2. Alert Creator: Stop Meeting Point
