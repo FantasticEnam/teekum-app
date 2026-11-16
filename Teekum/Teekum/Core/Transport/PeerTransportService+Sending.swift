@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Network
 
 // MARK: - Frame Transmission & Priority Outbox
 
@@ -21,13 +20,6 @@ extension PeerTransportService {
         }
         guard data.count == PacketConstants.wirePacketSize else {
             throw TransportError.invalidPacketSize
-        }
-        if blePeers.contains(peerId) {
-            rememberForCarry(data)
-            try outbox.enqueue(data: data, destinationPeerId: peerId, isRelay: false)
-            triggerOutboxFlush()
-            let packet = try RawWirePacket.fromWireData(data)
-            return SendOutcome(destinationPeerId: peerId, packetType: packet.envelope.type, isSuccess: true)
         }
         guard let peer = connections[peerId], peer.isReady else {
             let err = TransportError.peerNotFound(peerId)
@@ -79,7 +71,7 @@ extension PeerTransportService {
             throw PacketCodecError.hopCountExceededLimit(count: hopCount, limit: hopLimit)
         }
         
-        guard blePeers.contains(nextHopPeerId) || connections[nextHopPeerId]?.isReady == true else {
+        guard connections[nextHopPeerId]?.isReady == true else {
             let err = TransportError.peerNotFound(nextHopPeerId)
             let pType = PacketType(rawValue: byte0 & 0x0F) ?? .locationPing
             let failedOutcome = SendOutcome(destinationPeerId: nextHopPeerId, packetType: pType, isSuccess: false, error: err)
@@ -87,6 +79,7 @@ extension PeerTransportService {
             throw err
         }
         
+        let generation = radioGeneration
         // Rate limiting budget check
         let packetType = PacketType(rawValue: byte0 & 0x0F) ?? .locationPing
         if packetType == .sos {
@@ -102,6 +95,8 @@ extension PeerTransportService {
             }
         }
         
+        guard isCurrentGeneration(generation), isRelayEnabled else { throw TransportError.relayDisabled }
+
         // Mutate only hopCount: Byte 2 incremented by 1
         var mutatedData = data
         mutatedData[mutatedData.startIndex + 2] = hopCount + 1
@@ -157,33 +152,24 @@ extension PeerTransportService {
         if !enabled {
             outbox.clearRelayQueue()
             carryStore.removeForeign()
+            for (id, retry) in outboxRetries.filter({ $0.value.isRelay }) {
+                retry.task.cancel()
+                outboxRetries.removeValue(forKey: id)
+            }
             logEvent("Mesh relay participation disabled. Purged relay outbox.", level: .info)
         } else {
             logEvent("Mesh relay participation enabled.", level: .info)
         }
         
-        // Results may have arrived while relay was disabled. NWBrowser need not emit
-        // another change when only our local preference changes.
-        if enabled, activeSession != nil {
-            handleBrowseResults(latestBrowseResults, changes: [])
-        }
-
-        // Update Bonjour TXT record dynamically with relay flag
-        if let session = activeSession, let currentListener = listener {
-            var txtDict: [String: Data] = [:]
-            txtDict["sid"] = PacketConstants.formatSessionId(session.sessionId).data(using: .utf8)
-            txtDict["name"] = session.localMemberName.data(using: .utf8)
-            txtDict["relay"] = (enabled ? "1" : "0").data(using: .utf8)
-            let txtData = NetService.data(fromTXTRecord: txtDict)
-            currentListener.service = NWListener.Service(
-                name: localPeerId,
-                type: serviceType,
-                domain: nil,
-                txtRecord: txtData
-            )
+        // Re-exchange the relay flag on outside-group links when participation changes.
+        let generation = radioGeneration
+        for peer in connections.values.filter({ !$0.isGroupMember }) {
+            linkTasks[peer.token]?.cancel()
+            await removeLink(peerID: peer.peerId, token: peer.token, generation: generation)
+            guard isCurrentGeneration(generation), isRelayEnabled == enabled else { return }
         }
     }
-    
+
     /// Checks if relaying is currently permitted.
     public func isRelayPermitted() async -> Bool {
         isRelayEnabled
@@ -202,99 +188,57 @@ extension PeerTransportService {
     
     func drainOutbox() async {
         let generation = radioGeneration
-        while generation == radioGeneration, let item = outbox.dequeue() {
+        while isCurrentGeneration(generation), !Task.isCancelled, let item = outbox.dequeue() {
             guard !item.isRelay || isRelayEnabled else { continue }
-            let readyPeers = connections.values.filter { $0.isReady }
-            
-            if let targetId = item.destinationPeerId {
-                // Send to specific target peer
-                if blePeers.contains(targetId) {
-                    await bleLink?.send(item.packetData, to: targetId)
-                    guard generation == radioGeneration else { break }
-                    carryStore.markAttempt(item.packetData, to: targetId)
-                } else if let peer = connections[targetId], peer.isReady {
-                    sendData(item.packetData, on: peer, outboxItem: item)
-                } else {
-                    logEvent("Target peer \(targetId) unavailable for packet \(item.packetType).", level: .warning)
-                    sendErrorsCount += 1
-                    let err = TransportError.peerNotFound(targetId)
-                    transportErrorsContinuation?.yield(err)
-                    
-                    Task {
-                        await neighborTable.recordTransmissionOutcome(peerId: targetId, success: false)
-                    }
-                    let failedOutcome = SendOutcome(
-                        id: item.id,
-                        destinationPeerId: targetId,
-                        packetType: item.packetType,
-                        isSuccess: false,
-                        error: err
-                    )
-                    sendOutcomeContinuation?.yield(failedOutcome)
-                }
+            if let target = item.destinationPeerId {
+                await sendData(item, to: target, generation: generation)
             } else {
-                // Broadcast to all active direct peers
-                await bleLink?.send(item.packetData, to: nil)
-                guard generation == radioGeneration else { break }
-                for peer in blePeers { carryStore.markAttempt(item.packetData, to: peer) }
-                if readyPeers.isEmpty && blePeers.isEmpty {
+                let targets = connections.values.filter(\.isReady).map(\.peerId)
+                if targets.isEmpty {
                     logEvent("No direct peers available to broadcast \(item.packetType).", level: .warning)
-                } else {
-                    for peer in readyPeers {
-                        sendData(item.packetData, on: peer, outboxItem: item)
+                }
+                await withTaskGroup(of: Void.self) { tasks in
+                    for target in targets {
+                        tasks.addTask { [weak self] in
+                            await self?.sendData(item, to: target, generation: generation)
+                        }
                     }
                 }
             }
         }
-        
-        if generation == radioGeneration { isFlushingOutbox = false }
+        if isCurrentGeneration(generation) { isFlushingOutbox = false }
     }
-    
-    func sendData(_ data: Data, on peer: PeerConnection, outboxItem: OutboxItem) {
-        let peerId = peer.peerId
-        carryStore.markAttempt(data, to: peerId)
-        let generation = radioGeneration
-        peer.connection.send(content: data, completion: .contentProcessed { [weak self, weak peer] error in
-            guard let self = self else { return }
-            Task {
-                guard await self.isCurrentGeneration(generation) else { return }
-                if let error = error {
-                    if let p = peer {
-                        await self.neighborTable.recordTransmissionOutcome(peerId: p.peerId, success: false)
-                    }
-                    await self.handleSendError(error, on: peer, outboxItem: outboxItem)
-                    
-                    let outcome = SendOutcome(
-                        id: outboxItem.id,
-                        destinationPeerId: peer?.peerId ?? (outboxItem.destinationPeerId ?? "broadcast"),
-                        packetType: outboxItem.packetType,
-                        isSuccess: false,
-                        error: .sendFailed(error.localizedDescription)
-                    )
-                    await self.recordSendOutcome(outcome)
-                } else {
-                    if let p = peer {
-                        await self.neighborTable.recordTransmissionOutcome(peerId: p.peerId, success: true)
-                    }
-                    let envelope = try? CleartextEnvelope.deserialize(from: data)
-                    await self.recordSendSuccess(envelope, to: peerId, generation: generation)
-                    
-                    let outcome = SendOutcome(
-                        id: outboxItem.id,
-                        destinationPeerId: peer?.peerId ?? (outboxItem.destinationPeerId ?? "broadcast"),
-                        packetType: outboxItem.packetType,
-                        isSuccess: true
-                    )
-                    await self.recordSendOutcome(outcome)
-                }
-            }
-        })
+
+    private func sendData(_ item: OutboxItem, to peerId: String, generation: UUID) async {
+        guard isCurrentGeneration(generation), !Task.isCancelled, !item.isRelay || isRelayEnabled else { return }
+        guard let peer = connections[peerId], peer.isReady, peer.isGroupMember || isRelayEnabled else {
+            let error = TransportError.peerNotFound(peerId)
+            logEvent("Target peer \(peerId) unavailable for packet \(item.packetType).", level: .warning)
+            sendErrorsCount += 1
+            transportErrorsContinuation?.yield(error)
+            sendOutcomeContinuation?.yield(.init(id: item.id, destinationPeerId: peerId,
+                packetType: item.packetType, isSuccess: false, error: error))
+            await neighborTable.recordTransmissionOutcome(peerId: peerId, success: false)
+            return
+        }
+
+        carryStore.markAttempt(item.packetData, to: peerId)
+        do {
+            try await peer.connection.send(item.packetData)
+            guard isCurrentGeneration(generation), !Task.isCancelled else { return }
+            recordSendSuccess(try? CleartextEnvelope.deserialize(from: item.packetData), to: peerId, generation: generation)
+            sendOutcomeContinuation?.yield(.init(id: item.id, destinationPeerId: peerId,
+                packetType: item.packetType, isSuccess: true))
+            await neighborTable.recordTransmissionOutcome(peerId: peerId, success: true)
+        } catch {
+            guard isCurrentGeneration(generation), !Task.isCancelled else { return }
+            handleSendError(error, outboxItem: item)
+            sendOutcomeContinuation?.yield(.init(id: item.id, destinationPeerId: peerId,
+                packetType: item.packetType, isSuccess: false, error: .sendFailed(error.localizedDescription)))
+            await neighborTable.recordTransmissionOutcome(peerId: peerId, success: false)
+        }
     }
-    
-    func recordSendOutcome(_ outcome: SendOutcome) {
-        sendOutcomeContinuation?.yield(outcome)
-    }
-    
+
     func recordSendSuccess(_ envelope: CleartextEnvelope?, to peerId: String, generation: UUID) {
         guard isCurrentGeneration(generation) else { return }
         packetsSentCount += 1
@@ -303,27 +247,33 @@ extension PeerTransportService {
         }
     }
     
-    func handleSendError(_ error: NWError, on peer: PeerConnection?, outboxItem: OutboxItem) {
+    func handleSendError(_ error: Error, outboxItem: OutboxItem) {
         sendErrorsCount += 1
         lastErrorMessage = error.localizedDescription
         logEvent("Transmission error for \(outboxItem.packetType): \(error.localizedDescription)", level: .warning)
         
-        // Do not resurrect a foreign retry after the user/power policy stopped relaying.
         guard !outboxItem.isRelay || isRelayEnabled else { return }
-        // If retries remain (urgent SOS/ACK or distant relay), requeue with configurable backoff
-        if outbox.requeueForRetry(outboxItem) {
-            let attempt = outboxItem.attemptCount + 1
-            logEvent("Re-queuing \(outboxItem.isRelay ? "stranger relay" : "urgent") packet \(outboxItem.packetType) (attempt \(attempt)/\(outboxItem.maxRetries + 1)).", level: .info)
-            let delay = MeshTimingConfiguration.default.distantLinkRetryDelay
-            let generation = radioGeneration
-            outboxRetryTask?.cancel()
-            outboxRetryTask = Task { [weak self] in
-                do { try await Task.sleep(for: .seconds(delay)) } catch { return }
-                guard await self?.isCurrentGeneration(generation) == true else { return }
-                await self?.triggerOutboxFlush()
-            }
-        } else {
+        guard outboxRetries[outboxItem.id] == nil else { return }
+        let retryCapacity = outbox.maxUrgentCapacity + outbox.maxChatCapacity + outbox.maxRelayCapacity
+        guard outboxItem.attemptCount < outboxItem.maxRetries, outboxRetries.count < retryCapacity else {
             transportErrorsContinuation?.yield(.sendFailed(error.localizedDescription))
+            return
         }
+
+        let delay = MeshTimingConfiguration.default.distantLinkRetryDelay
+        let generation = radioGeneration
+        let task = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            await self?.enqueueRetry(outboxItem, generation: generation)
+        }
+        outboxRetries[outboxItem.id] = (task, outboxItem.isRelay)
+    }
+
+    private func enqueueRetry(_ item: OutboxItem, generation: UUID) {
+        // Delay the requeue itself so an already running drain can't bypass the backoff.
+        guard isCurrentGeneration(generation), !Task.isCancelled,
+              outboxRetries.removeValue(forKey: item.id) != nil,
+              !item.isRelay || isRelayEnabled, outbox.requeueForRetry(item) else { return }
+        triggerOutboxFlush()
     }
 }

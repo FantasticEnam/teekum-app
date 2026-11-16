@@ -10,6 +10,8 @@ import Foundation
 /// Transport-specific errors.
 public enum TransportError: Error, LocalizedError, Equatable {
     case notStarted
+    case wifiAwareUnavailable
+    case wifiAwareMisconfigured
     case listenerFailed(String)
     case browserFailed(String)
     case connectionFailed(String)
@@ -31,12 +33,16 @@ public enum TransportError: Error, LocalizedError, Equatable {
         switch self {
         case .notStarted:
             return "Peer transport service is not started."
+        case .wifiAwareUnavailable:
+            return "This device does not support Wi-Fi Aware."
+        case .wifiAwareMisconfigured:
+            return "The Meepo Wi-Fi Aware service is missing from the app configuration."
         case let .listenerFailed(reason):
-            return "NWListener failed: \(reason)"
+            return "Wi-Fi Aware listener failed: \(reason)"
         case let .browserFailed(reason):
-            return "NWBrowser failed: \(reason)"
+            return "Wi-Fi Aware discovery failed: \(reason)"
         case let .connectionFailed(reason):
-            return "NWConnection failed: \(reason)"
+            return "Peer connection failed: \(reason)"
         case let .sendFailed(reason):
             return "Packet transmission failed: \(reason)"
         case .invalidPacketSize:

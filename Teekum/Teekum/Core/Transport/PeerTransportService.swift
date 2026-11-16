@@ -6,44 +6,33 @@
 //
 
 import Foundation
-import Network
+import WiFiAware
 
 public actor PeerTransportService: PeerTransport, MeshTransport {
     
     // MARK: - Active Session & Radio Configuration
     
     var activeSession: GroupSession?
-    var serviceType: String = "_teekum._tcp"
-    var isUDP: Bool = false
-    var localPeerId: String = ""
-    
-    var listener: NWListener?
-    var browser: NWBrowser?
-    let dispatchQueue = DispatchQueue(label: "com.teekum.peertransport", qos: .userInitiated)
-    
-    /// Map of connected or connecting peers keyed by peer ID.
+    var serviceType = MeepoConfiguration.Network.wifiAwareService
     var connections: [String: PeerConnection] = [:]
-    
-    /// Endpoints currently visible in NWBrowser results keyed by peer ID.
-    var latestBrowseResults: Set<NWBrowser.Result> = []
-    var discoveredEndpoints: [String: (endpoint: NWEndpoint, displayName: String?, isGroup: Bool)] = [:]
-    
-    /// Dual-lane prioritized outbox with stranger relay ring buffer.
+    var pairedDeviceIDs: Set<WAPairedDevice.ID> = []
+    var discoveredEndpoints: [WAPairedDevice.ID: WAEndpoint] = [:]
+    var dialAttempts: [WAPairedDevice.ID: UUID] = [:]
+    var nextDial: [WAPairedDevice.ID: ContinuousClock.Instant] = [:]
+    var linkTasks: [UUID: Task<Void, Never>] = [:]
+    var pairingTask: Task<Void, Never>?
+    var discoveryTask: Task<Void, Never>?
+    var discoveryGeneration = UUID()
+    var radioGeneration = UUID()
+
     let outbox = PriorityOutboxQueue()
-    var isFlushingOutbox: Bool = false
+    var isFlushingOutbox = false
     var carryStore = CarryMessageStore()
     var carryTask: Task<Void, Never>?
     var carryPowerPermitted = true
-    var bleLink: BLEPeerLink?
-    var blePeers: [String] = []
-    var radioGeneration = UUID()
-    var listenerRecoveryTask: Task<Void, Never>?
-    var browserRecoveryTask: Task<Void, Never>?
-    var fallbackTasks: [String: Task<Void, Never>] = [:]
-    var reconnectTasks: [String: Task<Void, Never>] = [:]
-    var outboxRetryTask: Task<Void, Never>?
+    var outboxRetries: [UUID: (task: Task<Void, Never>, isRelay: Bool)] = [:]
     var outboxFlushTask: Task<Void, Never>?
-    
+
     /// Neighbor management registry.
     public let neighborTable: NeighborTable
     
@@ -195,99 +184,64 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
     
     // MARK: - PeerTransport Protocol Lifecycle Implementation
     
-    /// Starts Bonjour advertising (NWListener) and discovery (NWBrowser) for the active session.
     public func start(serviceType: String, session: GroupSession) async throws {
         await stop()
         resetStreams()
-        
-        self.activeSession = session
+        activeSession = session
         self.serviceType = serviceType
-        self.isUDP = serviceType.contains("udp")
-        self.localPeerId = session.localInitials
-        let generation = radioGeneration
-        let link = await BLEPeerLink(
-            receive: { [weak self] data, peer in Task { await self?.receiveBLE(data, from: peer, generation: generation) } },
-            dispatched: { [weak self] envelope, peer in
-                Task { await self?.recordSendSuccess(envelope, to: peer, generation: generation) }
-            },
-            peersChanged: { [weak self] peers in Task { await self?.updateBLEPeers(peers, generation: generation) } },
-            report: { [weak self] message in Task { await self?.logEvent(message, level: .info) } }
-        )
-        guard isCurrentGeneration(generation) else {
-            await link.stop()
-            throw TransportError.notStarted
+        packetsSentCount = 0
+        packetsReceivedCount = 0
+        sendErrorsCount = 0
+        lastErrorMessage = nil
+        diagnosticEvents.removeAll()
+
+        guard WACapabilities.supportedFeatures.contains(.wifiAware) else {
+            throw reportRadioFailure(.wifiAwareUnavailable)
         }
-        bleLink = link
-        await link.start()
-        guard isCurrentGeneration(generation) else {
-            await link.stop()
-            throw TransportError.notStarted
+        guard let publish = WAPublishableService.allServices[serviceType],
+              let subscribe = WASubscribableService.allServices[serviceType] else {
+            throw reportRadioFailure(.wifiAwareMisconfigured)
+        }
+
+        updateState(.discovering)
+        let generation = radioGeneration
+        pairingTask = Task { [weak self] in
+            await self?.observePairedDevices(publish: publish, subscribe: subscribe, generation: generation)
         }
         carryTask = Task { [weak self] in
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .milliseconds(500)) } catch { break }
+                await self?.connectDiscoveredPeers(generation: generation)
                 await self?.replayCarriedMessage()
             }
         }
-        
-        logEvent("Starting radio transport (Initials: \(localPeerId), Service: \(serviceType), Mode: \(isUDP ? "UDP" : "TCP")).", level: .info)
-        updateState(.starting)
-        
-        do {
-            try startListener()
-            try startBrowser()
-            updateState(.discovering)
-            logEvent("Bonjour listener and browser active. Advertising local peer.", level: .info)
-        } catch {
-            let transportError = TransportError.listenerFailed(error.localizedDescription)
-            updateState(.failed(transportError))
-            transportErrorsContinuation?.yield(transportError)
-            logEvent("Failed to start radio transport: \(error.localizedDescription)", level: .error)
-            throw transportError
-        }
     }
-    
-    /// Stops all radio advertising, browsing, and active socket connections.
+
     public func stop() async {
-        logEvent("Stopping radio transport and releasing sockets.", level: .info)
-        
         radioGeneration = UUID()
         let generation = radioGeneration
         activeSession = nil
-        packetEvents.removeAll()
-        listenerRecoveryTask?.cancel()
-        listenerRecoveryTask = nil
-        browserRecoveryTask?.cancel()
-        browserRecoveryTask = nil
-        for task in fallbackTasks.values { task.cancel() }
-        fallbackTasks.removeAll()
-        for task in reconnectTasks.values { task.cancel() }
-        reconnectTasks.removeAll()
-        outboxRetryTask?.cancel()
-        outboxRetryTask = nil
+        let radioTasks = [pairingTask, discoveryTask].compactMap { $0 } + linkTasks.values
+        for task in radioTasks { task.cancel() }
+        pairingTask = nil
+        discoveryTask = nil
+        linkTasks.removeAll()
+        connections.removeAll()
+        pairedDeviceIDs.removeAll()
+        discoveredEndpoints.removeAll()
+        dialAttempts.removeAll()
+        nextDial.removeAll()
+        for retry in outboxRetries.values { retry.task.cancel() }
+        outboxRetries.removeAll()
         outboxFlushTask?.cancel()
         outboxFlushTask = nil
         isFlushingOutbox = false
-        let oldBLE = bleLink
-        bleLink = nil
-        blePeers.removeAll()
         carryTask?.cancel()
         carryTask = nil
         carryStore.removeAll()
-        browser?.cancel()
-        browser = nil
-        
-        listener?.cancel()
-        listener = nil
-        
-        for peer in connections.values {
-            peer.connection.cancel()
-        }
-        connections.removeAll()
-        discoveredEndpoints.removeAll()
-        latestBrowseResults.removeAll()
         outbox.clear()
-        
+        packetEvents.removeAll()
+
         updateState(.stopped)
         emitPeerUpdates()
         inboundContinuation?.finish()
@@ -297,13 +251,22 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
         peerUpdatesContinuation?.finish()
         stateUpdatesContinuation?.finish()
         transportErrorsContinuation?.finish()
+        for task in radioTasks { await task.value }
         for neighbor in await neighborTable.activeNeighbors() {
             guard generation == radioGeneration else { break }
             await neighborTable.removeNeighbor(peerId: neighbor.id)
         }
-        await oldBLE?.stop()
     }
-    
+
+    @discardableResult
+    func reportRadioFailure(_ error: TransportError) -> TransportError {
+        lastErrorMessage = error.localizedDescription
+        transportErrorsContinuation?.yield(error)
+        logEvent(error.localizedDescription, level: .warning)
+        if !connections.values.contains(where: \.isReady) { updateState(.failed(error)) }
+        return error
+    }
+
     func isCurrentGeneration(_ generation: UUID) -> Bool {
         generation == radioGeneration && activeSession != nil
     }
@@ -317,10 +280,11 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
     }
     
     func refreshConnectionState() {
-        let count = connections.values.filter { $0.isReady }.count + blePeers.count
+        guard activeSession != nil else { return }
+        let count = connections.values.count(where: \.isReady)
         if count > 0 {
             updateState(.connected(peerCount: count))
-        } else if currentState != .stopped && activeSession != nil {
+        } else {
             updateState(.discovering)
         }
     }
@@ -336,7 +300,7 @@ public actor PeerTransportService: PeerTransport, MeshTransport {
                 lastSeen: peer.lastSeen
             )
         }
-        peerUpdatesContinuation?.yield(peerList + blePeers.map { PeerInfo(id: $0, displayName: "Bluetooth peer", isGroupMember: false) })
+        peerUpdatesContinuation?.yield(peerList.filter(\.isDirectLink))
     }
     
     func logEvent(_ message: String, level: DiagnosticEvent.EventLevel) {

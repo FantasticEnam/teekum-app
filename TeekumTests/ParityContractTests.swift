@@ -59,15 +59,11 @@ final class ParityContractTests: XCTestCase {
         XCTAssertEqual(try ChatMessagePayload.deserialize(from: payload.serialize()).text, clamped)
     }
 
-    func testBLEFragmentationAndCarryCustodyMatchPrototype() throws {
+    func testCarryCustodyMatchesPrototype() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let packet = RawWirePacket(envelope: .init(type: .chatMessage, sessionId: 0x1234, sequenceNumber: 1),
             ciphertext: Data(repeating: 0x42, count: 30), authTag: Data(repeating: 0x24, count: 16))
         let wire = try packet.toWireData()
-        var codec = BLEFrameCodec()
-        var received: Data?
-        for fragment in BLEFrameCodec.fragments(wire, maximumValueLength: 20) { received = codec.receive(fragment) }
-        XCTAssertEqual(received, wire)
         var custody = CarryMessageStore()
         custody.remember(wire, isForeign: true, excludingPeerId: "source", now: now)
         XCTAssertNil(custody.nextTransmission(to: ["source"], now: now))
@@ -240,7 +236,7 @@ private actor ParityTransport: PeerTransport, MeshTransport {
     func isRelayPermitted() async -> Bool { false }
     func retainReceivedForCarry(_ packet: RawWirePacket, excludingPeerId: String?) async {}
     func getDiagnostics() async -> TransportDiagnostics {
-        .init(localPeerId: "test", serviceType: "_teekum._tcp", sessionName: "Test", sessionId: 0x1234,
+        .init(localPeerId: "test", serviceType: "_meepo-mesh._tcp", sessionName: "Test", sessionId: 0x1234,
             state: .stopped, activeDirectPeers: [], packetsSent: 0, packetsReceived: 0, obsoletePingsCoalesced: 0,
             sendErrors: 0, lastError: nil, recentEvents: [])
     }

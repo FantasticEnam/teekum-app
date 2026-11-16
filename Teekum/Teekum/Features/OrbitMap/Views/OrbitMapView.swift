@@ -71,7 +71,7 @@ struct OrbitMapView: View {
 
             VStack(alignment: .leading) {
                 OrbitHeaderView(groupName: viewModel.groupName,
-                    onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
+                    onOpenMap: { activeModal = .mapPoint }, onSettings: openSettings)
 
                 if let activity = notifications?.groupActivity {
                     groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
@@ -112,7 +112,10 @@ struct OrbitMapView: View {
         .overlay(alignment: .top) {
             OrbitFeedbackView(sos: sos, notifications: notifications)
         }
-        .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
+        .simultaneousGesture(
+            TapGesture().onEnded { sos?.recordUserInteraction() },
+            isEnabled: activeModal != .settings
+        )
         .disabled(isLeavingGroup)
         .onChange(of: meetingPoint?.id) { _, id in
             if case .meetingPoint(let targetID) = selectedTarget, targetID != id {
@@ -212,7 +215,10 @@ struct OrbitMapView: View {
             } }
             .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
             .overlay { SOSEdgeGlowView(sos: sos) }
-            .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
+            .simultaneousGesture(
+                TapGesture().onEnded { sos?.recordUserInteraction() },
+                isEnabled: modal != .settings
+            )
         }
     }
 
@@ -269,6 +275,11 @@ struct OrbitMapView: View {
         guard isLeavingGroup else { return }
         isLeavingGroup = false
         viewModel.leaveGroup()
+    }
+
+    private func openSettings() {
+        sos?.recordUserInteraction()
+        activeModal = .settings
     }
 
     private func openChat() {

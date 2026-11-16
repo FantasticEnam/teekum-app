@@ -62,12 +62,12 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 
 ## 3. Field Encoding
 
-- Multi-byte numeric fields use big-endian encoding. The three-byte SID field holds a canonical 24-bit `sessionId` (`0x000001...0xFFFFFF`), formatted as `%06X` for invite links, Keychain accounts, Bonjour TXT `sid`, and routing keys.
+- Multi-byte numeric fields use big-endian encoding. The three-byte SID field holds a canonical 24-bit `sessionId` (`0x000001...0xFFFFFF`), formatted as `%06X` for invite links, Keychain accounts, and routing keys. The Wi‑Fi Aware TCP preface carries the SID in its binary 24-bit form.
 - Coordinate integers are rounded signed Int32 values of degrees × 1,000,000. This is about 0.11 m latitude quantization, **not GPS accuracy**; longitude spacing depends on latitude. Validate finite/range-safe inputs before conversion.
 - Timestamp fields are UInt32 Unix seconds. Do not refresh an old measurement timestamp when a packet is received. Existing direct conversions require range review; clock-skew/expiry rules are not uniformly enforced by serialization.
 - Accuracy is a one-byte meter value. Battery is capped at 100 by several constructors/serializers. Do not invent an unknown-value encoding without reviewing both sides.
 - Heading helpers map degrees into a one-byte representation. Quantization/dequantization is not a live compass provider.
-- InitialsCodec encodes 1–3 uppercase letters with base 27: a × 729 + b × 27 + c, A=1...Z=26, missing positions=0. Two bytes hold the result. Initials are display data; they do not prove unique membership or non-colliding sender slots.
+- InitialsCodec encodes 1–3 uppercase letters or digits using base 37. It uses A=1 through Z=26, 0=27 through 9=36, and 0 for missing positions. Two bytes hold the result. Initials are display data; they do not prove unique membership or non-colliding sender slots.
 - The one-byte `MemberColor` field uses `0x00` for automatic color. The selectable palette is yellow (`0x09`), red (`0x01`), green (`0x08`), purple (`0x0A`), and pink (`0x0B`). Retired codes `0x02...0x07` are still decoded and rendered using the current palette. Location and SOS carry this field. Chat uses the local session or the latest roster color, with an initials-based fallback until a profile color is received. Older builds use their automatic color for unknown codes.
 
 ## 4. Current 30-Byte Payloads

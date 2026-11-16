@@ -15,6 +15,8 @@ nonisolated public enum MeepoConfiguration {
     
     // MARK: - 1. Wire Protocol & Network Topology Parameters
     public enum Network {
+        static let wifiAwareService = "_meepo-mesh._tcp"
+
         /// Strictly fixed 56-byte wire datagram format (invariant across all packet types).
         public static let wirePacketSize: Int = 56
         

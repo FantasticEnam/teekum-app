@@ -172,7 +172,7 @@ final class SessionController {
         await chat.start()
         await sos.start()
         guard generation == current, !Task.isCancelled else { return }
-        do { try await transport.start(serviceType: "_teekum._tcp", session: session) }
+        do { try await transport.start(serviceType: MeepoConfiguration.Network.wifiAwareService, session: session) }
         catch { errorMessage = error.localizedDescription }
         guard generation == current, !Task.isCancelled else { return }
         location.hasDistantPeersProvider = { [weak self] in self?.hasDistantMembers ?? false }

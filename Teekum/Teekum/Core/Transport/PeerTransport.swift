@@ -22,7 +22,7 @@ public protocol PeerTransport: Actor {
     /// Live asynchronous stream of transport errors.
     var transportErrors: AsyncStream<TransportError> { get }
     
-    /// Starts local Bonjour listener and browser for the active session.
+    /// Starts Wi-Fi Aware publishing and browsing for the active session.
     func start(serviceType: String, session: GroupSession) async throws
     
     /// Stops all listeners, connections, and advertising, releasing radio resources.

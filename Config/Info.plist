@@ -35,18 +35,28 @@ Created by DIMAS DAFFA ERNANDA on 11/11/26.
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_teekum._tcp</string>
-		<string>_teekum._udp</string>
-	</array>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
-		<string>bluetooth-central</string>
-		<string>bluetooth-peripheral</string>
 	</array>
+	<key>WiFiAwareServices</key>
+	<dict>
+		<key>_meepo-mesh._tcp</key>
+		<dict>
+			<key>Publishable</key>
+			<dict/>
+			<key>Subscribable</key>
+			<dict/>
+		</dict>
+		<key>_meepo-pair._tcp</key>
+		<dict>
+			<key>Publishable</key>
+			<dict/>
+			<key>Subscribable</key>
+			<dict/>
+		</dict>
+	</dict>
 </dict>
 </plist>

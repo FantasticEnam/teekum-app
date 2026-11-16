@@ -58,17 +58,35 @@ struct OrbitSettingsView: View {
                     InactivitySettingsView(isEnabled: $inactivityGuard.isEnabled)
                 }
                 groupActivity(activity)
+                WiFiAwarePairingSection(
+                    pairedDeviceCount: snapshot?.pairedDeviceCount,
+                    directPeerCount: snapshot?.activeDirectPeers.count ?? 0,
+                    onInteraction: recordInteraction
+                )
                 Section("Connection diagnostics") {
+                    LabeledContent("Transport", value: "Wi-Fi Aware")
+                    if let snapshot { LabeledContent("Status", value: snapshot.state.description) }
                     LabeledContent("Direct peers", value: "\(snapshot?.activeDirectPeers.filter(\.isDirectLink).count ?? 0)")
+                    if let snapshot {
+                        ForEach(snapshot.activeDirectPeers.sorted { $0.id < $1.id }) { peer in
+                            let signal = snapshot.signalStrengthByPeer[peer.id]?.formatted(.percent.precision(.fractionLength(0)))
+                            LabeledContent(peerLabel(peer.id), value: signal ?? "Connected")
+                        }
+                    }
                     LabeledContent("Packets sent", value: "\(snapshot?.packetsSent ?? 0)")
                     LabeledContent("Packets received", value: "\(snapshot?.packetsReceived ?? 0)")
-                    Text("Signal strength is unavailable for these links.").font(.caption)
                     if let error = snapshot?.lastError { Text(error).foregroundStyle(.red) }
                 }
                 packetLog(snapshot?.recentPackets ?? [])
             }
             .navigationTitle("Group settings")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close", systemImage: "xmark", action: dismiss.callAsFunction) } }
+            .onChange(of: location?.isLiveSharingEnabled, recordInteraction)
+            .onChange(of: packetFilter, recordInteraction)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", systemImage: "xmark", action: close)
+                }
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -118,7 +136,7 @@ struct OrbitSettingsView: View {
     private func packetRow(_ packet: TransportDiagnostics.PacketEvent) -> some View {
         let received = packet.direction == .received
         let envelope = packet.envelope
-        let peer = packet.peerId.hasPrefix("ble-") ? "BLE …\(packet.peerId.suffix(4))" : packet.peerId
+        let peer = peerLabel(packet.peerId)
         return VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Label(packetTitle(envelope.type), systemImage: received ? "arrow.down.circle" : "arrow.up.circle")
@@ -142,6 +160,10 @@ struct OrbitSettingsView: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private func peerLabel(_ id: String) -> String {
+        id.hasPrefix("aware-") ? "Relay peer …\(id.suffix(4))" : id
     }
 
     private func packetTitle(_ type: PacketType) -> LocalizedStringKey {
@@ -174,8 +196,18 @@ struct OrbitSettingsView: View {
         }
     }
 
+    private func recordInteraction() {
+        sos?.recordUserInteraction()
+    }
+
+    private func close() {
+        recordInteraction()
+        dismiss()
+    }
+
     private func setRelay(_ mode: RelayParticipationMode) {
         guard let relayPolicy else { return }
+        recordInteraction()
         changingRelay = true
         Task { @MainActor in
             await relayPolicy.setParticipationMode(mode)
@@ -188,11 +220,13 @@ struct OrbitSettingsView: View {
     let activity = [SessionStore.MemberContactLoss(initials: "NIC", timestamp: .now.addingTimeInterval(-30))]
     let snapshot = TransportDiagnostics(
         localPeerId: "DAF",
-        serviceType: "_teekum._tcp",
+        serviceType: MeepoConfiguration.Network.wifiAwareService,
         sessionName: "Festival Crew",
         sessionId: 0x4321,
         state: .connected(peerCount: 1),
         activeDirectPeers: [PeerInfo(id: "ADI", displayName: "Adiat")],
+        signalStrengthByPeer: ["ADI": 0.71],
+        pairedDeviceCount: 2,
         packetsSent: 1,
         packetsReceived: 2,
         obsoletePingsCoalesced: 0,
@@ -203,9 +237,9 @@ struct OrbitSettingsView: View {
             .init(envelope: .init(type: .chatMessage, sessionId: 0x4321, sequenceNumber: 12),
                 direction: .received, peerId: "ADI", isOutsideGroup: false),
             .init(envelope: .init(type: .sos, sessionId: 0x1234, sequenceNumber: 19),
-                direction: .received, peerId: "ble-c-13AB", isOutsideGroup: true),
+                direction: .received, peerId: "aware-13AB", isOutsideGroup: true),
             .init(envelope: .init(type: .sos, hopCount: 1, sessionId: 0x1234, sequenceNumber: 19),
-                direction: .dispatched, peerId: "ble-p-82CD", isOutsideGroup: true)
+                direction: .dispatched, peerId: "aware-82CD", isOutsideGroup: true)
         ]
     )
 

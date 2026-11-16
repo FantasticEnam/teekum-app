@@ -7,35 +7,35 @@
 
 import Foundation
 import Network
+import WiFiAware
 
-final class PeerConnection: @unchecked Sendable {
-    var peerId: String
-    var displayName: String
-    var endpoint: NWEndpoint
-    var connection: NWConnection
-    var isReady: Bool = false
-    var isOutbound: Bool
-    var isGroupMember: Bool
-    var capabilities: TransportCapabilities
-    let framer = StreamMessageFramer()
-    var retryCount: Int = 0
-    var lastSeen: Date = Date()
-    
+/// Mutable link state is confined to PeerTransportService.
+final class PeerConnection {
+    let token: UUID
+    let deviceID: WAPairedDevice.ID
+    let peerId: String
+    let displayName: String
+    let connection: NetworkConnection<TCP>
+    let isGroupMember: Bool
+    let isReady: Bool
+    let preferredDirection: Bool
+    var lastSeen: Date = .now
+
     init(
-        peerId: String,
-        displayName: String,
-        endpoint: NWEndpoint,
-        connection: NWConnection,
-        isOutbound: Bool,
-        isGroupMember: Bool = false,
-        capabilities: TransportCapabilities = .standardMesh
+        token: UUID,
+        deviceID: WAPairedDevice.ID,
+        remote: WiFiAwareLinkHello,
+        local: WiFiAwareLinkHello,
+        connection: NetworkConnection<TCP>,
+        isOutbound: Bool
     ) {
-        self.peerId = peerId
-        self.displayName = displayName
-        self.endpoint = endpoint
+        self.token = token
+        self.deviceID = deviceID
         self.connection = connection
-        self.isOutbound = isOutbound
-        self.isGroupMember = isGroupMember
-        self.capabilities = capabilities
+        isGroupMember = remote.sessionID == local.sessionID
+        peerId = isGroupMember ? remote.initials : "aware-\(deviceID)"
+        displayName = isGroupMember ? remote.initials : "Relay peer"
+        isReady = local.permitsLink(to: remote)
+        preferredDirection = isOutbound == local.prefersOutbound(to: remote)
     }
 }

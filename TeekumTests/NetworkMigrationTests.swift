@@ -19,8 +19,8 @@ final class NetworkMigrationTests: XCTestCase {
         foreignChat.envelope.sessionId = 0x4321
         foreignChat.envelope.hopCount = 1
 
-        await transport.receiveBLE(groupSOS, from: "ble-p:sender", generation: generation)
-        await transport.receiveBLE(try foreignChat.toWireData(), from: "ble-p:relay-source", generation: generation)
+        await transport.acceptFrame(groupSOS, from: "sender", generation: generation)
+        await transport.acceptFrame(try foreignChat.toWireData(), from: "aware-42", generation: generation)
         let received = await transport.getDiagnostics().recentPackets
         XCTAssertEqual(received.map(\.direction), [.received, .received])
         XCTAssertEqual(received.map(\.isOutsideGroup), [false, true])
@@ -39,11 +39,13 @@ final class NetworkMigrationTests: XCTestCase {
 
         await transport.stop()
         _ = await transport.beginPacketLogTestSession()
-        let sentBeforeLateCompletion = await transport.getDiagnostics().packetsSent
+        let beforeLateCompletion = await transport.getDiagnostics()
         await transport.recordSendSuccess(foreignChat.envelope, to: "next-hop", generation: generation)
+        await transport.acceptFrame(groupSOS, from: "sender", generation: generation)
         let nextSession = await transport.getDiagnostics()
         XCTAssertTrue(nextSession.recentPackets.isEmpty)
-        XCTAssertEqual(nextSession.packetsSent, sentBeforeLateCompletion)
+        XCTAssertEqual(nextSession.packetsSent, beforeLateCompletion.packetsSent)
+        XCTAssertEqual(nextSession.packetsReceived, beforeLateCompletion.packetsReceived)
     }
 
     func testPacketLogKeepsOnlyTheNewestHundredEntries() async {
@@ -57,24 +59,49 @@ final class NetworkMigrationTests: XCTestCase {
         XCTAssertEqual(packets.map(\.envelope.sequenceNumber), Array(11...110))
     }
 
-    func testBLEFragmentsPreserveFrameAndRejectOutOfOrderData() {
-        let frame = Data((0..<56).map(UInt8.init))
-        for mtu in [2, 20, 57] {
-            let fragments = BLEFrameCodec.fragments(frame, maximumValueLength: mtu)
-            var codec = BLEFrameCodec()
-            var result: Data?
-            for fragment in fragments {
-                XCTAssertLessThanOrEqual(fragment.count, mtu)
-                result = codec.receive(fragment)
-            }
-            XCTAssertEqual(result, frame)
-        }
-        var codec = BLEFrameCodec()
-        let fragments = BLEFrameCodec.fragments(frame, maximumValueLength: 20)
-        XCTAssertNil(codec.receive(fragments[1]))
-        XCTAssertNil(codec.receive(fragments[0]))
-        XCTAssertNil(codec.receive(fragments[2]))
-        XCTAssertTrue(BLEFrameCodec.fragments(frame, maximumValueLength: 1).isEmpty)
+    func testWiFiAwareLinkHelloPreservesRelayPolicyAndChoosesOneDirection() throws {
+        let local = WiFiAwareLinkHello(attemptOrder: UUID(), sessionID: 0xABCDEF, initials: "A1Z", relayEnabled: false)
+        let sameGroup = WiFiAwareLinkHello(attemptOrder: UUID(), sessionID: local.sessionID, initials: "B2", relayEnabled: true)
+        let stranger = WiFiAwareLinkHello(attemptOrder: UUID(), sessionID: 0x123456, initials: "A1Z", relayEnabled: true)
+
+        let encoded = try local.encode()
+        XCTAssertEqual(encoded.count, WiFiAwareLinkHello.byteCount)
+        let decoded = try WiFiAwareLinkHello.decode(encoded)
+        XCTAssertEqual(decoded.attemptOrder, local.attemptOrder)
+        XCTAssertEqual(decoded.sessionID, local.sessionID)
+        XCTAssertEqual(decoded.initials, local.initials)
+        XCTAssertFalse(decoded.relayEnabled)
+        XCTAssertTrue(decoded.permitsLink(to: sameGroup))
+        XCTAssertFalse(decoded.permitsLink(to: stranger))
+        XCTAssertTrue(sameGroup.permitsLink(to: stranger))
+        XCTAssertNotEqual(decoded.prefersOutbound(to: sameGroup), sameGroup.prefersOutbound(to: decoded))
+        XCTAssertThrowsError(try WiFiAwareLinkHello.decode(encoded.dropLast()))
+    }
+
+    func testTCPFramingPreservesSplitAndCombinedMeshPackets() throws {
+        let first = try wire(type: .locationPing, sequence: 1)
+        let second = try wire(type: .chatMessage, sequence: 2)
+        let framer = StreamMessageFramer()
+        let split = 20
+        XCTAssertTrue(try framer.processIncomingChunk(first.prefix(split)).isEmpty)
+        XCTAssertEqual(try framer.processIncomingChunk(first.dropFirst(split) + second), [first, second])
+    }
+
+    func testRelaySendRetryWaitsForBackoffAndStopsOnOptOut() async throws {
+        let transport = PeerTransportService()
+        _ = await transport.beginPacketLogTestSession()
+        let item = OutboxItem(packetData: try wire(type: .sos, sequence: 1),
+            packetType: .sos, destinationPeerId: "aware-42", isUrgent: true, isRelay: true)
+
+        let scheduled = await transport.scheduleRelayRetryForTest(item)
+        XCTAssertTrue(scheduled)
+
+        await transport.setRelayParticipation(enabled: false)
+        let awaitingRetry = await transport.outboxRetries.isEmpty
+        let depth = await transport.queueDepth()
+        XCTAssertTrue(awaitingRetry)
+        XCTAssertEqual(depth.urgentCount, 0)
+        await transport.stop()
     }
 
     func testCarryRetriesSlowDownAndDuplicateDoesNotExtendRetention() throws {
@@ -330,6 +357,11 @@ final class NetworkMigrationTests: XCTestCase {
 }
 
 private extension PeerTransportService {
+    func scheduleRelayRetryForTest(_ item: OutboxItem) -> Bool {
+        handleSendError(TransportError.sendFailed("Test failure"), outboxItem: item)
+        return outboxRetries[item.id] != nil && outbox.isEmpty
+    }
+
     func beginPacketLogTestSession() -> UUID {
         activeSession = GroupSession(sessionId: 0x1234, localInitials: "TST")
         return radioGeneration
@@ -365,7 +397,7 @@ private actor NetworkTestTransport: PeerTransport, MeshTransport {
     func setRelayParticipation(enabled: Bool) async {}
     func isRelayPermitted() async -> Bool { false }
     func getDiagnostics() async -> TransportDiagnostics {
-        TransportDiagnostics(localPeerId: "test", serviceType: "_teekum._tcp", sessionName: "Test",
+        TransportDiagnostics(localPeerId: "test", serviceType: "_meepo-mesh._tcp", sessionName: "Test",
             sessionId: 0x1234, state: .stopped, activeDirectPeers: [], packetsSent: 0, packetsReceived: 0,
             obsoletePingsCoalesced: 0, sendErrors: 0, lastError: nil, recentEvents: [])
     }

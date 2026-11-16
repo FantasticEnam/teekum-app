@@ -7,286 +7,158 @@
 
 import Foundation
 import Network
-
-// MARK: - Bonjour Discovery, Advertising & Tie-Breaking
+import WiFiAware
 
 extension PeerTransportService {
-    
-    // MARK: - Network Parameters
-    
-    func createParameters() -> NWParameters {
-        let params: NWParameters
-        if isUDP {
-            params = NWParameters.udp
-        } else {
-            let tcpOptions = NWProtocolTCP.Options()
-            tcpOptions.enableKeepalive = true
-            tcpOptions.keepaliveIdle = 5
-            tcpOptions.keepaliveInterval = 2
-            tcpOptions.keepaliveCount = 3
-            params = NWParameters(tls: nil, tcp: tcpOptions)
-        }
-        params.includePeerToPeer = true
-        return params
-    }
-    
-    // MARK: - Bonjour Listener & Browser Setup
-    
-    func startListener() throws {
-        guard let session = activeSession else { return }
-        
-        let params = createParameters()
-        let newListener = try NWListener(using: params)
-        
-        // Encode metadata in Bonjour TXT record
-        var txtDict: [String: Data] = [:]
-        txtDict["sid"] = PacketConstants.formatSessionId(session.sessionId).data(using: .utf8)
-        txtDict["name"] = session.localMemberName.data(using: .utf8)
-        txtDict["relay"] = (isRelayEnabled ? "1" : "0").data(using: .utf8)
-        let txtData = NetService.data(fromTXTRecord: txtDict)
-        
-        newListener.service = NWListener.Service(
-            name: localPeerId,
-            type: serviceType,
-            domain: nil,
-            txtRecord: txtData
-        )
-        
-        let generation = radioGeneration
-        newListener.stateUpdateHandler = { [weak self] state in
-            Task {
-                guard await self?.isCurrentGeneration(generation) == true else { return }
-                await self?.handleListenerState(state)
+    func observePairedDevices(publish: WAPublishableService, subscribe: WASubscribableService, generation: UUID) async {
+        while !Task.isCancelled && isCurrentGeneration(generation) {
+            do {
+                for try await devices in WAPairedDevice.allDevices {
+                    guard !Task.isCancelled, isCurrentGeneration(generation) else { return }
+                    await updatePairedDevices(devices, publish: publish, subscribe: subscribe, generation: generation)
+                }
+            } catch {
+                guard !Task.isCancelled, isCurrentGeneration(generation) else { return }
+                reportRadioFailure(.connectionFailed("Could not read paired iPhones: \(error.localizedDescription)"))
             }
-        }
-        
-        newListener.newConnectionHandler = { [weak self] connection in
-            Task {
-                guard await self?.isCurrentGeneration(generation) == true else { connection.cancel(); return }
-                await self?.handleIncomingConnection(connection)
-            }
-        }
-        
-        newListener.start(queue: dispatchQueue)
-        self.listener = newListener
-    }
-    
-    func startBrowser() throws {
-        let params = createParameters()
-        let descriptor = NWBrowser.Descriptor.bonjourWithTXTRecord(type: serviceType, domain: nil)
-        let newBrowser = NWBrowser(for: descriptor, using: params)
-        
-        let generation = radioGeneration
-        newBrowser.stateUpdateHandler = { [weak self] state in
-            Task {
-                guard await self?.isCurrentGeneration(generation) == true else { return }
-                await self?.handleBrowserState(state)
-            }
-        }
-        
-        newBrowser.browseResultsChangedHandler = { [weak self] results, changes in
-            Task {
-                guard await self?.isCurrentGeneration(generation) == true else { return }
-                await self?.handleBrowseResults(results, changes: changes)
-            }
-        }
-        
-        newBrowser.start(queue: dispatchQueue)
-        self.browser = newBrowser
-    }
-    
-    // MARK: - State Handlers
-    
-    func restartListener(generation: UUID) {
-        guard isCurrentGeneration(generation), currentState != .stopped else { return }
-        listener?.cancel()
-        listener = nil
-        do {
-            try startListener()
-            logEvent("NWListener successfully restarted.", level: .info)
-        } catch {
-            logEvent("NWListener restart failed: \(error.localizedDescription)", level: .error)
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
         }
     }
-    
-    func restartBrowser(generation: UUID) {
-        guard isCurrentGeneration(generation), currentState != .stopped else { return }
-        browser?.cancel()
-        browser = nil
-        do {
-            try startBrowser()
-            logEvent("NWBrowser successfully restarted.", level: .info)
-        } catch {
-            logEvent("NWBrowser restart failed: \(error.localizedDescription)", level: .error)
+
+    func updatePairedDevices(
+        _ devices: WAPairedDevice.Devices,
+        publish: WAPublishableService,
+        subscribe: WASubscribableService,
+        generation: UUID
+    ) async {
+        guard isCurrentGeneration(generation) else { return }
+        let ids = Set(devices.keys)
+        guard ids != pairedDeviceIDs else { return }
+        pairedDeviceIDs = ids
+        let discovery = UUID()
+        discoveryGeneration = discovery
+        let oldDiscovery = discoveryTask
+        oldDiscovery?.cancel()
+        discoveryTask = nil
+        discoveredEndpoints.removeAll()
+        nextDial = nextDial.filter { ids.contains($0.key) }
+        for (id, token) in dialAttempts where !ids.contains(id) { linkTasks[token]?.cancel() }
+        for peer in connections.values where !ids.contains(peer.deviceID) { linkTasks[peer.token]?.cancel() }
+        await oldDiscovery?.value
+        guard isCurrentGeneration(generation), !Task.isCancelled, !ids.isEmpty else { return }
+        logEvent("Wi-Fi Aware discovery scheduled for \(ids.count) paired devices.", level: .info)
+
+        discoveryTask = Task { [weak self] in
+            await withTaskGroup(of: Void.self) { tasks in
+                tasks.addTask { [weak self] in
+                    await self?.listen(publish, devices: devices, generation: generation, discovery: discovery)
+                }
+                tasks.addTask { [weak self] in
+                    await self?.browse(subscribe, devices: devices, generation: generation, discovery: discovery)
+                }
+            }
         }
     }
-    
-    func handleListenerState(_ state: NWListener.State) {
-        switch state {
-        case .ready:
-            logEvent("NWListener ready on AWDL interface.", level: .info)
-        case let .failed(error):
-            let err = TransportError.listenerFailed(error.localizedDescription)
-            logEvent("NWListener failed: \(error)", level: .error)
-            if activeSession != nil, currentState != .stopped {
-                logEvent("NWListener failed during active session, scheduling recovery restart...", level: .warning)
-                let generation = radioGeneration
-                listenerRecoveryTask?.cancel()
-                listenerRecoveryTask = Task { [weak self] in
-                    do { try await Task.sleep(for: .seconds(1)) } catch { return }
-                    await self?.restartListener(generation: generation)
+
+    private func listen(
+        _ service: WAPublishableService,
+        devices: WAPairedDevice.Devices,
+        generation: UUID,
+        discovery: UUID
+    ) async {
+        while !Task.isCancelled && isCurrentGeneration(generation) && discovery == discoveryGeneration {
+            do {
+                let listener = try NetworkListener(
+                    for: .wifiAware(.connecting(to: service, from: .selected(devices))),
+                    using: tcpParameters()
+                )
+                listener.onStateUpdate { [weak self] _, state in
+                    guard case .waiting(let error) = state else { return }
+                    Task { await self?.reportDiscoveryIssue(.listenerFailed(error.localizedDescription), generation: generation, discovery: discovery) }
                 }
-            } else {
-                updateState(.failed(err))
-                transportErrorsContinuation?.yield(err)
-            }
-        case .cancelled:
-            logEvent("NWListener cancelled.", level: .info)
-        default:
-            break
-        }
-    }
-    
-    func handleBrowserState(_ state: NWBrowser.State) {
-        switch state {
-        case .ready:
-            logEvent("NWBrowser scanning for Bonjour service '\(serviceType)'.", level: .info)
-        case let .failed(error):
-            let err = TransportError.browserFailed(error.localizedDescription)
-            logEvent("NWBrowser failed: \(error)", level: .error)
-            if activeSession != nil, currentState != .stopped {
-                logEvent("NWBrowser failed during active session, scheduling recovery restart...", level: .warning)
-                let generation = radioGeneration
-                browserRecoveryTask?.cancel()
-                browserRecoveryTask = Task { [weak self] in
-                    do { try await Task.sleep(for: .seconds(1)) } catch { return }
-                    await self?.restartBrowser(generation: generation)
-                }
-            } else {
-                updateState(.failed(err))
-                transportErrorsContinuation?.yield(err)
-            }
-        case .cancelled:
-            logEvent("NWBrowser cancelled.", level: .info)
-        default:
-            break
-        }
-    }
-    
-    // MARK: - Discovery & Tie-Breaking
-    
-    func handleBrowseResults(_ results: Set<NWBrowser.Result>, changes: Set<NWBrowser.Result.Change>) {
-        guard let session = activeSession else { return }
-        latestBrowseResults = results
-        
-        var currentDiscovered: [String: (endpoint: NWEndpoint, displayName: String?, isGroup: Bool)] = [:]
-        
-        for result in results {
-            guard case let .service(name, _, _, _) = result.endpoint else { continue }
-            let remotePeerId = name
-            
-            // 1. Prevent connecting to self or loopback ghosts from previous session
-            guard remotePeerId != localPeerId, !remotePeerId.starts(with: localPeerId) else { continue }
-            
-            // 2. Check session ID from TXT record if present
-            var remoteName: String?
-            var isGroup = false
-            var isRemoteRelayEnabled = true // default true for backwards compatibility
-            if case let .bonjour(txtRecord) = result.metadata {
-                if let sidStr = txtRecord.dictionary["sid"],
-                   let advertisedSid = UInt32(sidStr, radix: 16),
-                   PacketConstants.isValidSessionId(advertisedSid) {
-                    isGroup = (advertisedSid == (session.sessionId & PacketConstants.sessionIdMask))
-                }
-                if let name = txtRecord.dictionary["name"] {
-                    remoteName = name
-                }
-                if let relayStr = txtRecord.dictionary["relay"] {
-                    isRemoteRelayEnabled = (relayStr == "1")
-                }
-            }
-            
-            // If communal relaying is disabled locally, or remote stranger has relay disabled, do not peer
-            if !isGroup {
-                guard isRelayEnabled && isRemoteRelayEnabled else {
-                    continue
-                }
-            }
-            
-            currentDiscovered[remotePeerId] = (result.endpoint, remoteName, isGroup)
-        }
-        
-        self.discoveredEndpoints = currentDiscovered
-        
-        // Evaluate connection initiation for discovered peers
-        for (remotePeerId, info) in currentDiscovered {
-            // Check if connection already exists
-            if let existing = connections[remotePeerId] {
-                if existing.isReady {
-                    continue // Connection is already established and healthy
-                }
-            }
-            
-            // Reconcile pre-discovery inbound link if it arrived before NWBrowser completed
-            if localPeerId > remotePeerId {
-                if let inboundEntry = connections.first(where: { $0.key.starts(with: "inbound-") }) {
-                    let inboundConn = inboundEntry.value
-                    connections.removeValue(forKey: inboundEntry.key)
-                    inboundConn.peerId = remotePeerId
-                    inboundConn.displayName = info.displayName ?? "Peer-\(remotePeerId.prefix(3))"
-                    inboundConn.isGroupMember = info.isGroup
-                    connections[remotePeerId] = inboundConn
-                    logEvent("Matched pre-discovery inbound link to peer \(remotePeerId) (group: \(info.isGroup)).", level: .info)
-                    
-                    Task {
-                        await neighborTable.registerOrUpdateNeighbor(
-                            id: remotePeerId,
-                            displayName: inboundConn.displayName,
-                            state: inboundConn.isReady ? .connected : .connecting,
-                            rssi: nil,
-                            isGroupMember: info.isGroup,
-                            capabilities: inboundConn.capabilities
-                        )
+                try await listener.run { [weak self] connection in
+                    guard let task = await self?.attachIncoming(connection, generation: generation, discovery: discovery) else { return }
+                    await withTaskCancellationHandler {
+                        await task.value
+                    } onCancel: {
+                        task.cancel()
                     }
-                    emitPeerUpdates()
-                    continue
                 }
+            } catch {
+                guard !Task.isCancelled, isCurrentGeneration(generation), discovery == discoveryGeneration else { return }
+                reportRadioFailure(.listenerFailed(error.localizedDescription))
             }
-            
-            // Deterministic Tie-Breaking:
-            // The peer with the smaller peerId initiates the outbound connection.
-            // The peer with the larger peerId waits for the incoming connection.
-            if localPeerId < remotePeerId {
-                logEvent("Discovered peer \(remotePeerId) (Initiator role: local < remote, group: \(info.isGroup)). Connecting...", level: .info)
-                initiateOutboundConnection(to: info.endpoint, peerId: remotePeerId, displayName: info.displayName, isGroupMember: info.isGroup)
-            } else {
-                logEvent("Discovered peer \(remotePeerId) (Listener role: local > remote, group: \(info.isGroup)). Awaiting incoming link.", level: .info)
-                // Schedule fallback connection in case remote is delayed
-                scheduleFallbackConnection(to: info.endpoint, peerId: remotePeerId, displayName: info.displayName, isGroupMember: info.isGroup)
-            }
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
         }
     }
-    
-    func scheduleFallbackConnection(to endpoint: NWEndpoint, peerId: String, displayName: String?, isGroupMember: Bool) {
-        let generation = radioGeneration
-        fallbackTasks[peerId]?.cancel()
-        fallbackTasks[peerId] = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(3.5)) } catch { return }
-            await self?.checkAndFallbackConnect(to: endpoint, peerId: peerId, displayName: displayName,
-                isGroupMember: isGroupMember, generation: generation)
+
+    private func browse(
+        _ service: WASubscribableService,
+        devices: WAPairedDevice.Devices,
+        generation: UUID,
+        discovery: UUID
+    ) async {
+        while !Task.isCancelled && isCurrentGeneration(generation) && discovery == discoveryGeneration {
+            do {
+                let browser = NetworkBrowser(for: .wifiAware(.connecting(to: .selected(devices), from: service)))
+                browser.onStateUpdate { [weak self] _, state in
+                    guard case .waiting(let error) = state else { return }
+                    Task { await self?.reportDiscoveryIssue(.browserFailed(error.localizedDescription), generation: generation, discovery: discovery) }
+                }
+                try await browser.run { [weak self] endpoints in
+                    await self?.updateBrowseResults(endpoints, generation: generation, discovery: discovery)
+                }
+            } catch {
+                guard !Task.isCancelled, isCurrentGeneration(generation), discovery == discoveryGeneration else { return }
+                reportRadioFailure(.browserFailed(error.localizedDescription))
+            }
+            guard isCurrentGeneration(generation), discovery == discoveryGeneration else { return }
+            discoveredEndpoints.removeAll()
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
         }
     }
-    
-    func checkAndFallbackConnect(to endpoint: NWEndpoint, peerId: String, displayName: String?, isGroupMember: Bool, generation: UUID) {
-        guard isCurrentGeneration(generation), currentState != .stopped else { return }
-        fallbackTasks.removeValue(forKey: peerId)
-        guard discoveredEndpoints[peerId] != nil else { return }
-        
-        if let conn = connections[peerId], conn.isReady {
-            return // Successfully connected in the meantime
+
+    private func updateBrowseResults(_ endpoints: [WAEndpoint], generation: UUID, discovery: UUID) {
+        guard isCurrentGeneration(generation), discovery == discoveryGeneration, !Task.isCancelled else { return }
+        discoveredEndpoints = Dictionary(
+            endpoints.lazy.filter { self.pairedDeviceIDs.contains($0.device.id) }.map { ($0.device.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        connectDiscoveredPeers(generation: generation)
+    }
+
+    func connectDiscoveredPeers(generation: UUID) {
+        guard isCurrentGeneration(generation), !Task.isCancelled else { return }
+        let attached = Set(connections.values.map(\.deviceID))
+        let now = ContinuousClock.now
+        for (id, endpoint) in discoveredEndpoints where !attached.contains(id) && dialAttempts[id] == nil {
+            guard nextDial[id].map({ $0 <= now }) ?? true else { continue }
+            let token = UUID()
+            dialAttempts[id] = token
+            let connection = NetworkConnection(to: endpoint, using: tcpParameters())
+            attach(connection, token: token, dialedDeviceID: id, generation: generation)
         }
-        
-        logEvent("Fallback connection trigger for peer \(peerId). Initiating outbound link.", level: .info)
-        initiateOutboundConnection(to: endpoint, peerId: peerId, displayName: displayName, isGroupMember: isGroupMember)
+    }
+
+    private func attachIncoming(
+        _ connection: NetworkConnection<TCP>,
+        generation: UUID,
+        discovery: UUID
+    ) -> Task<Void, Never>? {
+        guard isCurrentGeneration(generation), discovery == discoveryGeneration, !Task.isCancelled else { return nil }
+        return attach(connection, token: UUID(), dialedDeviceID: nil, generation: generation)
+    }
+
+    private func tcpParameters() -> NWParametersBuilder<TCP> {
+        .parameters {
+            TCP().noDelay(true).keepalive(idleTimeInSeconds: 5, count: 3, intervalInSeconds: 2)
+                .connectionTimeout(6).retransmitConnectionDropTime(6)
+        }.wifiAware { $0.performanceMode = .bulk }
+    }
+
+    private func reportDiscoveryIssue(_ error: TransportError, generation: UUID, discovery: UUID) {
+        guard isCurrentGeneration(generation), discovery == discoveryGeneration,
+              lastErrorMessage != error.localizedDescription else { return }
+        reportRadioFailure(error)
     }
 }

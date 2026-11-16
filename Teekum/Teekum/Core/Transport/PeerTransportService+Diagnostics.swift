@@ -6,35 +6,37 @@
 //
 
 import Foundation
+import Network
+import WiFiAware
 
 // MARK: - Link Metrics & Diagnostic Telemetry
 
 extension PeerTransportService {
     
-    /// Current view of directly reachable neighbors from NeighborTable.
+    /// Forward using live links so a newly ready peer is immediately available to the router.
     public func activeNeighbors() async -> [NeighborInfo] {
-        // Forward using live links, not the asynchronously updated telemetry registry.
-        // BLE and newly ready Wi-Fi links must be available to the router immediately.
-        let wifi = connections.values.filter { $0.isReady }.map {
+        connections.values.filter(\.isReady).map {
             NeighborInfo(id: $0.peerId, displayName: $0.displayName, state: .connected,
                 rssi: nil, lastSeen: $0.lastSeen, roundTripTimeMs: nil,
-                isGroupMember: $0.isGroupMember, capabilities: $0.capabilities)
-        }
-        return wifi + blePeers.map {
-            NeighborInfo(id: $0, displayName: "Bluetooth peer", state: .connected,
-                rssi: nil, lastSeen: Date(), roundTripTimeMs: nil,
-                isGroupMember: false, capabilities: .standardMesh)
+                isGroupMember: $0.isGroupMember, capabilities: .standardMesh)
         }
     }
-    
+
     /// Returns the number of direct peer connections currently established and operational.
     public func activeDirectPeerCount() async -> Int {
-        connections.values.filter { $0.isReady }.count + blePeers.count
+        connections.values.count(where: \.isReady)
     }
     
     /// Captures a live diagnostic snapshot of radio telemetry.
     public func getDiagnostics() async -> TransportDiagnostics {
-        let activePeers = connections.values.map { peer in
+        let links = connections.values.filter(\.isReady).map { ($0.peerId, $0.token, $0.connection.currentPath) }
+        var signalStrengthByPeer: [String: Double] = [:]
+        for (peerID, token, path) in links {
+            guard let strength = try? await path?.wifiAware?.performance.signalStrength,
+                  connections[peerID]?.token == token, (0...1).contains(strength) else { continue }
+            signalStrengthByPeer[peerID] = strength
+        }
+        let activePeers = connections.values.filter(\.isReady).map { peer in
             PeerInfo(
                 id: peer.peerId,
                 displayName: peer.displayName,
@@ -46,12 +48,14 @@ extension PeerTransportService {
         }
         
         return TransportDiagnostics(
-            localPeerId: localPeerId,
+            localPeerId: activeSession?.localInitials ?? "",
             serviceType: serviceType,
             sessionName: activeSession?.sessionName ?? "None",
             sessionId: activeSession?.sessionId ?? 0,
             state: currentState,
-            activeDirectPeers: activePeers + blePeers.map { PeerInfo(id: $0, displayName: "Bluetooth peer", isGroupMember: false) },
+            activeDirectPeers: activePeers,
+            signalStrengthByPeer: signalStrengthByPeer,
+            pairedDeviceCount: pairedDeviceIDs.count,
             packetsSent: packetsSentCount,
             packetsReceived: packetsReceivedCount,
             obsoletePingsCoalesced: outbox.obsoletePingsCoalesced,

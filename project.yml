@@ -25,8 +25,14 @@ targets:
     info:
       path: Config/Info.plist
       properties:
-        NSBonjourServices: ["_teekum._tcp", "_teekum._udp"]
-        UIBackgroundModes: [location, bluetooth-central, bluetooth-peripheral]
+        WiFiAwareServices:
+          _meepo-mesh._tcp:
+            Publishable: {}
+            Subscribable: {}
+          _meepo-pair._tcp:
+            Publishable: {}
+            Subscribable: {}
+        UIBackgroundModes: [location]
         NSSupportsLiveActivities: true
         CFBundleURLTypes:
           - CFBundleURLName: com.fantasticenam.meepo
@@ -37,12 +43,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo
+        CODE_SIGN_ENTITLEMENTS: Config/Meepo.entitlements
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_NSCameraUsageDescription: "Use the camera to preview a group QR code when joining a group."
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Show your location on the map when choosing a group meeting point."
         INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "Share your location with your group during an active session."
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Discover nearby phones and exchange encrypted group messages without internet."
-        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "Exchange encrypted messages with nearby phones without internet."
         INFOPLIST_KEY_NSMotionUsageDescription: "Adjust location updates to your movement and monitor inactivity when you choose to enable it."
         INFOPLIST_KEY_CFBundleDisplayName: Meepo
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES

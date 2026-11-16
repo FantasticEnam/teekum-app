@@ -8,7 +8,7 @@
 import Foundation
 
 /// Manages chunk buffering, frame delimitation, and stream resynchronization for stream-based
-/// peer-to-peer connections (such as TCP over AWDL / Wi-Fi Direct).
+/// peer-to-peer connections (such as TCP over Wi-Fi Aware).
 ///
 /// Because stream transports do not guarantee packet boundaries, a single read may deliver:
 /// 1. A partial 56-byte packet (e.g. 20 bytes).
@@ -37,7 +37,7 @@ public final class StreamMessageFramer: @unchecked Sendable {
     /// Ingests a raw byte chunk from a stream read, buffers partial packets, and returns
     /// all extracted, valid 56-byte binary wire frames.
     ///
-    /// - Parameter chunk: The newly received bytes from `NWConnection.receive`.
+    /// - Parameter chunk: The bytes received from a TCP read.
     /// - Returns: An array of complete 56-byte packet data buffers ready for protocol decoding.
     /// - Throws: `TransportError` if the buffer overflows or encounters unrecoverable corruption.
     public func processIncomingChunk(_ chunk: Data) throws -> [Data] {

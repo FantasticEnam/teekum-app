@@ -35,7 +35,7 @@ Member slots are eight bits derived from initials. Devices may share a slot, esp
 
 ## Authentication, replay and relaying
 
-- A valid group tag proves possession of the shared key. It does not prove individual identity. SID and Bonjour membership are hints, not authentication. Cleartext headers, packet timing and peer discovery metadata remain visible.
+- A valid group tag proves possession of the shared key. It does not prove individual identity. The Wi‑Fi Aware transport preface supplies an advisory SID and initials for link selection. Meepo authenticates packet contents with the group key. A paired link peer can inspect the preface, cleartext packet headers and packet timing.
 - Hop count is mutable. The tag cannot establish the actual distance or prevent a forwarder from changing hop count. Budget, hop and dedup rules are separate controls.
 - Own-group content is authenticated before shared state, chat/SOS alerts or ACKs. Chat and ACK have a 600-second age bound; duplicates of authenticated chat/SOS can re-ACK without a second presentation. Location updates keep the original measurement time; an older measurement cannot replace a newer one.
 - An SOS measurement timestamp is not the send time. Epoch/255 accuracy denotes the no-GPS fallback and still produces a receiver alert; the UI does not plot that fallback as a location.

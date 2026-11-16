@@ -8,32 +8,6 @@
 import Foundation
 
 extension PeerTransportService {
-    func updateBLEPeers(_ peers: [String], generation: UUID) async {
-        guard generation == radioGeneration, activeSession != nil else { return }
-        for peer in blePeers where !peers.contains(peer) {
-            carryStore.disconnected(peer)
-            await neighborTable.removeNeighbor(peerId: peer)
-            guard isCurrentGeneration(generation) else { return }
-        }
-        blePeers = peers
-        for peer in peers {
-            await neighborTable.registerOrUpdateNeighbor(id: peer, displayName: "Bluetooth peer", state: .connected,
-                rssi: nil, isGroupMember: false, capabilities: .standardMesh)
-            guard isCurrentGeneration(generation) else { return }
-        }
-        refreshConnectionState()
-        emitPeerUpdates()
-    }
-
-    func receiveBLE(_ data: Data, from peer: String, generation: UUID) {
-        guard generation == radioGeneration, activeSession != nil,
-              let packet = try? RawWirePacket.fromWireData(data) else { return }
-        packetsReceivedCount += 1
-        recordPacket(packet.envelope, direction: .received, peerId: peer)
-        inboundContinuation?.yield(InboundPacket(rawPacket: packet, sourcePeerId: peer))
-        inboundFrameContinuation?.yield(InboundFrame(rawData: data, rawPacket: packet, sourcePeerId: peer))
-    }
-
     public func retainReceivedForCarry(_ packet: RawWirePacket, excludingPeerId: String? = nil) {
         guard activeSession != nil,
               packet.envelope.hopCount < packet.envelope.hopLimit else { return }
@@ -55,7 +29,7 @@ extension PeerTransportService {
 
     func replayCarriedMessage() async {
         guard carryPowerPermitted, activeSession != nil, currentState != .stopped else { return }
-        let peers = (connections.values.filter { $0.isReady }.map(\.peerId) + blePeers).sorted()
+        let peers = connections.values.filter(\.isReady).map(\.peerId).sorted()
         let generation = radioGeneration
         guard carryStore.nextTransmission(to: peers) != nil,
               await rateLimiter.consumeOrdinaryToken(), activeSession != nil,

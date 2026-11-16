@@ -12,10 +12,10 @@ public struct TransportCapabilities: OptionSet, Sendable, Equatable, Hashable {
     public let rawValue: UInt8
     public init(rawValue: UInt8) { self.rawValue = rawValue }
     
-    public static let awdlDirect  = TransportCapabilities(rawValue: 1 << 0)
-    public static let bleDirect   = TransportCapabilities(rawValue: 1 << 1)
     public static let relayOpaque = TransportCapabilities(rawValue: 1 << 2)
     public static let urgentSOS   = TransportCapabilities(rawValue: 1 << 3)
     
-    public static let standardMesh: TransportCapabilities = [.awdlDirect, .relayOpaque, .urgentSOS]
+    public static let wifiAwareDirect = TransportCapabilities(rawValue: 1 << 4)
+
+    public static let standardMesh: TransportCapabilities = [.wifiAwareDirect, .relayOpaque, .urgentSOS]
 }

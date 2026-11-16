@@ -20,13 +20,13 @@ Meepo supports initial communication at a disaster relief post while internet or
 | SwiftUI / Observation | `App`, `Features` and `Shared/UI` render and observe session/feature state. |
 | MapKit | `Features/MeetingPoint/Views/Components/MapLayerView.swift` draws the map and meeting pin. Offline map availability needs device evidence. |
 | AVFoundation / UIKit | Pairing's `QRScannerService` and camera preview handle QR scanning. |
-| Network / CoreBluetooth | `Core/Transport` manages Bonjour TCP and BLE. [Networking](NETWORKING.md) |
+| WiFiAware / Network / DeviceDiscoveryUI | `Core/Transport` manages Wi‑Fi Aware TCP links. Group Settings presents system pairing. [Networking](NETWORKING.md) |
 | CryptoKit / Security | `Core/Security` seals/opens payloads, stores session keys and reserves outgoing sequence numbers. [Protocol specification](PROTOCOL_SPECIFICATION.md) |
 | CoreLocation / CoreMotion | `Core/Location` collects location/heading. `Features/SOS/Services/InactivityGuardService.swift` owns the opt-in inactivity timer. |
 | AudioToolbox / UIKit / UserNotifications | SOS audio and haptics run while the app is active. Local notifications handle alerts when iOS permits background reception. |
 | ActivityKit / WidgetKit | `Core/LiveActivity` manages the activity. `TeekumWidgets` renders Lock Screen and Dynamic Island updates for group, chat, and SOS status. |
 
-`project.yml` declares the app, widget and XCTest targets, privacy strings, Bonjour, URL handling, and background modes for location and Bluetooth central/peripheral. The app uses no external Swift dependencies.
+`project.yml` declares the app, widget and XCTest targets, privacy strings, the Wi‑Fi Aware service and signing entitlement, URL handling, and background location mode. The app uses no external Swift dependencies.
 
 ## 3. Architecture — MVVM Feature-Driven
 
@@ -53,7 +53,7 @@ Teekum/Teekum/
 │   ├── Session/       Identity, roster, shared meeting state and recovery
 │   ├── Location/      Sensor samples, adaptive cadence and publishing
 │   ├── Packets/       Wire envelope, wire frame and Payloads/
-│   ├── Transport/     Bonjour, TCP/BLE, framing, queue and carry
+│   ├── Transport/     Wi-Fi Aware TCP, framing, queue and carry
 │   ├── Mesh/          Packet dispatch and dedup, with Routing/ and Relay/
 │   ├── Security/      Crypto, Keychain and sequence allocation
 │   ├── Notifications/
@@ -78,7 +78,8 @@ Start at the entry point for a screen or action. Follow the owner column when ch
 | Send chat and track recipient ACK | [ChatSheetView](../Teekum/Teekum/Features/Chat/Views/ChatSheetView.swift) | [ChatViewModel](../Teekum/Teekum/Features/Chat/ViewModels/ChatViewModel.swift), [ChatMessageEngine](../Teekum/Teekum/Features/Chat/Services/ChatMessageEngine.swift) and its inbound/outbound/delivery extensions |
 | SOS swipe, receiver alert, sound/haptics and retry | [SOSSwipeButtonView](../Teekum/Teekum/Features/SOS/Views/SOSSwipeButtonView.swift), [IncomingSOSAlertBannerView](../Teekum/Teekum/Features/SOS/Views/IncomingSOSAlertBannerView.swift) | [SOSViewModel](../Teekum/Teekum/Features/SOS/ViewModels/SOSViewModel.swift), [SOSForwardingEngine](../Teekum/Teekum/Features/SOS/Services/SOSForwardingEngine.swift), [DefaultSOSAudioAlerter](../Teekum/Teekum/Features/SOS/Services/DefaultSOSAudioAlerter.swift) |
 | Inactivity opt-in and countdown | [InactivitySettingsView](../Teekum/Teekum/Features/SOS/Views/InactivitySettingsView.swift), [InactivityWarningView](../Teekum/Teekum/Features/SOS/Views/InactivityWarningView.swift) | [InactivityGuardService](../Teekum/Teekum/Features/SOS/Services/InactivityGuardService.swift), `SOSViewModel` |
-| Discovery, framing and carry | [PeerTransportService](../Teekum/Teekum/Core/Transport/PeerTransportService.swift) | `Core/Transport` owns Wi-Fi/BLE links, framing, priority queue and carry |
+| Nearby pairing | [WiFiAwarePairingSection](../Teekum/Teekum/Features/OrbitMap/Views/WiFiAwarePairingSection.swift) | DeviceDiscoveryUI manages pairing. `PeerTransportService` observes paired devices. |
+| Discovery, framing and carry | [PeerTransportService](../Teekum/Teekum/Core/Transport/PeerTransportService.swift) | `Core/Transport` owns Wi‑Fi Aware links, framing, priority queue and carry |
 | Relay and route discovery | [PacketRouter](../Teekum/Teekum/Core/Mesh/PacketRouter.swift) | [RelayPolicyManager](../Teekum/Teekum/Core/Mesh/Relay/RelayPolicyManager.swift), [RouteDiscoveryService](../Teekum/Teekum/Core/Mesh/Routing/RouteDiscoveryService.swift), [SeenPacketCache](../Teekum/Teekum/Core/Mesh/SeenPacketCache.swift) |
 | Wire bytes, key and sequence | [RawWirePacket](../Teekum/Teekum/Core/Packets/RawWirePacket.swift), [CleartextEnvelope](../Teekum/Teekum/Core/Packets/CleartextEnvelope.swift) | [CryptoService](../Teekum/Teekum/Core/Security/CryptoService.swift), [PacketSequenceAllocator](../Teekum/Teekum/Core/Security/PacketSequenceAllocator.swift) |
 | Connection diagnostics and packet log | [OrbitSettingsView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitSettingsView.swift) | [PeerTransportService+Diagnostics](../Teekum/Teekum/Core/Transport/PeerTransportService+Diagnostics.swift), [TransportDiagnostics](../Teekum/Teekum/Core/Transport/TransportDiagnostics.swift) |
@@ -107,8 +108,8 @@ See the [developer guide](agent.md#4-documentation-and-handoff) for the review h
 ## 4. Verification Plan
 
 - Run XCTest from the `Teekum` scheme with local simulator signing for Keychain access. Coverage includes session recovery, packet encoding and authentication, sequence allocation, framing and relay, Orbit projection, meeting points, chat acknowledgments, and SOS. An existing envelope fixture still expects byte `0x31` while the app emits `0x11`. See [payload encoding](PAYLOAD_GUIDE.md#5-envelope-and-nonce-example) for the current format.
-- Keep UI verification manual. Exercise create/join, restore, location and Orbit, chat, meeting, SOS and leave/rejoin on physical iPhones. Use physical devices for Bonjour/BLE, backgrounding, GPS, Live Activity and notification feedback.
-- Verify the relief-post workflow with three physical iPhones and internet access unavailable. Exercise a direct link, then a path through a relay with the endpoints out of direct reach. Start with roughly 30 m between adjacent phones where conditions allow. Record the actual distances, link conditions, dispatch, and recipient ACK. Repeat with the relay removed and check how the UI reports incomplete delivery. Verify that a receiver's SOS alert clears only after its device receives the sender's resolution.
+- Keep UI verification manual. Exercise create/join, restore, location and Orbit, chat, meeting, SOS and leave/rejoin on physical iPhones. Use physical devices for Wi‑Fi Aware pairing, discovery and reconnect, backgrounding, GPS, Live Activity and notification feedback.
+- Verify the relief-post workflow with three physical iPhones and internet access unavailable. Exercise a direct link, then a path through a relay with the endpoints out of direct reach. Use the [field test](NETWORKING.md#field-test) to compare Wi‑Fi Aware against the baseline and measure practical hop spacing. Record the actual distances, link conditions, dispatch, and recipient ACK. Repeat with the relay removed and check how the UI reports incomplete delivery. Verify that a receiver's SOS alert clears only after its device receives the sender's resolution.
 - Verify QR and pasted invitations separately from opening a shared link directly. The invite parser accepts `meepo://join`, while the generated project registers `teekum` for system URL handling.
 - Record the revision, environment, command and result. Simulator tests establish selected logic contracts. Device runs establish radio and sensor behavior in the tested conditions.
 

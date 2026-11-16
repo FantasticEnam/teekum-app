@@ -5,12 +5,13 @@ Meepo helps relief-post teams, volunteers, and people at the post establish loca
 ## At the Relief Post
 
 1. **Open a local group.** A coordinator uses **Create Group** and shows the group's QR code to people at the post. Participants use **Join Group** to scan the code or paste an invite they already have.
-2. **Share concise updates.** Use Group Chat for information such as `Water at Tent A`, changes to a distribution point, and check-ins such as **I'm safe**. Use a meeting point for a shared destination. Orbit shows directions and distance when location readings are available.
-3. **Request help from the group.** Swipe up on **SOS** to send an alert. **I'll be there!** acknowledges the alert on the receiver's phone. When the sender is safe, **End SOS** sends the update that clears the alert on receiving devices. Use the post's established emergency channels for official response. Meepo's SOS goes to the local group.
+2. **Pair nearby iPhones.** In **Group settings → Nearby device pairing**, choose **Make this iPhone discoverable** on one iPhone and **Find a nearby iPhone** on the other. Select the discoverable iPhone to receive the PIN prompt. Follow the iOS pairing prompts for each pair that needs a direct link.
+3. **Share concise updates.** Use Group Chat for information such as `Water at Tent A`, changes to a distribution point, and check-ins such as **I'm safe**. Use a meeting point for a shared destination. Orbit shows directions and distance when location readings are available.
+4. **Request help from the group.** Swipe up on **SOS** to send an alert. **I'll be there!** acknowledges the alert on the receiver's phone. When the sender is safe, **End SOS** sends the update that clears the alert on receiving devices. Use the post's established emergency channels for official response. Meepo's SOS goes to the local group.
 
 ## How Offline Relay Works
 
-Meepo discovers nearby participating iPhones over local peer-to-peer connections using Bonjour TCP or Bluetooth Low Energy. When a coordinator is beyond direct reach, compatible phones on the path can forward encrypted packets hop by hop. For example, a volunteer at supply distribution can send an update through a nearby relay phone to a coordinator at the relief post.
+Meepo discovers nearby iPhones that have been paired for its Wi‑Fi Aware service and exchanges packets over direct TCP links. When a coordinator is beyond direct reach, compatible phones on the path can forward encrypted packets hop by hop. For example, a volunteer at supply distribution can send an update through a nearby relay phone to a coordinator at the relief post.
 
 ```text
 Supply volunteer ── ≈30 m ── Relay phone ── ≈30 m ── Relief-post coordinator
@@ -71,9 +72,9 @@ open Teekum.xcodeproj
 
 The output is **`Teekum.xcodeproj` at the repository root**. Select the **Teekum** scheme, choose an iPhone simulator running iOS 27+, and press **Run** (`⌘R`). On a fresh install the app opens Pairing. An existing saved group can be restored from device-only Keychain and local metadata.
 
-For a physical device, set your Development Team for **Teekum** and **TeekumWidgets** in Signing & Capabilities, and choose a compatible iPhone. If signing requires a different bundle identifier, adjust `PRODUCT_BUNDLE_IDENTIFIER` through the configuration agreed on by the team.
+For a physical device, set your Development Team for **Teekum** and **TeekumWidgets** in Signing & Capabilities, and choose an iPhone with Wi‑Fi Aware support. The app target needs a development provisioning profile that permits the Wi‑Fi Aware entitlement in [Meepo.entitlements](Config/Meepo.entitlements). If signing requires a different bundle identifier, adjust `PRODUCT_BUNDLE_IDENTIFIER` through the configuration agreed on by the team.
 
-No external Swift packages, CocoaPods or backend credentials are required. The app requests camera, local network, Bluetooth, location, motion and notification permissions as needed.
+No external Swift packages, CocoaPods or backend credentials are required. The app requests camera, local network, location, motion and notification permissions as needed.
 
 ### 4. Regenerate After Configuration Changes
 
@@ -113,7 +114,8 @@ Use the **Teekum** scheme to run XCTest on an iOS simulator. Keep local simulato
 | Development Team/provisioning is missing | Configure signing for physical devices; use a simulator for the initial UI if no team is available. |
 | Swift language version is unsupported | Check the active Xcode/toolchain; the YAML selects Swift 6 language mode. |
 | Configuration changes disappear | Keep shared configuration in `project.yml`, then regenerate. |
-| QR scanning or peer discovery fails | Check the relevant camera, local-network or Bluetooth permission on the iPhone. Use physical phones for radio verification. |
+| QR scanning fails | Check camera permission on the iPhone. |
+| Nearby pairing or discovery fails | Check Wi‑Fi Aware support, app signing, Local Network permission, and the paired and direct-peer counts in Group settings. Use physical phones for radio verification. |
 
 ## Contribution & Verification
 

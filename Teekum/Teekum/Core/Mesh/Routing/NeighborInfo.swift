@@ -9,12 +9,12 @@ import Foundation
 
 public struct NeighborInfo: Sendable, Equatable, Identifiable {
     public let id: String                    // Remote peer identifier (e.g. initials or UUID)
-    public let displayName: String?          // Optional display name from Bonjour TXT
+    public let displayName: String?
     public let state: NeighborState          // Current link status
     public let rssi: Int8?                   // Signal strength in dBm (-30 dBm to -95 dBm)
     public let lastSeen: Date                // Last packet reception timestamp
     public let roundTripTimeMs: Double?      // Estimated latency over link
-    public let isGroupMember: Bool           // True if matches local session ID
+    public let isGroupMember: Bool           // Peer reports the local session ID
     public let capabilities: TransportCapabilities
     
     public init(

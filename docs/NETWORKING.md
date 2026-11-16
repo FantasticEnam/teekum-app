@@ -4,7 +4,7 @@ Meepo uses local radio links to exchange relief-post updates and SOS within a gr
 
 ## Offline relay at a relief post
 
-When two participating iPhones can connect directly, a packet can travel between them in one hop. When a recipient is beyond direct reach, an eligible phone in between can receive the packet and forward it over another active link. Each adjacent pair needs a usable link while that transfer takes place.
+When two participating iPhones can connect directly, a packet can travel between them in one hop. When a recipient is beyond direct reach, an eligible phone in between can receive the packet and forward it over another active link. Each adjacent pair needs iOS Wi‑Fi Aware pairing and a usable link while that transfer takes place.
 
 | Example hop | Route | Illustrative spacing |
 | :--- | :--- | :--- |
@@ -20,7 +20,7 @@ This route can carry a short supply update or a group SOS without internet. Rela
 `TeekumApp` retains `SessionController`. After group acceptance or recovery, the controller starts the location service, feature engines, radio and publisher. Its session task consumes `inboundPackets` once and separately observes peer snapshots and runs power/route maintenance. `PacketRouter` owns app forwarding and calls injected feature handlers; it does not import feature ViewModels. Closing a screen has no effect on the radio session.
 
 ```text
-Bonjour TCP / BLE → framing → SessionController → PacketRouter
+Wi-Fi Aware TCP → framing → SessionController → PacketRouter
                           → accepted telemetry → SessionStore → Orbit / map
                           → chat / SOS / meeting handlers → feature UI
 location / chat / SOS / meeting / routing → sequence + crypto → outbox → radio
@@ -30,10 +30,11 @@ Leave/rejoin stops the router, cancels the session task and probes, stops publis
 
 ## Discovery and framing
 
-- `Core/Transport/PeerTransportService.swift`, `PeerTransportService+Discovery.swift` and `PeerTransportService+Connection.swift` start Bonjour `_teekum._tcp` with peer-to-peer interfaces enabled, TCP keepalive and bounded reconnect. The optional UDP code path exists; the app uses TCP.
-- Bonjour service identity comes from initials; TXT fields contain SID, name and relay participation. Same-SID results are candidates, not authenticated members. Foreign connections depend on the local and advertised remote relay switches.
-- `StreamMessageFramer` extracts fixed 56-byte frames from partial or coalesced TCP reads. `BLEPeerLink` and `BLEFrameCodec` carry the same frame via Bluetooth fragments. Framing validates structure; payload authentication happens after transport. RSSI is unavailable for the exposed links.
-- `project.yml` declares Bonjour, local network, Bluetooth, camera, location, motion, URL scheme and background configuration. Runtime permissions and iOS suspension still apply. This configuration does not guarantee AWDL choice, background delivery, range or battery performance.
+- Group invites establish the Meepo session and group key. **Group settings → Nearby device pairing** uses DeviceDiscoveryUI and the separate `_meepo-pair._tcp` service to pair each pair of iPhones that needs a Wi‑Fi Aware link. This lets the pairing UI publish while the mesh service is active. iOS manages the pairing records across Meepo sessions.
+- `PeerTransportService+Discovery.swift` watches the system's paired devices and publishes and browses `_meepo-mesh._tcp` for that set. Both roles use Wi‑Fi Aware bulk mode. A visible peer with a lost connection is eligible for another dial after a short delay.
+- `WiFiAwareLinkHello` sends a 23-byte TCP preface between paired phones. It contains a version, relay flag, 24-bit SID, two-byte initials, and a random 16-byte token for resolving simultaneous dials. Listings use the SID as a group hint. A link between different SIDs is eligible for traffic when both peers permit relaying. A relay toggle refreshes the preface by reconnecting those links.
+- `StreamMessageFramer` reads the original 56-byte Meepo frames after the preface. PacketRouter and the feature engines continue to apply packet authentication and delivery rules.
+- `project.yml` and `Config/Meepo.entitlements` declare the service and permissions to publish and subscribe. Test the local-network prompt and iOS scheduling on physical devices with a provisioned build.
 
 ## Queue, relay and carry
 
@@ -55,4 +56,11 @@ When a member becomes unreachable, the receiving device shows a **Lost contact**
 
 ## Verification boundary
 
-`OrbitSettingsView` shows the transport snapshot, relay/power state, and the latest 100 packet events for the active session. The log uses header and link metadata and distinguishes packets received with another group ID from relays dispatched on TCP or BLE. A dispatch entry records local link completion and recipient confirmation still uses the protocol ACK. Simulator XCTest covers framing, queue/carry policy, auth boundaries and selected feature behavior. Physical phones are needed to verify radio discovery, multi-hop, reconnect, locked/background behavior, permissions and end-to-end delivery. See [Payload guide](PAYLOAD_GUIDE.md) for wire fields.
+`OrbitSettingsView` shows the paired-device count, connected peers, Wi‑Fi Aware signal strength when available, and the latest 100 packet events for the active session. Signal strength is Apple's normalized 0–100% indicator. A dispatch entry records local link completion. Recipient confirmation still uses the protocol ACK. Simulator XCTest covers preface validation, framing, queue/carry policy, auth boundaries and selected feature behavior. See the [payload guide](PAYLOAD_GUIDE.md) for wire fields.
+
+### Field test
+
+1. Install the same signed build on compatible physical iPhones. Leave Wi‑Fi enabled and run without internet access. Pair two phones at close range. Use **Make this iPhone discoverable** on one phone, then **Find a nearby iPhone** on the other and select the first phone. The PIN appears after selection. Check that both phones report a paired device and a direct peer.
+2. Use the same devices and location as the BLE and peer-to-peer Wi‑Fi baseline. Try 25, 30, 35 and 40 m. Record signal strength where available, chat and SOS delivery, returned ACKs, and whether the phones reconnect when already at the measured distance.
+3. Add a third iPhone. Pair A–B and B–C and keep A and C out of direct reach. Send from A to C through B and verify the ACK at A. Repeat with B on another Meepo group and enable relay participation on the phones to exercise opaque forwarding.
+4. Test a path break and recovery, locked-screen behavior, and battery impact separately. Use measured link conditions when estimating range for a relief post.

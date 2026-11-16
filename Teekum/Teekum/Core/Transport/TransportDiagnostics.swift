@@ -30,6 +30,8 @@ nonisolated public struct TransportDiagnostics: Sendable {
     public let sessionId: UInt32
     public let state: TransportState
     public let activeDirectPeers: [PeerInfo]
+    public let signalStrengthByPeer: [String: Double]
+    public let pairedDeviceCount: Int
     public let packetsSent: Int
     public let packetsReceived: Int
     public let obsoletePingsCoalesced: Int
@@ -45,6 +47,8 @@ nonisolated public struct TransportDiagnostics: Sendable {
         sessionId: UInt32,
         state: TransportState,
         activeDirectPeers: [PeerInfo],
+        signalStrengthByPeer: [String: Double] = [:],
+        pairedDeviceCount: Int = 0,
         packetsSent: Int,
         packetsReceived: Int,
         obsoletePingsCoalesced: Int,
@@ -59,6 +63,8 @@ nonisolated public struct TransportDiagnostics: Sendable {
         self.sessionId = sessionId
         self.state = state
         self.activeDirectPeers = activeDirectPeers
+        self.signalStrengthByPeer = signalStrengthByPeer
+        self.pairedDeviceCount = pairedDeviceCount
         self.packetsSent = packetsSent
         self.packetsReceived = packetsReceived
         self.obsoletePingsCoalesced = obsoletePingsCoalesced
