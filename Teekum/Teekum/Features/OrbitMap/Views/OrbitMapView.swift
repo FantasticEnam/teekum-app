@@ -35,7 +35,8 @@ struct OrbitMapView: View {
             heading: location?.currentHeading ?? 0,
             selectedTarget: selectedTarget,
             isUserSOSActive: isSOSActive,
-            onSelectMeetingPoint: selectMeetingPoint
+            onSelectMeetingPoint: selectMeetingPoint,
+            onSelectMember: selectMember
         )
         .ignoresSafeArea()
     }
@@ -122,14 +123,11 @@ struct OrbitMapView: View {
             if case .member(let id) = selectedTarget, !ids.contains(id) {
                 selectedTarget = nil
             }
-            if case .finder(let id) = activeModal, !ids.contains(id) {
-                activeModal = nil
-            }
         }
         .onChange(of: viewModel.sessionStore.pendingDeepLink, initial: true) { _, url in
             guard let url else { return }
             if url.host == "meeting" { activeModal = .mapPoint }
-            if url.host == "sos", let alert = sos?.incomingAlert { activeModal = .finder(alert.senderInitials) }
+            if url.host == "sos", let alert = sos?.incomingAlert { selectedTarget = .member(alert.senderInitials) }
             viewModel.sessionStore.pendingDeepLink = nil
         }
         .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
@@ -204,10 +202,6 @@ struct OrbitMapView: View {
                     }
                 }
                 .presentationBackground(.black)
-            case .finder(let id):
-                if let member = visibleMembers.first(where: { $0.id == id }) {
-                    FriendFinderView(member: member, location: location)
-                }
             } }
             .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
             .overlay { SOSEdgeGlowView(sos: sos) }
@@ -274,6 +268,12 @@ struct OrbitMapView: View {
         sos?.recordUserInteraction()
         chat?.isChatSheetPresented = true
         isShowingChat = true
+    }
+    
+    private func selectMember(_ id: Member.ID) {
+        sos?.recordUserInteraction()
+        let target = OrbitSceneView.Target.member(id)
+        selectedTarget = selectedTarget == target ? nil : target
     }
 
     private func selectMeetingPoint(_ id: MeetingPoint.ID) {
