@@ -21,7 +21,6 @@ struct OrbitSceneView: View {
     var heading: Double = 0
     var selectedTarget: Target?
     var isUserSOSActive = false
-    var onSelectMember: (Member) -> Void = { _ in }
     var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
 
     @State private var zoom = 1.0
@@ -121,18 +120,19 @@ struct OrbitSceneView: View {
             let threshold = Float(MeepoConfiguration.Battery.survivalThresholdPercent) / 100
             return (0...threshold).contains(level) ? level.formattedBatteryPercentage : nil
         }
-        return Button { onSelectMember(member) } label: {
-            OrbitMemberMarkerView(initials: member.initials,
-                color: member.color.swiftUIColor, isSelected: isSelected,
-                isEmergency: member.isEmergency, showsBloom: projection.isClamped,
-                lowBatteryPercentage: lowBatteryPercentage)
-                .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
-                .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Find \(member.initials), \(projection.distance.formattedDistance())")
+        return OrbitMemberMarkerView(
+            initials: member.initials,
+            color: member.color.swiftUIColor,
+            isSelected: isSelected,
+            isEmergency: member.isEmergency,
+            showsBloom: projection.isClamped,
+            lowBatteryPercentage: lowBatteryPercentage
+        )
+        .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
+        .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
+        .frame(minWidth: 44, minHeight: 44)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Member \(member.initials), \(projection.distance.formattedDistance())")
         .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
         .accessibilityHint(lowBatteryPercentage.map { Text("Low battery, \($0)") } ?? Text(""))
         .accessibilityAddTraits(isSelected ? .isSelected : [])

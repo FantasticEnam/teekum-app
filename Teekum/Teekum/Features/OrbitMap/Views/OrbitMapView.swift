@@ -35,7 +35,6 @@ struct OrbitMapView: View {
             heading: location?.currentHeading ?? 0,
             selectedTarget: selectedTarget,
             isUserSOSActive: isSOSActive,
-            onSelectMember: openFinder,
             onSelectMeetingPoint: selectMeetingPoint
         )
         .ignoresSafeArea()
@@ -275,11 +274,6 @@ struct OrbitMapView: View {
         sos?.recordUserInteraction()
         chat?.isChatSheetPresented = true
         isShowingChat = true
-    }
-
-    private func openFinder(_ member: Member) {
-        sos?.recordUserInteraction()
-        activeModal = .finder(member.id)
     }
 
     private func selectMeetingPoint(_ id: MeetingPoint.ID) {
