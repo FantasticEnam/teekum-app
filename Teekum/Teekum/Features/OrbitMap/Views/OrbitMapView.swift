@@ -21,8 +21,6 @@ struct OrbitMapView: View {
     private let chat: ChatViewModel?
     private let sos: SOSViewModel?
     private let meetingService: MeetingPointService?
-    private let relayPolicy: RelayPolicyManager?
-    private let relayState: RelayPolicyState
     private let diagnostics: @MainActor () -> TransportDiagnostics?
     private let notifications: NotificationService?
     
@@ -51,7 +49,6 @@ struct OrbitMapView: View {
     
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
          sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
-         relayPolicy: RelayPolicyManager? = nil, relayState: RelayPolicyState = .init(mode: .disabled),
          diagnostics: @escaping @MainActor () -> TransportDiagnostics? = { nil }, notifications: NotificationService? = nil,
          onLeaveGroup: (() -> Void)? = nil) {
         _viewModel = State(initialValue: OrbitMapViewModel(sessionStore: sessionStore, onLeaveGroup: onLeaveGroup))
@@ -59,8 +56,6 @@ struct OrbitMapView: View {
         self.chat = chat
         self.sos = sos
         self.meetingService = meetingService
-        self.relayPolicy = relayPolicy
-        self.relayState = relayState
         self.diagnostics = diagnostics
         self.notifications = notifications
     }
@@ -222,8 +217,8 @@ struct OrbitMapView: View {
                 }
                 .presentationBackground(.clear)
             case .settings:
-                OrbitSettingsView(location: location, sos: sos, relayPolicy: relayPolicy,
-                                  relayState: relayState, memberContactLog: { viewModel.sessionStore.memberContactLog },
+                OrbitSettingsView(location: location, sos: sos,
+                                  memberContactLog: { viewModel.sessionStore.memberContactLog },
                                   diagnostics: diagnostics)
             case .invite:
                 if let session = viewModel.sessionStore.activeSession {
