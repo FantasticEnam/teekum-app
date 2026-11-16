@@ -93,7 +93,7 @@ Member markers in Orbit and Map are informational. Selecting a member in the Fri
 
 Radio → transport framing → `SessionController` → `PacketRouter` → authenticated callbacks → shared state or feature engine → observing UI. The outgoing location, chat, SOS, meeting and route paths use the shared sequence allocator and crypto before transport queues.
 
-Session restore reads metadata from UserDefaults and the group key from the device Keychain. Chat history and the relay carry queue are in memory. Orbit uses GPS and heading to place members and the meeting point. Pinching adjusts the displayed range from 30 to 120 m, with a default of 60 m. That range controls the radar display.
+Session restore reads metadata from UserDefaults and the group key from the device Keychain. Chat history and the relay carry queue are in memory. Orbit uses GPS and heading to place members and the meeting point. Pinching adjusts the displayed range from 5 to 120 m, with a default of 60 m. During a pinch, the ruler uses rounded 1–2–5 distance steps based on the marker projection and shows the current radar radius. The ruler extends right as the user zooms in and retracts left as they zoom out, switching distance steps to fit its available width. Reduce Motion disables the smoothing animation. After a pinch ends, the ruler stays visible for 1.5 seconds, then fades out over 0.25 seconds. Starting another pinch cancels the pending dismissal, and leaving the view cancels its task.
 
 ### 3.5 Four-Developer Collaboration Baseline
 

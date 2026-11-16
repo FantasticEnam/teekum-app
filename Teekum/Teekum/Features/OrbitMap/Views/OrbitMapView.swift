@@ -37,7 +37,6 @@ struct OrbitMapView: View {
             isUserSOSActive: isSOSActive,
             onSelectMeetingPoint: selectMeetingPoint
         )
-        .ignoresSafeArea()
     }
 
     private var selectedMember: Member? {

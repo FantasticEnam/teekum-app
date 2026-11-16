@@ -23,14 +23,45 @@ struct OrbitSceneView: View {
     var isUserSOSActive = false
     var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
 
+    private static let ringDiameterScales = [0.55, 1.1, 1.55]
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoom = 1.0
-    @GestureState private var pinchMagnification = 1.0
+    @State private var isRulerVisible = false
+    @GestureState private var pinchMagnification: Double?
 
     private var radarRange: Double {
-        MeepoConfiguration.Navigation.tacticalRadarRangeMeters / boundedZoom(zoom * pinchMagnification)
+        MeepoConfiguration.Navigation.tacticalRadarRangeMeters / boundedZoom(zoom * (pinchMagnification ?? 1))
     }
-    
+
     var body: some View {
+        GeometryReader { geometry in
+            radar(bottomInset: geometry.safeAreaInsets.bottom)
+                .ignoresSafeArea()
+        }
+        .background(.black)
+        .task(id: pinchMagnification != nil) {
+            if pinchMagnification != nil {
+                isRulerVisible = true
+            } else if isRulerVisible {
+                do {
+                    try await Task.sleep(for: .seconds(1.5))
+                } catch {
+                    return
+                }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    isRulerVisible = false
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Orbit radar")
+        .accessibilityValue("Radius \(radarRange.formattedDistance())")
+        .accessibilityAction(named: Text("Zoom in")) { zoom = boundedZoom(zoom * 1.25) }
+        .accessibilityAction(named: Text("Zoom out")) { zoom = boundedZoom(zoom / 1.25) }
+    }
+
+    private func radar(bottomInset: CGFloat) -> some View {
         GeometryReader { geometry in
             let size = geometry.size
             let baseSize = min(size.width, size.height)
@@ -53,7 +84,7 @@ struct OrbitSceneView: View {
             .frame(width: size.width, height: size.height)
             .overlay {
                 ZStack {
-                    ForEach([0.55, 1.1, 1.55], id: \.self) { scale in
+                    ForEach(Self.ringDiameterScales, id: \.self) { scale in
                         Circle()
                             .stroke(
                                 .white.opacity(0.4),
@@ -94,6 +125,16 @@ struct OrbitSceneView: View {
                 }
             }
             .overlay { userMarker.directionArrow }
+            .overlay(alignment: .bottomTrailing) {
+                if isRulerVisible || pinchMagnification != nil, markerRadius > 0 {
+                    let ringGap = baseSize * (Self.ringDiameterScales[1] - Self.ringDiameterScales[0]) / 2
+                    let pointsPerMeter = OrbitProjection.screenPointsPerMeter(radius: markerRadius, range: range)
+                    zoomRuler(maximumWidth: ringGap, pointsPerMeter: pointsPerMeter, range: range)
+                        .padding(.trailing, 8)
+                        .padding(.bottom, bottomInset + 82)
+                        .transition(.opacity)
+                }
+            }
             .clipped()
             .contentShape(.rect)
             .simultaneousGesture(
@@ -106,15 +147,41 @@ struct OrbitSceneView: View {
                     }
             )
         }
-        .background(.black)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Orbit radar")
-        .accessibilityAction(named: Text("Zoom in")) { zoom = boundedZoom(zoom * 1.25) }
-        .accessibilityAction(named: Text("Zoom out")) { zoom = boundedZoom(zoom / 1.25) }
+    }
+
+    private func zoomRuler(maximumWidth: CGFloat, pointsPerMeter: Double, range: Double) -> some View {
+        let scale = OrbitRulerScale(pointsPerMeter: pointsPerMeter, maximumWidth: maximumWidth)
+
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(scale.distance.formattedDistance(spaced: false))
+                .font(.caption.monospacedDigit())
+                .frame(width: scale.width, alignment: .trailing)
+
+            Rectangle()
+                .frame(width: scale.width, height: 1)
+                .overlay(alignment: .leading) {
+                    Rectangle().frame(width: 1, height: 6).offset(y: 3)
+                }
+                .overlay {
+                    Rectangle().frame(width: 1, height: 6).offset(y: -3)
+                }
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(height: 12)
+
+            Text("Radius \(range.formattedDistance())")
+                .font(.caption2.monospacedDigit())
+        }
+        .foregroundStyle(.white.opacity(0.75))
+        .animation(reduceMotion ? nil : .interactiveSpring(response: 0.16, dampingFraction: 1), value: scale.width)
+        .frame(width: maximumWidth, alignment: .leading)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func boundedZoom(_ scale: Double) -> Double {
-        min(max(scale, 0.5), 2)
+        let minimumRadius = 5.0
+        let maximumZoom = MeepoConfiguration.Navigation.tacticalRadarRangeMeters / minimumRadius
+        return min(max(scale, 0.5), maximumZoom)
     }
 
     private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
