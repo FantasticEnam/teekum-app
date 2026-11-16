@@ -38,6 +38,8 @@ struct OrbitSceneView: View {
             let outerRadius = baseSize * 1.55 / 2
             let markerRadius = Double(baseSize * 0.42)
             let range = radarRange
+            let userMarker = OrbitUserMarkerView(color: userColor, heading: .degrees(0),
+                isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil)
             
             RadialGradient(
                 stops: [
@@ -64,7 +66,7 @@ struct OrbitSceneView: View {
                             )
                     }
                     
-                    OrbitUserMarkerView(color: userColor, heading: .degrees(0), isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil)
+                    userMarker.positionMarker
                         .allowsHitTesting(false)
                     
                     if let location {
@@ -92,6 +94,7 @@ struct OrbitSceneView: View {
                     }
                 }
             }
+            .overlay { userMarker.directionArrow }
             .clipped()
             .contentShape(.rect)
             .simultaneousGesture(

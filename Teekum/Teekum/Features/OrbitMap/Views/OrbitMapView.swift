@@ -187,19 +187,11 @@ struct OrbitMapView: View {
                     relayState: relayState, memberContactLog: { viewModel.sessionStore.memberContactLog },
                     diagnostics: diagnostics)
             case .invite:
-                NavigationStack {
-                    ZStack {
-                        Color.black.ignoresSafeArea()
-                        if let session = viewModel.sessionStore.activeSession {
-                            GroupQRCodeView(session: session)
-                                .padding()
-                        }
+                if let session = viewModel.sessionStore.activeSession {
+                    ShareInviteView(session: session) {
+                        activeModal = .friends
                     }
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Close", systemImage: "xmark") { activeModal = nil }
-                        }
-                    }
+                    .presentationBackground(.black)
                 }
                 .presentationBackground(.black)
             } }
