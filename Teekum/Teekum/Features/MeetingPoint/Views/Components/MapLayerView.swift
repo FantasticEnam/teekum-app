@@ -9,7 +9,6 @@ import SwiftUI
 import MapKit
 
 public struct MapLayerView: View {
-    @State private var selectedMember: Member?
     @Bindable var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
     
@@ -22,6 +21,7 @@ public struct MapLayerView: View {
             distance: 400
         )
     )
+    @State private var hasInitialCentered: Bool = false
     // Simpan posisi finger touch sementara
     @State private var lastTouchPoint: CGPoint? = nil
     private let holdDuration: Double = 0.7
@@ -40,7 +40,6 @@ public struct MapLayerView: View {
                                 OrbitMemberMarkerView(
                                     initials: member.initials,
                                     color: member.color.swiftUIColor,
-                                    isSelected: selectedMember?.id == member.id,
                                     isEmergency: member.isEmergency,
                                     size: 22
                                 )
@@ -53,9 +52,6 @@ public struct MapLayerView: View {
                                             .shadow(color: .black.opacity(0.8), radius: 2)
                                             .offset(y: 18)
                                     }
-                                }
-                                .onTapGesture {
-                                    selectedMember = member
                                 }
                             }
                             .annotationTitles(.hidden)
@@ -104,19 +100,17 @@ public struct MapLayerView: View {
                 .padding(.trailing, 16)
                 .padding(.bottom, 60)
         }
-        .fullScreenCover(item: $selectedMember) { member in
-            FriendFinderView(member: member, location: location)
-        }
         .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
-            if let newCoord {
-                withAnimation {
-                    cameraPosition = .camera(MapCamera(centerCoordinate: newCoord, distance: 400))
-                }
+            guard !hasInitialCentered, let newCoord else { return }
+            hasInitialCentered = true
+            withAnimation {
+                cameraPosition = .camera(MapCamera(centerCoordinate: newCoord, distance: 400))
             }
         }
         .onAppear {
             if let userCoord = location?.currentLocation?.coordinate {
                 cameraPosition = .camera(MapCamera(centerCoordinate: userCoord, distance: 400))
+                hasInitialCentered = true
             }
         }
     }
@@ -162,13 +156,13 @@ public struct MapLayerView: View {
             } label: {
                 Image(systemName: "globe.americas.fill")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(isSatellite ? .yellow : .white) // Kuning saat satelit aktif
+                    .foregroundStyle(isSatellite ? Color.buttonPrimary : .white) // Kuning saat satelit aktif
                     .frame(width: 48, height: 48)
                     .background(Color.black.opacity(0.65))
                     .clipShape(Circle())
                     .overlay(
                         Circle()
-                            .stroke(isSatellite ? Color.yellow.opacity(0.6) : Color.white.opacity(0.2), lineWidth: 1)
+                            .stroke(isSatellite ? Color.buttonPrimary.opacity(0.6) : Color.white.opacity(0.2), lineWidth: 1)
                     )
                     .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
             }

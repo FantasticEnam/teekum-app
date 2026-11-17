@@ -19,16 +19,16 @@ extension Color {
     static let themeShadow      = Color(hex: 0x1C1F2A) // Pantone 532 C
     static let blackCard        = Color(hex: 0x141414)
     
+    // MARK: - Button Color
+    static let buttonPrimary = Color(hex: 0xA9CFF5)
+    
     // MARK: - Profile Color
-    static let yellowProfile = Color(hex: 0xFDC600)
-    static let redProfile = Color(hex: 0xCB443D)
-    static let peachProfile = Color(hex: 0xCE7059)
-    static let orangeProfile = Color(hex: 0xFD7900)
-    static let creamProfile = Color(hex: 0xF7B66E)
-    static let greyProfile = Color(hex: 0xA79581)
-    static let whiteProfile = Color(hex: 0xD5EEEF)
-    static let blueProfile = Color(hex: 0x3A97E3)
-    static let greenProfile = Color(hex: 0x1EC989)
+    static let yellowProfile = Color(hex: 0xF3EBA3)
+    static let redProfile = Color(hex: 0xF4A5A6)
+    static let greenProfile = Color(hex: 0x9EEBCE)
+    static let purpleProfile = Color(hex: 0xBAAFE0)
+    static let pinkProfile = Color(hex: 0xE9ACE1)
+   
 }
 
 // MARK: - Convenience Initializers

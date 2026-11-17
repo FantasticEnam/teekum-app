@@ -23,7 +23,7 @@ struct QRScannerView: View {
                 VStack(spacing: 8) {
                     Text(cameraMessage)
                     Button("Open Settings", action: openSettings)
-                        .foregroundStyle(Color.yellowProfile)
+                        .foregroundStyle(Color.buttonPrimary)
                 }
                 .padding(8)
                 .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))

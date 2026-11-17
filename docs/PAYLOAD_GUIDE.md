@@ -1,18 +1,18 @@
-# TeeKum — V3 Payload and Encoding Guide
+# Meepo — Payload and Encoding Guide
 
-**Last reviewed: 11 November 2026 · Source-observed layouts, not verified interoperability**
+**Last reviewed: 11 November 2026**
 
-> The V3 payload layout follows `f4c6393`. The [session migration note](features/session-migration.md) lists the shared XCTest cases and device checks still needed.
+> Meepo uses these payloads for local relief-post chat, location, meeting points, and SOS.
 
-Use [PROTOCOL_SPECIFICATION.md](PROTOCOL_SPECIFICATION.md) for authentication/nonce invariants, [NETWORKING.md](NETWORKING.md) for transport/wiring and [agent.md](agent.md) for migration evidence.
+Use [PROTOCOL_SPECIFICATION.md](PROTOCOL_SPECIFICATION.md) for authentication/nonce invariants, [NETWORKING.md](NETWORKING.md) for transport and forwarding.
 
-## 1. Current Source Baseline
+## 1. Packet Format
 
-Configuration in `Core/Configuration/TeeKumConfiguration.swift`, exposed through `Core/Packets/PacketConstants.swift`, currently declares:
+Configuration in `Core/Configuration/MeepoConfiguration.swift`, exposed through `Core/Packets/PacketConstants.swift`, currently declares:
 
 | Item | Source value |
 | :--- | :--- |
-| Protocol version | 0x01 in the current app; 0x03 in the frozen prototype |
+| Protocol version | `0x01` |
 | Wire frame | 56 bytes |
 | Cleartext envelope | 10 bytes |
 | Plaintext/ciphertext payload | 30 bytes |
@@ -30,8 +30,6 @@ Envelope    30-byte encrypted payload    16-byte auth tag
 ```
 
 Payload tables below use **plaintext payload-relative offsets**, not ciphertext inspection results. Add 10 to get the corresponding wire positions after decryption. Payload bytes on the wire are encrypted; do not paste plaintext plus an invented MAC and call it a valid encrypted fixture.
-
-The previous 54-byte/8-byte-envelope, packed-hop and 29-byte-payload proposals do not describe the current serializer. No compatibility mode is established for them.
 
 ## 2. Cleartext Envelope
 
@@ -70,7 +68,7 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 - Accuracy is a one-byte meter value. Battery is capped at 100 by several constructors/serializers. Do not invent an unknown-value encoding without reviewing both sides.
 - Heading helpers map degrees into a one-byte representation. Quantization/dequantization is not a live compass provider.
 - InitialsCodec encodes 1–3 uppercase letters with base 27: a × 729 + b × 27 + c, A=1...Z=26, missing positions=0. Two bytes hold the result. Initials are display data; they do not prove unique membership or non-colliding sender slots.
-- The one-byte `MemberColor` field uses `0x00` for automatic color and `0x01...0x09` for explicit choices. Cream uses `0x04` and yellow uses `0x09`. Location and SOS carry this field. Chat displays the local session or the latest roster color, with an initials-based fallback until a profile color is received. Older builds use their automatic color for an unrecognized code. Saved `0x04` profiles restore as cream because earlier builds stored both choices under that code.
+- The one-byte `MemberColor` field uses `0x00` for automatic color. The selectable palette is yellow (`0x09`), red (`0x01`), green (`0x08`), purple (`0x0A`), and pink (`0x0B`). Retired codes `0x02...0x07` are still decoded and rendered using the current palette. Location and SOS carry this field. Chat uses the local session or the latest roster color, with an initials-based fallback until a profile color is received. Older builds use their automatic color for unknown codes.
 
 ## 4. Current 30-Byte Payloads
 
@@ -179,32 +177,32 @@ Relay receipt is not recipient-confirmed delivery. Current transport reception s
 
 The limit is **bytes, not characters**. serialize() rejects overlong text; serializeUnchecked() truncates raw UTF-8 bytes and can split a multi-byte character. clampTo20Bytes() preserves character boundaries; do not route normal user input through the unchecked encoder without an agreed validation path. The engine may impose a nonempty-text rule separately from the codec.
 
+Short relief-post messages such as `Water at Tent A` and the existing `I'm safe` preset fit in one chat frame. A chat request for help and a dedicated SOS have different packet types and trigger different receiver UI.
+
 The strict chat decoder additionally requires exactly 30 bytes and zero reserved/unused text padding. The ordinary decoder checks minimum size, length and UTF-8 but does not establish all strict padding rules. Most other payload decoders accept at least 30 bytes and use defaults for some unknown enums/initials; they are not uniformly strict parsers.
 
-## 5. Shared XCTest Envelope Vector
+## 5. Envelope and Nonce Example
 
-`ParityContractTests` compares both builds against this frozen prototype envelope and nonce. The current app uses `0x11` in place of `0x31` in the envelope, nonce, and AAD.
+Location ping with packet type `0x01` and wire version `0x01`:
 
 ```text
-version=3, type=locationPing, hopLimit=8, hopCount=2
+version=1, type=locationPing, hopLimit=8, hopCount=2
 sessionId=0x1234, memberSlot=7, counter=42
 sequenceNumber=(7 << 24) | 42 = 0x0700002A
 
 10-byte serialized envelope:
-31 08 02 00 12 34 07 00 00 2A
+11 08 02 00 12 34 07 00 00 2A
 
 12-byte nonce constructed from that envelope:
-00 12 34 07 00 00 2A 31 54 4B 4D 33
+00 12 34 07 00 00 2A 11 54 4B 4D 33
 ```
 
-Both builds round-trip the SID `0x1234` using their respective protocol versions. `Teekum` encodes and decodes the full 24-bit SID (`0x000001...0xFFFFFF`). AAD masks hop count without changing the other canonical bytes.
+AAD masks hop count to zero and preserves the other envelope bytes.
 
 A valid encrypted fixture must declare test-only key/input data and use the actual CryptoKit implementation to produce ciphertext/tag. No fabricated authentication tags or copied historical pass counts belong in acceptance evidence.
 
 ## 6. Before Changing the Layout
 
-1. Compare with the frozen legacy revision; record unknown/missing payload helpers and behaviors. The current source inventory cannot prove full migration.
-2. Resolve SID width, unique identity/counter/key lifecycle and all consumers together. Do not silently enable the old 54-byte proposal or reuse reserved bytes without compatibility review.
-3. Validate untrusted bounds, timestamps, enum/initials decoding, padding and UTF-8 at the agreed boundary before mutating state. Serialization helpers are not a complete security pipeline.
-4. Verify actual roundtrips across both existing codec/envelope paths, SID boundary values, boundary coordinates, wrong sizes, all packet types and authenticated tampering.
-5. Record tests actually run at the current revision. Use the focused XCTest and optional parity targets. UI testing remains developer-managed.
+1. Review packet compatibility across sender, relay, and receiver before changing fields, reserved bytes, or type codes.
+2. Validate size, timestamps, initials, enum values, padding, and UTF-8 before using decoded data to change state.
+3. Verify round trips at SID and coordinate boundaries, invalid lengths, packet types, and authenticated tampering. Generate encrypted fixtures with test keys using CryptoKit.

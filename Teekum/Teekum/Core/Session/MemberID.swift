@@ -29,21 +29,13 @@ public struct MemberID: Hashable, Codable, Sendable, CustomStringConvertible {
         return MemberID(rawValue: clean, memberSlot: resolvedSlot)
     }
 
-    /// Sanitizes arbitrary user input into 1 to 3 uppercase ASCII letters (A...Z).
+    /// Sanitizes arbitrary user input into 1 to 3 uppercase alphanumeric characters (A...Z, 0...9).
     public static func sanitizeInitials(_ input: String) -> String {
-        let letters = input.uppercased().filter { $0 >= "A" && $0 <= "Z" }
-        guard !letters.isEmpty else { return "A" }
-        return String(letters.prefix(3))
+        InitialsCodec.sanitize(input)
     }
 
     private static func deriveSlot(from cleanInitials: String) -> UInt8 {
-        let utf8 = Array(cleanInitials.utf8)
-        let a = utf8.count >= 1 ? Int(utf8[0]) - 64 : 1
-        let b = utf8.count >= 2 ? Int(utf8[1]) - 64 : 0
-        let c = utf8.count >= 3 ? Int(utf8[2]) - 64 : 0
-        let encoded = (a * 729) + (b * 27) + c
-        let high = UInt8((encoded >> 8) & 0xFF)
-        let low = UInt8(encoded & 0xFF)
-        return high ^ low
+        let bytes = InitialsCodec.encode(cleanInitials) ?? [0, 0]
+        return bytes[0] ^ bytes[1]
     }
 }

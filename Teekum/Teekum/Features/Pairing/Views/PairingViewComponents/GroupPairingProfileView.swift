@@ -30,14 +30,14 @@ struct GroupPairingProfileView: View {
                 .fill(profileColor.color)
                 .frame(width: 116, height: 116)
                 .overlay(alignment: .bottomTrailing) {
-                    Button("Edit profile color", systemImage: "square.and.pencil", action: editProfilePhoto)
+                    Button("Edit profile color", systemImage: "pencil.circle.fill", action: editProfilePhoto)
                         .labelStyle(.iconOnly)
-                        .font(.system(size: 18))
+                        .font(.system(size: 32))
                         .bold()
                         .foregroundStyle(.white)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
-                        .offset(x: 18, y: 14)
+                        .offset(x: 8, y: 8)
                 }
 
             if isProfilePickerVisible {
@@ -111,7 +111,7 @@ struct GroupPairingProfileView: View {
     }
 
     private func updateInitials(_ value: String) {
-        initials = String(value.uppercased().filter { $0 >= "A" && $0 <= "Z" }.prefix(3))
+        initials = String(value.uppercased().filter { ($0 >= "A" && $0 <= "Z") || ($0 >= "0" && $0 <= "9") }.prefix(3))
         initialsSelection = TextSelection(insertionPoint: initials.endIndex)
         isCursorVisible = true
     }

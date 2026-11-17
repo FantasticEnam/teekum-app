@@ -19,12 +19,13 @@ struct HeadAgreement: View {
                 .frame(width: 80, height: 80)
                 .accessibilityHidden(true)
 
-            Text("Together, Beyond the Signal")
+            Text("Connected, Beyond Internet")
                 .font(.custom("Helvetica", size: 20, relativeTo: .title3))
+                .bold()
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, 2)
 
-            Text("Stay connected. Here’s how Meepo keeps your group connected")
+            Text("Here's How Meepo keeps your group connected")
                 .font(.custom("Helvetica-Oblique", size: 13, relativeTo: .footnote))
                 .foregroundStyle(secondaryText)
         }
@@ -33,5 +34,5 @@ struct HeadAgreement: View {
 }
 
 #Preview("Agreement Header") {
-    HeadAgreement(profileColor: .yellowProfile)
+    HeadAgreement(profileColor: .greenProfile)
 }

@@ -14,12 +14,9 @@ struct OrbitSettingsView: View {
 
     let location: LocationService?
     let sos: SOSViewModel?
-    let relayPolicy: RelayPolicyManager?
-    let relayState: RelayPolicyState
     let memberContactLog: @MainActor () -> [SessionStore.MemberContactLoss]
     let diagnostics: @MainActor () -> TransportDiagnostics?
     @Environment(\.dismiss) private var dismiss
-    @State private var changingRelay = false
     @State private var packetFilter: PacketFilter = .all
 
     var body: some View {
@@ -28,29 +25,13 @@ struct OrbitSettingsView: View {
         NavigationStack {
             Form {
                 if let location {
-                    @Bindable var location = location
                     Section("Location") {
-                        Toggle("Live sharing", isOn: $location.isLiveSharingEnabled)
                         LabeledContent("GPS", value: location.isGPSAvailable ? "Available" : "Unavailable")
                         LabeledContent("Power", value: location.isSurvivalModeActive ? "Survival mode" : "Normal")
                         if let measured = location.currentLocation {
                             LabeledContent("Accuracy", value: "±\(Int(measured.horizontalAccuracy)) m")
                             Text("Measured \(measured.timestamp, style: .relative) ago").font(.caption)
                         }
-                    }
-                }
-                if relayPolicy != nil {
-                    Section("Relay participation") {
-                        Text(relayState.statusDescription())
-                        ForEach(RelayParticipationMode.allCases, id: \.self) { mode in
-                            Button {
-                                setRelay(mode)
-                            } label: {
-                                Label(title(for: mode), systemImage: relayState.mode == mode ? "checkmark.circle.fill" : "circle")
-                            }
-                                .disabled(changingRelay)
-                        }
-                        Text("Relaying pauses below 20% battery and in Low Power Mode.").font(.caption)
                     }
                 }
                 if let sos {
@@ -166,22 +147,6 @@ struct OrbitSettingsView: View {
         }
     }
 
-    private func title(for mode: RelayParticipationMode) -> LocalizedStringKey {
-        switch mode {
-        case .disabled: "Off"
-        case .communalRelayActive: "Always"
-        case .timed30Minutes: "For 30 minutes"
-        }
-    }
-
-    private func setRelay(_ mode: RelayParticipationMode) {
-        guard let relayPolicy else { return }
-        changingRelay = true
-        Task { @MainActor in
-            await relayPolicy.setParticipationMode(mode)
-            changingRelay = false
-        }
-    }
 }
 
 #Preview("Group activity and diagnostics") {
@@ -209,6 +174,6 @@ struct OrbitSettingsView: View {
         ]
     )
 
-    OrbitSettingsView(location: nil, sos: nil, relayPolicy: nil, relayState: .init(mode: .disabled),
+    OrbitSettingsView(location: nil, sos: nil,
         memberContactLog: { activity }, diagnostics: { snapshot })
 }

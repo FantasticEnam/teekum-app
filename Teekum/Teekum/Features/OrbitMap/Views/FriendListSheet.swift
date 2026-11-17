@@ -11,11 +11,14 @@ struct FriendListSheet: View {
     let onAddFriend: () -> Void
     let onSelectMember: (Member) -> Void
     let onLeaveGroup: () -> Void
+    var selectedMemberId: String? = nil
+    var onStopFollow: () -> Void = {}
     
     @Environment(\.dismiss) private var dismiss
     
     @State private var viewModel: FriendListViewModel
     @State private var confirmLeave = false
+    @State private var memberToConfirm: Member? = nil
     @FocusState private var isSearchFocused: Bool
     
     @ScaledMetric(relativeTo: .title2)
@@ -25,12 +28,16 @@ struct FriendListSheet: View {
         sessionStore: SessionStore,
         onAddFriend: @escaping () -> Void,
         onSelectMember: @escaping (Member) -> Void,
-        onLeaveGroup: @escaping () -> Void
+        onLeaveGroup: @escaping () -> Void,
+        selectedMemberId: String? = nil,
+        onStopFollow: @escaping () -> Void = {}
     ) {
         _viewModel = State(initialValue: FriendListViewModel(sessionStore: sessionStore))
         self.onAddFriend = onAddFriend
         self.onSelectMember = onSelectMember
         self.onLeaveGroup = onLeaveGroup
+        self.selectedMemberId = selectedMemberId
+        self.onStopFollow = onStopFollow
     }
     
     var body: some View {
@@ -119,7 +126,7 @@ struct FriendListSheet: View {
                         ForEach(members) { member in
                             Button {
                                 isSearchFocused = false
-                                onSelectMember(member)
+                                memberToConfirm = member
                             } label: {
                                 FriendListMemberView(
                                     member: member,
@@ -167,6 +174,36 @@ struct FriendListSheet: View {
         } message: {
             Text("Are you sure you want to leave this group?")
         }
+        .alert(
+            selectedMemberId == memberToConfirm?.id ? "Stop Following?" : "Follow \(memberToConfirm?.initials ?? "Friend")?",
+            isPresented: Binding(
+                get: { memberToConfirm != nil },
+                set: { if !$0 { memberToConfirm = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                memberToConfirm = nil
+            }
+            if selectedMemberId == memberToConfirm?.id {
+                Button("Stop", role: .destructive) {
+                    onStopFollow()
+                    memberToConfirm = nil
+                }
+            } else {
+                Button("Follow") {
+                    if let member = memberToConfirm {
+                        onSelectMember(member)
+                    }
+                    memberToConfirm = nil
+                }
+            }
+        } message: {
+            if selectedMemberId == memberToConfirm?.id {
+                Text("Stop following \(memberToConfirm?.initials ?? "this friend") on the radar?")
+            } else {
+                Text("You will be guided towards \(memberToConfirm?.initials ?? "this friend").")
+            }
+        }
     }
 }
 
@@ -183,7 +220,7 @@ struct FriendListSheet: View {
 #Preview("Friend with active SOS") {
     let store = SessionStore.preview
     store.setEmergency(true, for: "ADI")
-
+    
     return FriendListSheet(
         sessionStore: store,
         onAddFriend: {},

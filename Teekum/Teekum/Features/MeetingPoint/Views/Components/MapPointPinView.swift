@@ -25,16 +25,18 @@ public struct MapPointPinView: View {
                     .foregroundStyle(.black)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(Color.yellow)
+                    .background(Color.buttonPrimary)
                     .clipShape(Capsule())
                 Image(systemName: "arrowtriangle.down.fill")
                         .font(.system(size: 16))
-                        .foregroundStyle(Color.yellow)
+                        .foregroundStyle(Color.buttonPrimary)
             }
             // Pin
             Image("MeetPoint")
+                .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
+                .foregroundStyle(Color.buttonPrimary)
                 .frame(width: 34, height: 34)
                 .shadow(color: .black.opacity(0.1) ,radius: 3)
         }

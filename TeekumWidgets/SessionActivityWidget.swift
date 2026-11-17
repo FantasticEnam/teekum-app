@@ -17,7 +17,7 @@ struct SessionActivityWidget: Widget {
                 .activityBackgroundTint(.black)
                 .activitySystemActionForegroundColor(.white)
         }  dynamicIsland: { context in
-            let accent: Color = context.state.sosSenderInitials == nil ? .yellow : .red
+            let accent: Color = context.state.sosSenderInitials == nil ? .buttonPrimary : .red
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     SessionAppBadge(accentColor: accent)
@@ -44,7 +44,7 @@ struct SessionActivityWidget: Widget {
                 if context.state.sosSenderInitials == nil && context.state.unreadMessageCount > 0 {
                                     Image(systemName: "message.fill")
                                         .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(.yellow)
+                                        .foregroundStyle(Color.buttonPrimary)
                                 } else {
                                     islandIcon(for: context.state)
                                 }
@@ -59,10 +59,11 @@ struct SessionActivityWidget: Widget {
                     .foregroundStyle(.red)
             } else {
                 Image("MeetPoint")
+                    .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 20, height: 20)
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(Color.buttonPrimary)
             }
         }
     
@@ -87,7 +88,7 @@ struct SessionActivityWidget: Widget {
                 Image(systemName: badge.icon)
                     .font(.system(size: 10, weight: .semibold))
             }
-            .foregroundStyle(.yellow)
+            .foregroundStyle(Color.buttonPrimary)
             .lineLimit(1)
         }
     }

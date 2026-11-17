@@ -18,6 +18,7 @@ struct SessionAppBadge: View {
                 .font(.custom("Helvetica", size: 12, relativeTo: .caption))
         } icon: {
             Image("MeetPoint")
+                .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 14, height: 14)
@@ -72,7 +73,7 @@ struct SessionSummaryRow: View {
     }
     
     private var accentColor: Color {
-        state.sosSenderInitials == nil ? .yellow : .red
+        state.sosSenderInitials == nil ? .buttonPrimary : .red
     }
     
     private var subtitleText: String {
@@ -124,11 +125,11 @@ struct SessionLiveActivityView: View {
         }
         .padding(16)
         .foregroundStyle(.white)
-        .tint(.yellow)
+        .tint(Color.buttonPrimary)
     }
     
     private var accentColor: Color {
-        state.sosSenderInitials == nil ? .yellow : .red
+        state.sosSenderInitials == nil ? .buttonPrimary : .red
     }
 }
 
