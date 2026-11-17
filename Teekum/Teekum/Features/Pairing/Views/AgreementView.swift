@@ -17,7 +17,6 @@ struct AgreementView: View {
     var onAgree: () -> Void = {}
 
     var body: some View {
-        VStack {
             VStack(spacing: 13) {
                 HeadAgreement(profileColor: form.profileColor.color)
                 VStack {
@@ -75,18 +74,17 @@ struct AgreementView: View {
             .padding(.top, 20)
             .padding(.bottom, 24)
             .frame(maxWidth: .infinity)
-        }
-        .foregroundStyle(.white)
-        .background {
-            RadialGradient(
-                colors: [Color(white: 0.09), Color(white: 0.09), .black],
-                center: .center,
-                startRadius: 50,
-                endRadius: 500
-            )
-            .ignoresSafeArea()
-        }
-        .preferredColorScheme(.dark)
+            .foregroundStyle(.white)
+            .background {
+                RadialGradient(
+                    colors: [Color(white: 0.11), Color(white: 0.11), .black],
+                    center: .center,
+                    startRadius: 50,
+                    endRadius: 500
+                )
+                .ignoresSafeArea()
+            }
+            .preferredColorScheme(.dark)
     }
 }
 
