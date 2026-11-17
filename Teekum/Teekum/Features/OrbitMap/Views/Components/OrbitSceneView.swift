@@ -25,15 +25,11 @@ struct OrbitSceneView: View {
     var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
     var onSelectMember: (Member.ID) -> Void = { _ in }
 
-    private static let ringDiameterScales = [0.55, 1.1, 1.55]
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoom = 1.0
-    @State private var isRulerVisible = false
-    @GestureState private var pinchMagnification: Double?
+    @GestureState private var pinchMagnification = 1.0
 
     private var radarRange: Double {
-        MeepoConfiguration.Navigation.tacticalRadarRangeMeters / boundedZoom(zoom * (pinchMagnification ?? 1))
+        OrbitRingScale.defaultRange / boundedZoom(zoom * pinchMagnification)
     }
 
     var body: some View {
@@ -42,23 +38,9 @@ struct OrbitSceneView: View {
                 .ignoresSafeArea()
         }
         .background(.black)
-        .task(id: pinchMagnification != nil) {
-            if pinchMagnification != nil {
-                isRulerVisible = true
-            } else if isRulerVisible {
-                do {
-                    try await Task.sleep(for: .seconds(1.5))
-                } catch {
-                    return
-                }
-                withAnimation(.easeOut(duration: 0.25)) {
-                    isRulerVisible = false
-                }
-            }
-        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Orbit radar")
-        .accessibilityValue("Radius \(radarRange.formattedDistance())")
+        .accessibilityValue("Scale \(radarRange.formattedDistance())")
         .accessibilityAction(named: Text("Zoom in")) { zoom = boundedZoom(zoom * 1.25) }
         .accessibilityAction(named: Text("Zoom out")) { zoom = boundedZoom(zoom / 1.25) }
     }
@@ -67,9 +49,11 @@ struct OrbitSceneView: View {
         GeometryReader { geometry in
             let size = geometry.size
             let baseSize = min(size.width, size.height)
-            let outerRadius = baseSize * 1.55 / 2
-            let markerRadius = Double(outerRadius)
-            let range = radarRange
+            // Reserve space below the rings for their labels and the bottom controls.
+            let referenceRadius = min(baseSize * 1.55 / 2, max(1, size.height / 2 - bottomInset - 100))
+            let scale = OrbitRingScale(range: radarRange, radius: referenceRadius)
+            let markerRadius = scale.outerRadius
+            let range = scale.outerDistance
             let userMarker = OrbitUserMarkerView(color: userColor, heading: .degrees(0),
                 isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil,
                 batteryLevel: userBatteryLevel)
@@ -82,22 +66,12 @@ struct OrbitSceneView: View {
                 ],
                 center: .center,
                 startRadius: 0,
-                endRadius: outerRadius * 1.12
+                endRadius: referenceRadius * 1.12
             )
             .frame(width: size.width, height: size.height)
             .overlay {
                 ZStack {
-                    ForEach(Self.ringDiameterScales, id: \.self) { scale in
-                        Circle()
-                            .stroke(
-                                .white.opacity(0.4),
-                                lineWidth: 0.5
-                            )
-                            .frame(
-                                width: baseSize * scale,
-                                height: baseSize * scale
-                            )
-                    }
+                    OrbitDistanceRingsView(scale: scale)
                     
                     if let location {
                         ForEach(members) { member in
@@ -125,16 +99,6 @@ struct OrbitSceneView: View {
                 }
             }
             .overlay { userMarker.allowsHitTesting(false) }
-            .overlay(alignment: .bottomTrailing) {
-                if isRulerVisible || pinchMagnification != nil, markerRadius > 0 {
-                    let ringGap = baseSize * (Self.ringDiameterScales[1] - Self.ringDiameterScales[0]) / 2
-                    let pointsPerMeter = OrbitProjection.screenPointsPerMeter(radius: markerRadius, range: range)
-                    zoomRuler(maximumWidth: ringGap, pointsPerMeter: pointsPerMeter, range: range)
-                        .padding(.trailing, 8)
-                        .padding(.bottom, bottomInset + 82)
-                        .transition(.opacity)
-                }
-            }
             .clipped()
             .contentShape(.rect)
             .simultaneousGesture(
@@ -149,39 +113,9 @@ struct OrbitSceneView: View {
         }
     }
 
-    private func zoomRuler(maximumWidth: CGFloat, pointsPerMeter: Double, range: Double) -> some View {
-        let scale = OrbitRulerScale(pointsPerMeter: pointsPerMeter, maximumWidth: maximumWidth)
-
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(scale.distance.formattedDistance(spaced: false))
-                .font(.caption.monospacedDigit())
-                .frame(width: scale.width, alignment: .trailing)
-
-            Rectangle()
-                .frame(width: scale.width, height: 1)
-                .overlay(alignment: .leading) {
-                    Rectangle().frame(width: 1, height: 6).offset(y: 3)
-                }
-                .overlay {
-                    Rectangle().frame(width: 1, height: 6).offset(y: -3)
-                }
-                .foregroundStyle(.white.opacity(0.55))
-                .frame(height: 12)
-
-            Text("Radius \(range.formattedDistance())")
-                .font(.caption2.monospacedDigit())
-        }
-        .foregroundStyle(.white.opacity(0.75))
-        .animation(reduceMotion ? nil : .interactiveSpring(response: 0.16, dampingFraction: 1), value: scale.width)
-        .frame(width: maximumWidth, alignment: .leading)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-    
     private func boundedZoom(_ scale: Double) -> Double {
-        let minimumRadius = 5.0
-        let maximumZoom = MeepoConfiguration.Navigation.tacticalRadarRangeMeters / minimumRadius
-        return min(max(scale, 0.5), maximumZoom)
+        let baseRange = OrbitRingScale.defaultRange
+        return min(max(scale, baseRange / 120), baseRange / 5)
     }
     
     private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
@@ -271,7 +205,7 @@ struct OrbitSceneView: View {
     OrbitSceneView(
         userColor: .yellowProfile,
         members: [
-            Member(id: "NIC", coordinate: .init(latitude: 0.00025, longitude: -0.0001), batteryLevel: 0.1,
+            Member(id: "NIC", coordinate: .init(latitude: 0.00008, longitude: -0.00003), batteryLevel: 0.1,
                    heading: 315, color: .greenishTeal, measurementTimestamp: .now),
             Member(id: "ADI", coordinate: .init(latitude: -0.00064, longitude: 0.00002),
                    heading: 180, color: .apricot, measurementTimestamp: .now)
