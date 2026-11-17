@@ -51,6 +51,7 @@ struct OrbitSceneView: View {
             let baseSize = min(size.width, size.height)
             // Reserve space below the rings for their labels and the bottom controls.
             let referenceRadius = min(baseSize * 1.55 / 2, max(1, size.height / 2 - bottomInset - 100))
+            let backgroundRadius = referenceRadius * 1.12
             let scale = OrbitRingScale(range: radarRange, radius: referenceRadius)
             let markerRadius = scale.outerRadius
             let range = scale.outerDistance
@@ -66,12 +67,24 @@ struct OrbitSceneView: View {
                 ],
                 center: .center,
                 startRadius: 0,
-                endRadius: referenceRadius * 1.12
+                endRadius: backgroundRadius
             )
             .frame(width: size.width, height: size.height)
             .overlay {
                 ZStack {
                     OrbitDistanceRingsView(scale: scale)
+                        .mask {
+                            RadialGradient(
+                                stops: [
+                                    .init(color: .white, location: 0),
+                                    .init(color: .white, location: 0.85),
+                                    .init(color: .clear, location: 1)
+                                ],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: backgroundRadius
+                            )
+                        }
                     
                     if let location {
                         ForEach(members) { member in
