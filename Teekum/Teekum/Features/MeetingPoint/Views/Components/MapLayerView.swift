@@ -12,6 +12,7 @@ struct MapLayerView: View {
     @Bindable var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
     @Binding var selectedTarget: OrbitSceneView.Target?
+    @Namespace private var mapScope
     
     // State untuk mode Satelit
     @State private var isSatellite: Bool = false
@@ -43,9 +44,9 @@ struct MapLayerView: View {
     }
     
     public var body: some View {
-        ZStack(alignment: .bottomTrailing){
+        ZStack(alignment: .bottomTrailing) {
             MapReader { proxy in
-                Map(position: $cameraPosition) {
+                Map(position: $cameraPosition, scope: mapScope) {
                     // Current user point
                     UserAnnotation()
                     
@@ -62,9 +63,9 @@ struct MapLayerView: View {
                     ForEach(viewModel.members) { member in
                         if let coordinate = member.coordinate {
                             Annotation("", coordinate: coordinate) {
-                                let isSelected = selectedTarget == .member(member.id) // 👈 1. Deklarasi isSelected
+                                let isSelected = selectedTarget == .member(member.id)
                                 
-                                Button { // 👈 2. Bungkus ke Button agar bisa di-tap
+                                Button {
                                     selectMember(member)
                                 } label: {
                                     OrbitMemberMarkerView(
@@ -109,6 +110,8 @@ struct MapLayerView: View {
                     }
                 }
                 .mapStyle(isSatellite ? .hybrid(elevation: .flat) : .standard(elevation: .flat))
+                .mapControlVisibility(.hidden)
+                .safeAreaPadding(.top, 56)
                 .ignoresSafeArea()
                 // Posisi sentuhan jari
                 .simultaneousGesture(
@@ -117,7 +120,7 @@ struct MapLayerView: View {
                             lastTouchPoint = value.location
                         }
                 )
-                // Detekse jari yg di hold
+                // Deteksi jari yg di hold
                 .simultaneousGesture(
                     LongPressGesture(minimumDuration: holdDuration)
                         .onEnded { _ in
@@ -129,10 +132,30 @@ struct MapLayerView: View {
                         }
                 )
             }
-            mapFloatingButtons
-                .padding(.trailing, 16)
-                .padding(.bottom, 60)
+            
+            HStack(alignment: .bottom) {
+                MapCompass(scope: mapScope)
+                    .mapControlVisibility(.visible)
+                    .scaleEffect(1.17)
+                    .frame(width: 42, height: 42)
+                    .offset(y: -4)
+                    .padding(.leading, 20)
+                
+                Spacer()
+                
+                mapFloatingButtons
+                    .padding(.trailing, 16)
+            }
+            .padding(.bottom, 60)
         }
+        .overlay(alignment: .top) {
+            MapScaleView(scope: mapScope)
+                .fixedSize(horizontal: true, vertical: false)
+                .offset(x: 26)
+                .padding(.top, 12)
+                .allowsHitTesting(false)
+        }
+        .mapScope(mapScope)
         .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
             guard !hasInitialCentered, let newCoord else { return }
             hasInitialCentered = true
@@ -204,11 +227,39 @@ struct MapLayerView: View {
     
     private var mapFloatingButtons: some View {
         VStack(spacing: 12) {
-            // Tombol 1: Balik ke Lokasi User
+            // 1. Tombol Satelit
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isSatellite.toggle()
+                }
+            } label: {
+                Image(systemName: "map.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(isSatellite ? Color.buttonPrimary : .white)
+                    .frame(width: 42, height: 42)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .overlay {
+                Circle()
+                    .stroke(
+                        isSatellite ? Color.buttonPrimary : Color.white.opacity(0.25),
+                        lineWidth: isSatellite ? 1.5 : 0.8
+                    )
+            }
+            .shadow(
+                color: isSatellite ? Color.buttonPrimary.opacity(0.35) : .black.opacity(0.2),
+                radius: 4,
+                x: 0,
+                y: 2
+            )
+            .accessibilityLabel("Toggle Satellite Map")
+            
+            // 2. Tombol Lokasi User
             Button {
                 withAnimation(.easeInOut(duration: 0.4)) {
                     let targetCoord = location?.currentLocation?.coordinate
-                    ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
+                        ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
                     
                     cameraPosition = .camera(
                         MapCamera(
@@ -221,33 +272,16 @@ struct MapLayerView: View {
                 Image(systemName: "location.fill")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 48, height: 48)
-                    .background(Color.black.opacity(0.65))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                    .frame(width: 42, height: 42)
             }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .overlay {
+                Circle()
+                    .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
+            }
+            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
             .accessibilityLabel("Recenter to user location")
-            
-            // Tombol 2: Toggle Satelit / Standar
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    isSatellite.toggle()
-                }
-            } label: {
-                Image(systemName: "globe.americas.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(isSatellite ? Color.buttonPrimary : .white) // Kuning saat satelit aktif
-                    .frame(width: 48, height: 48)
-                    .background(Color.black.opacity(0.65))
-                    .clipShape(Circle())
-                    .overlay(
-                        Circle()
-                            .stroke(isSatellite ? Color.buttonPrimary.opacity(0.6) : Color.white.opacity(0.2), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-            }
-            .accessibilityLabel("Toggle Satellite Map")
         }
     }
 }
