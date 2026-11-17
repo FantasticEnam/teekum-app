@@ -10,7 +10,6 @@ enum OrbitModal: Identifiable, Hashable {
     case mapPoint
     case settings
     case invite
-    case finder(String)
 
     var id: Self { self }
 }

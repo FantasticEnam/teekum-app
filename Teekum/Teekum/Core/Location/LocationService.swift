@@ -170,7 +170,7 @@ public final class LocationService: NSObject, CLLocationManagerDelegate, Locatio
         #endif
         
         var streamContinuation: AsyncStream<LocationPin>.Continuation!
-        self.publishedPings = AsyncStream { streamContinuation = $0 }
+        self.publishedPings = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { streamContinuation = $0 }
         self.publishedPingsContinuation = streamContinuation
         
         super.init()
