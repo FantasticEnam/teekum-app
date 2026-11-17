@@ -120,12 +120,6 @@ final class PairingMeetingMigrationTests: XCTestCase {
         XCTAssertFalse(viewModel.canPerformPrimaryAction)
     }
 
-    func testScanTimingTrackerRecordsCheckpointsWithoutCrashing() {
-        ScanTimingTracker.start(codePreview: "meepo://join#test")
-        ScanTimingTracker.checkpoint("unitTestCheckpoint", details: "testing timing output")
-        ScanTimingTracker.reset()
-    }
-
     func testMeetingSetterLockAndAttendanceMatchPrototypeRules() throws {
         let store = SessionStore(activeSession: GroupSession(localInitials: "ADI"))
         let service = MeetingPointService(sessionStore: store)

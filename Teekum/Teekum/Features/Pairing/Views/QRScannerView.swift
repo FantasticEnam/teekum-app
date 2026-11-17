@@ -70,11 +70,9 @@ struct QRScannerView: View {
         }
         .task(id: isEnabled && !isScanned && scenePhase == .active) {
             guard isEnabled, !isScanned, scenePhase == .active else {
-                ScanTimingTracker.checkpoint("scannerTaskDisabled", details: "isEnabled: \(isEnabled), isScanned: \(isScanned), scene: \(scenePhase)")
                 scanner.stop()
                 return
             }
-            ScanTimingTracker.checkpoint("scannerTaskStarting")
             let message = await scanner.start(onCodeScanned: onCodeScanned)
             guard !Task.isCancelled else { return }
             cameraMessage = message

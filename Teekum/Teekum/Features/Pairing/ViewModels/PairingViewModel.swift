@@ -35,11 +35,9 @@ final class PairingViewModel {
     private(set) var scannedInvite: GroupSessionInvite?
     var isShowingAgreement = false {
         didSet {
-            ScanTimingTracker.checkpoint("isShowingAgreementChanged", details: "showing: \(isShowingAgreement)")
             if !isShowingAgreement {
                 cancelPublicFestivalAgreement()
                 resetScannedInvite()
-                ScanTimingTracker.reset()
             }
         }
     }
@@ -101,20 +99,15 @@ final class PairingViewModel {
         scannedInvite = invite
         form.sessionName = invite.sessionName
         errorMessage = nil
-        ScanTimingTracker.checkpoint("receiveInviteUpdatedState", details: "scannedInvite set")
     }
 
     func handleScannedCode(_ text: String) {
-        ScanTimingTracker.checkpoint("parseInviteStarted", details: "Text length: \(text.count)")
         guard let invite = GroupSession.parseInvite(from: text) else {
-            ScanTimingTracker.checkpoint("parseInviteFailed")
             errorMessage = PairingError.invalidInvite.localizedDescription
             return
         }
-        ScanTimingTracker.checkpoint("parseInviteFinished", details: "Session: \(invite.sessionName), SID: \(String(format: "0x%06X", invite.sessionId))")
         receiveInvite(invite)
         if form.hasValidInitials {
-            ScanTimingTracker.checkpoint("triggeringNavigation", details: "Setting viewModel.isShowingAgreement = true")
             isShowingAgreement = true
         }
     }
