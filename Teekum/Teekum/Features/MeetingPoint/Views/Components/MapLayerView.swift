@@ -41,16 +41,17 @@ public struct MapLayerView: View {
                                     initials: member.initials,
                                     color: member.color.swiftUIColor,
                                     isEmergency: member.isEmergency,
-                                    size: 22
+                                    batteryLevel: member.batteryLevel
                                 )
                                 .overlay(alignment: .bottom) {
                                     if let distance = memberDistance(for: member) {
+                                        let showsBattery = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel) != nil
                                         Text(distance)
                                             .font(.caption2)
                                             .foregroundStyle(.white)
                                             .fixedSize()
                                             .shadow(color: .black.opacity(0.8), radius: 2)
-                                            .offset(y: 18)
+                                            .offset(y: showsBattery ? 34 : 18)
                                     }
                                 }
                             }

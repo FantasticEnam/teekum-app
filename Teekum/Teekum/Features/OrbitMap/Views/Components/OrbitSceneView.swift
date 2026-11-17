@@ -15,6 +15,7 @@ struct OrbitSceneView: View {
     }
     
     let userColor: Color
+    var userBatteryLevel: Float?
     var members: [Member] = []
     var meetingPoint: MeetingPoint?
     var location: LocationPin?
@@ -67,10 +68,11 @@ struct OrbitSceneView: View {
             let size = geometry.size
             let baseSize = min(size.width, size.height)
             let outerRadius = baseSize * 1.55 / 2
-            let markerRadius = Double(baseSize * 0.42)
+            let markerRadius = Double(outerRadius)
             let range = radarRange
             let userMarker = OrbitUserMarkerView(color: userColor, heading: .degrees(0),
-                isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil)
+                isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil,
+                batteryLevel: userBatteryLevel)
             
             RadialGradient(
                 stops: [
@@ -97,14 +99,11 @@ struct OrbitSceneView: View {
                             )
                     }
                     
-                    userMarker.positionMarker
-                        .allowsHitTesting(false)
-                    
                     if let location {
                         ForEach(members) { member in
                             if let coordinate = member.coordinate {
                                 let projection = OrbitProjection(from: location, to: coordinate, heading: heading,
-                                                                 radius: markerRadius, range: range)
+                                                                 radius: markerRadius, range: range, overflowMargin: 20)
                                 let isSelected = selectedTarget == .member(member.id)
                                 if isSelected {
                                     targetLine(to: projection, in: size, isEmergency: member.isEmergency)
@@ -125,7 +124,7 @@ struct OrbitSceneView: View {
                     }
                 }
             }
-            .overlay { userMarker.directionArrow }
+            .overlay { userMarker.allowsHitTesting(false) }
             .overlay(alignment: .bottomTrailing) {
                 if isRulerVisible || pinchMagnification != nil, markerRadius > 0 {
                     let ringGap = baseSize * (Self.ringDiameterScales[1] - Self.ringDiameterScales[0]) / 2
@@ -187,10 +186,7 @@ struct OrbitSceneView: View {
     
     private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
         let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
-        let lowBatteryPercentage = member.batteryLevel.flatMap { level in
-            let threshold = Float(MeepoConfiguration.Battery.survivalThresholdPercent) / 100
-            return (0...threshold).contains(level) ? level.formattedBatteryPercentage : nil
-        }
+        let lowBatteryPercentage = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel)
         return Button {
             onSelectMember(member.id)
         } label: {
@@ -200,16 +196,21 @@ struct OrbitSceneView: View {
                 isSelected: isSelected,
                 isEmergency: member.isEmergency,
                 showsBloom: projection.isClamped,
-                lowBatteryPercentage: lowBatteryPercentage
+                batteryLevel: member.batteryLevel,
+                heading: member.heading.map { .degrees($0 - heading) }
             )
-            .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
+            .overlay(alignment: .bottom) {
+                distanceLabel(projection).offset(y: lowBatteryPercentage == nil ? 18 : 34)
+            }
         }
         .buttonStyle(.plain)
         .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
         .frame(minWidth: 44, minHeight: 44)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Member \(member.initials), \(projection.distance.formattedDistance())")
-        .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
+        .accessibilityValue(member.isEmergency ? Text("SOS active") : member.heading.map {
+            Text("Heading \($0, format: .number.precision(.fractionLength(0))) degrees")
+        } ?? Text("Direction unavailable"))
         .accessibilityHint(lowBatteryPercentage.map { Text("Low battery, \($0)") } ?? Text(""))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .offset(x: projection.x, y: projection.y)
@@ -270,23 +271,38 @@ struct OrbitSceneView: View {
     OrbitSceneView(
         userColor: .yellowProfile,
         members: [
-            Member(id: "NIC", coordinate: .init(latitude: 0.00025, longitude: -0.0001), batteryLevel: 0.2,
-                   color: .greenishTeal, measurementTimestamp: .now),
-            Member(id: "ADI", coordinate: .init(latitude: -0.0004, longitude: 0.0005),
-                   color: .apricot, measurementTimestamp: .now)
+            Member(id: "NIC", coordinate: .init(latitude: 0.00025, longitude: -0.0001), batteryLevel: 0.1,
+                   heading: 315, color: .greenishTeal, measurementTimestamp: .now),
+            Member(id: "ADI", coordinate: .init(latitude: -0.00064, longitude: 0.00002),
+                   heading: 180, color: .apricot, measurementTimestamp: .now)
         ],
         location: location
     )
 }
 
-#Preview("1. Selected Normal (Yellow)") {
+#Preview("YOU above overlapping friends") {
+    let location = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 5)
+    OrbitSceneView(
+        userColor: MemberColor.sandrift.swiftUIColor,
+        members: [
+            Member(id: "NIC", coordinate: .init(latitude: 0, longitude: 0.00004), heading: 240,
+                color: .apricot, measurementTimestamp: .now),
+            Member(id: "AYU", coordinate: .init(latitude: 0.00005, longitude: -0.00002), batteryLevel: 0.1,
+                heading: 0, color: .yellow, measurementTimestamp: .now)
+        ],
+        location: location,
+        selectedTarget: .member("NIC")
+    )
+}
+
+#Preview("Selected friend") {
     let store = SessionStore.preview
     OrbitSceneView(
         userColor: .yellowProfile,
         members: store.members,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
-        selectedTarget: .member("ADI") // Kotak nama kuning, teks hitam, garis putus-putus kuning
+        selectedTarget: .member("ADI")
     )
 }
 
@@ -302,7 +318,7 @@ struct OrbitSceneView: View {
         members: sosMembers,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
-        selectedTarget: .member("ADI") // Kotak merah, teks putih (bukan hitam), panah merah
+        selectedTarget: .member("ADI")
     )
 }
 

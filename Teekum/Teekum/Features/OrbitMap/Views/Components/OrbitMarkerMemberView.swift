@@ -12,12 +12,10 @@ struct OrbitMemberMarkerView: View {
     let color: Color
     var isSelected = false
     var isEmergency = false
-    var size: CGFloat = 30
+    @ScaledMetric(relativeTo: .caption) var size: CGFloat = 36
     var showsBloom = false
-    var lowBatteryPercentage: String?
-
-    private var showsPointer: Bool { isEmergency || isSelected || lowBatteryPercentage != nil }
-    private var bubbleColor: Color { isEmergency ? .alertRed : (isSelected ? .buttonPrimary : .black) }
+    var batteryLevel: Float?
+    var heading: Angle?
     
     var body: some View {
         Circle()
@@ -32,41 +30,49 @@ struct OrbitMemberMarkerView: View {
                         .padding(-4)
                 }
             }
-            .overlay(alignment: .top) {
-                VStack(spacing: -2) {
-                    VStack(spacing: 1) {
-                        Text(initials)
-                            .font(.custom("Helvetica", size: isSelected ? 16 : 13, relativeTo: .caption))
-                            .foregroundStyle(isSelected && !isEmergency ? .black : .white)
-                        if let lowBatteryPercentage {
-                            Label(lowBatteryPercentage, systemImage: "bolt.fill")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(isSelected && !isEmergency ? .black : .buttonPrimary)
-                        }
+            .overlay {
+                Text(initials)
+                    .font(.custom("Helvetica", size: 13, relativeTo: .caption).bold())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundStyle(.black)
+                    .padding(3)
+            }
+            .overlay(alignment: .bottom) {
+                OrbitBatteryIndicatorView(batteryLevel: batteryLevel)
+                    .offset(y: 14)
+            }
+            .overlay {
+                if let heading {
+                    let width = size * 0.4
+                    let height = size * 0.25
+                    Path { path in
+                        path.move(to: CGPoint(x: 0, y: height))
+                        path.addLine(to: CGPoint(x: width / 2, y: 0))
+                        path.addLine(to: CGPoint(x: width, y: height))
+                        path.addLine(to: CGPoint(x: width / 2, y: height * 0.65))
+                        path.closeSubpath()
                     }
-                    .padding(.horizontal, isSelected ? 14 : 10)
-                    .padding(.vertical, isSelected ? 8 : 6)
-                    .background(bubbleColor, in: .rect(cornerRadius: isSelected ? 8 : 6))
-                    
-                    if showsPointer {
-                        Image(systemName: "triangle.fill")
-                            .font(.system(size: isSelected ? 13 : 10))
-                            .rotationEffect(.degrees(180))
-                            .foregroundStyle(bubbleColor)
-                    }
+                        .fill(color)
+                        .frame(width: width, height: height)
+                        .offset(y: -size / 2 - height / 2 - 2)
+                        .rotationEffect(heading)
+                        .accessibilityHidden(true)
                 }
-                .fixedSize()
-                .alignmentGuide(.top) { $0[.bottom] + (showsPointer ? 2 : 12) }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Member \(initials)")
+            .accessibilityHint(OrbitBatteryIndicatorView.percentage(for: batteryLevel).map {
+                Text("Low battery, \($0)")
+            } ?? Text(""))
     }
 }
 
 #Preview("Low battery markers") {
     HStack(spacing: 64) {
-        OrbitMemberMarkerView(initials: "AYU", color: .yellowProfile, lowBatteryPercentage: "20%")
-        OrbitMemberMarkerView(initials: "NIC", color: .redProfile, isEmergency: true, lowBatteryPercentage: "12%")
+        OrbitMemberMarkerView(initials: "HSN", color: .greenProfile, batteryLevel: 0.1, heading: .degrees(315))
+        OrbitMemberMarkerView(initials: "NIC", color: .redProfile, isEmergency: true,
+            batteryLevel: 0.05, heading: .degrees(90))
     }
     .padding(80)
     .background(.black)
@@ -74,9 +80,19 @@ struct OrbitMemberMarkerView: View {
 
 #Preview("Normal and SOS markers") {
     HStack(spacing: 64) {
-        OrbitMemberMarkerView(initials: "AYU", color: .pinkProfile)
-        OrbitMemberMarkerView(initials: "AYU", color: .pinkProfile, isEmergency: true)
+        OrbitMemberMarkerView(initials: "AYU", color: .pinkProfile, heading: .degrees(0))
+        OrbitMemberMarkerView(initials: "NIC", color: .redProfile, isEmergency: true, heading: .degrees(240))
     }
     .padding(80)
+    .background(.black)
+}
+
+#Preview("Friend heading directions") {
+    HStack(spacing: 32) {
+        OrbitMemberMarkerView(initials: "AYU", color: .yellowProfile, heading: .degrees(0))
+        OrbitMemberMarkerView(initials: "NIC", color: .pinkProfile, heading: .degrees(240))
+        OrbitMemberMarkerView(initials: "ADI", color: .redProfile, isSelected: true, heading: .degrees(45))
+    }
+    .padding(40)
     .background(.black)
 }
