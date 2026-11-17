@@ -11,6 +11,123 @@ import CoreLocation
 @testable import Teekum
 
 final class NetworkMigrationTests: XCTestCase {
+    @MainActor
+    func testDelayedPublisherDoesNotBroadcastAnOldQueuedCoordinate() async throws {
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: Data(repeating: 0x42, count: 32),
+            localInitials: "ALX")
+        let crypto = CryptoService()
+        let transport = NetworkTestTransport()
+        let location = LocationService()
+        let firstTime = Date(timeIntervalSince1970: 1_800_000_000)
+        let newestTime = firstTime.addingTimeInterval(4)
+        location.simulateLocation(coordinate: .init(latitude: 0, longitude: 0), timestamp: firstTime)
+        location.publishCurrentState()
+        location.simulateLocation(coordinate: .init(latitude: 0, longitude: 0.0002), timestamp: newestTime)
+        let sent = expectation(description: "Initial fix and buffered tick have been transmitted")
+        sent.expectedFulfillmentCount = 2
+        await transport.setOnBroadcast { _ in sent.fulfill() }
+        let publisher = LocationPublisher(locationService: location, sessionProvider: { session },
+            cryptoService: crypto, transport: transport)
+        publisher.start()
+        defer { publisher.stop() }
+        await fulfillment(of: [sent], timeout: 2)
+
+        let packets = await transport.broadcastPackets
+        XCTAssertEqual(packets.count, 2)
+        for data in packets {
+            let raw = try RawWirePacket.fromWireData(data)
+            let opened = try await crypto.open(ciphertext: raw.ciphertext, envelope: raw.envelope,
+                authTag: raw.authTag, using: SymmetricKey(data: session.symmetricKeyData))
+            let ping = try LocationPingPayload.deserialize(from: opened)
+            XCTAssertEqual(ping.timestamp, newestTime)
+            XCTAssertEqual(ping.coordinate.longitude, 0.0002, accuracy: 0.000001)
+        }
+    }
+
+    @MainActor
+    func testSchedulerStreamsFreshCoordinatesThroughTheRunningPublisher() async throws {
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: Data(repeating: 0x42, count: 32),
+            localInitials: "ALX")
+        let crypto = CryptoService()
+        let transport = NetworkTestTransport()
+        let location = LocationService(cadenceConfig: .init(movingInterval: 0.02, stationaryInterval: 0.1))
+        let publisher = LocationPublisher(locationService: location, sessionProvider: { session },
+            cryptoService: crypto, transport: transport)
+        let nextTime = Date(timeIntervalSince1970: 1_800_000_004)
+        let transmitted = expectation(description: "Scheduled ping carries the latest measurement")
+        let receiveFresh: @Sendable (Data) async -> Void = { data in
+            guard let raw = try? RawWirePacket.fromWireData(data),
+                  let opened = try? await crypto.open(ciphertext: raw.ciphertext, envelope: raw.envelope,
+                    authTag: raw.authTag, using: SymmetricKey(data: session.symmetricKeyData)),
+                  let ping = try? LocationPingPayload.deserialize(from: opened),
+                  ping.timestamp == nextTime else { return }
+            XCTAssertEqual(ping.coordinate.longitude, 0.0002, accuracy: 0.000001)
+            transmitted.fulfill()
+        }
+        location.simulateLocation(coordinate: .init(latitude: 0, longitude: 0),
+            timestamp: nextTime.addingTimeInterval(-4))
+        location.setStationaryState(true)
+        location.isTracking = true
+        let initial = expectation(description: "Publisher has sent its initial coordinate")
+        await transport.setOnBroadcast { _ in initial.fulfill() }
+        publisher.start()
+        defer {
+            publisher.stop()
+            location.stopTracking()
+        }
+        await fulfillment(of: [initial], timeout: 2)
+        await transport.setOnBroadcast(receiveFresh)
+        location.startPublishingScheduler()
+
+        location.simulateLocation(coordinate: .init(latitude: 0, longitude: 0.0002), timestamp: nextTime)
+
+        await fulfillment(of: [transmitted], timeout: 2)
+        XCTAssertGreaterThan(publisher.publishedPingsCount, 0)
+    }
+
+    @MainActor
+    func testPublishedLocationUpdatesMoveTheOrbitMember() async throws {
+        let crypto = CryptoService()
+        let transport = NetworkTestTransport()
+        let keyData = Data(repeating: 0x42, count: 32)
+        let sender = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "ALX")
+        let receiver = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "BOB")
+        let store = SessionStore(activeSession: receiver)
+        let location = LocationService()
+        let publisher = LocationPublisher(locationService: location, sessionProvider: { sender },
+            cryptoService: crypto, transport: transport)
+        let routing = RoutingTable()
+        let discovery = RouteDiscoveryService(routingTable: routing, neighborTable: NeighborTable(),
+            transport: transport, cryptoService: crypto)
+        let policy = RelayPolicyManager(storageKeyPrefix: "orbit-location-\(UUID())",
+            transport: transport, defaultMode: .disabled)
+        let router = PacketRouter(cryptoService: crypto, peerTransport: transport,
+            relayPolicyManager: policy, routeDiscoveryService: discovery, seenPacketCache: SeenPacketCache(),
+            onLocationPing: { store.applyLocationPing($0, inbound: $1) }, onSOS: { _, _ in },
+            onACK: { _ in }, onMeetingUpdate: { _ in }, onChat: { _ in })
+        let origin = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 5)
+        let firstTime = Date(timeIntervalSince1970: 1_800_000_000)
+        var projections: [OrbitProjection] = []
+
+        for (index, longitude) in [0.0001, 0.0003].enumerated() {
+            let timestamp = firstTime.addingTimeInterval(Double(index * 5))
+            location.simulateLocation(coordinate: .init(latitude: 0, longitude: longitude), timestamp: timestamp)
+            try await publisher.handleLocationPingReady(location: XCTUnwrap(location.currentLocation))
+            let packets = await transport.broadcastPackets
+            let raw = try RawWirePacket.fromWireData(XCTUnwrap(packets.last))
+            await router.routeInboundPacket(.init(rawPacket: raw, sourcePeerId: "ALX"), for: receiver)
+            let member = try XCTUnwrap(store.visibleMembers.first)
+            let coordinate = try XCTUnwrap(member.coordinate)
+            XCTAssertEqual(coordinate.longitude, longitude, accuracy: 0.000001)
+            XCTAssertEqual(member.measurementTimestamp, timestamp)
+            projections.append(OrbitProjection(from: origin, to: coordinate,
+                heading: 0, radius: 100))
+        }
+
+        XCTAssertGreaterThan(projections[1].distance, projections[0].distance)
+        XCTAssertGreaterThan(projections[1].x, projections[0].x)
+    }
+
     func testPacketLogDistinguishesOutsideReceiptFromCompletedRelay() async throws {
         let transport = PeerTransportService()
         let generation = await transport.beginPacketLogTestSession()
@@ -346,10 +463,20 @@ private actor NetworkTestTransport: PeerTransport, MeshTransport {
     nonisolated let neighborEvents = AsyncStream<NeighborEvent> { _ in }
     private(set) var carriedCount = 0
     private(set) var broadcastCount = 0
+    private(set) var broadcastPackets: [Data] = []
+    private var onBroadcast: (@Sendable (Data) async -> Void)?
+
+    func setOnBroadcast(_ handler: @escaping @Sendable (Data) async -> Void) {
+        onBroadcast = handler
+    }
 
     func start(serviceType: String, session: GroupSession) async throws {}
     func stop() async {}
-    func broadcastPacket(_ data: Data) async throws { broadcastCount += 1 }
+    func broadcastPacket(_ data: Data) async throws {
+        broadcastCount += 1
+        broadcastPackets.append(data)
+        await onBroadcast?(data)
+    }
     func broadcastFrame(_ data: Data) async throws { broadcastCount += 1 }
     func sendPacket(_ data: Data, to peerId: String) async throws {}
     func sendFrame(_ data: Data, to peerId: String) async throws -> SendOutcome {

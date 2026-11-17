@@ -9,26 +9,35 @@ import SwiftUI
 
 struct GroupPairingInviteView: View {
     let session: GroupSession
+    var isDraft = true
     @State private var qrImage: UIImage?
 
     var body: some View {
         let inviteURL = session.inviteURL()
         VStack(spacing: 0) {
             Text("Scan this barcode to join private\ngroup with zero cell reception")
-                .font(.custom("Helvetica", size: 12, relativeTo: .caption))
+                .font(isDraft ? .custom("Helvetica", size: 12, relativeTo: .caption) : .system(.caption, design: .serif))
                 .multilineTextAlignment(.center)
-                .lineSpacing(3)
-                .padding(.bottom, 12)
+                .lineSpacing(isDraft ? 3 : 1)
+                .padding(.bottom, isDraft ? 12 : 2)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let qrImage {
-                Image(uiImage: qrImage)
+                let qrCode = Image(uiImage: qrImage)
                     .resizable()
                     .interpolation(.none)
                     .scaledToFit()
-                    .frame(maxWidth: 166, maxHeight: 166)
-                    .padding(10)
+                    .frame(maxWidth: isDraft ? 166 : 258, maxHeight: isDraft ? 166 : 258)
+                    .padding(isDraft ? 10 : 20)
                     .background(.white)
+
+                Group {
+                    if isDraft {
+                        qrCode
+                    } else {
+                        qrCode.colorInvert()
+                    }
+                }
                     .accessibilityLabel("Group invitation QR code")
             } else {
                 Label("QR unavailable", systemImage: "qrcode")
@@ -38,12 +47,14 @@ struct GroupPairingInviteView: View {
 
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: 255)
+        .padding(.horizontal, isDraft ? 16 : 0)
+        .padding(.vertical, isDraft ? 14 : 0)
+        .frame(maxWidth: isDraft ? 255 : nil)
         .background {
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Color(white: 0.28), lineWidth: 1)
+            if isDraft {
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color(white: 0.28), lineWidth: 1)
+            }
         }
         .task(id: inviteURL) { qrImage = QRCodeGenerator.image(for: inviteURL) }
     }

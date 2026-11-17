@@ -15,16 +15,34 @@ struct GroupQRCodeView: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(session.sessionName)
-                .font(.custom("Helvetica", size: 22, relativeTo: .title2))
+                .font(isDraft ? .custom("Helvetica", size: 22, relativeTo: .title2) : .system(.title3, design: .serif, weight: .bold))
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 10)
 
-            GroupPairingInviteView(session: session)
-                .frame(maxHeight: isDraft ? .infinity : nil, alignment: .top)
+            if isDraft {
+                GroupPairingInviteView(session: session)
+                    .frame(maxHeight: .infinity, alignment: .top)
 
-            if !isDraft {
+                shareLink
+                    .padding(.top, 22)
+                    .layoutPriority(1)
+            } else {
+                VStack(spacing: 0) {
+                    GroupPairingInviteView(session: session, isDraft: false)
+                    shareLink
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 24)
+                .padding(.bottom, 19)
+                .frame(maxWidth: 318)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(Color(white: 0.28), lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
+
                 Label("Key fingerprint \(session.keyFingerprint)", systemImage: "lock.shield")
                     .font(.custom("Helvetica", size: 12, relativeTo: .caption))
                     .foregroundStyle(.secondary)
@@ -32,22 +50,26 @@ struct GroupQRCodeView: View {
                     .padding(.top, 12)
             }
 
-            ShareLink(
-                item: session.inviteURL(),
-                subject: Text("Join \(session.sessionName) on Meepo"),
-                message: Text("Join my group on Meepo: \(session.sessionName)")
-            ) {
-                Text("Share Invite Link")
-                    .font(.custom("Helvetica", size: 14, relativeTo: .subheadline))
-                    .padding(.horizontal, 12)
-                    .frame(maxWidth: .infinity, minHeight: 36)
-                    .background(Color(white: 0.11), in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, isDraft ? 22 : 12)
-            .layoutPriority(1)
         }
+    }
+
+    private var shareLink: some View {
+        ShareLink(
+            item: session.inviteURL(),
+            subject: Text("Join \(session.sessionName) on Meepo"),
+            message: Text("Join my group on Meepo: \(session.sessionName)")
+        ) {
+            Text("Share Invite Link")
+                .font(isDraft ? .custom("Helvetica", size: 14, relativeTo: .subheadline) : .system(.subheadline, design: .serif, weight: .semibold))
+                .foregroundStyle(isDraft ? Color.white : Color.black)
+                .padding(.horizontal, 12)
+                .frame(minWidth: isDraft ? nil : 180, maxWidth: isDraft ? .infinity : nil, minHeight: isDraft ? 36 : 32)
+                .background(isDraft ? Color(white: 0.11) : .buttonPrimary, in: Capsule())
+                .frame(minHeight: isDraft ? nil : 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

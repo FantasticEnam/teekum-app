@@ -72,8 +72,10 @@ struct GroupPairingView: View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
                 Image("Meepo_logo")
+                    .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
+                    .foregroundStyle(Color.buttonPrimary)
                     .frame(height: 20)
                     .frame(width: 70)
                     .padding(.top, 10)
