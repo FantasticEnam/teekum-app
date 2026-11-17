@@ -106,6 +106,26 @@ final class PairingMeetingMigrationTests: XCTestCase {
         XCTAssertEqual(fallbackModel.scannedInvite?.sessionId, host.sessionId)
     }
 
+    func testResetScannedInviteClearsScannedStateAndErrorMessage() throws {
+        let viewModel = PairingViewModel(sessionStore: SessionStore())
+        viewModel.form.initials = "NIC"
+        viewModel.mode = .join
+        let host = try GroupSessionFactory.create(name: "Festival Crew", initials: "ADI", colorCode: 7)
+        viewModel.handleScannedCode(host.inviteURL().absoluteString)
+        XCTAssertNotNil(viewModel.scannedInvite)
+
+        viewModel.resetScannedInvite()
+        XCTAssertNil(viewModel.scannedInvite)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.canPerformPrimaryAction)
+    }
+
+    func testScanTimingTrackerRecordsCheckpointsWithoutCrashing() {
+        ScanTimingTracker.start(codePreview: "meepo://join#test")
+        ScanTimingTracker.checkpoint("unitTestCheckpoint", details: "testing timing output")
+        ScanTimingTracker.reset()
+    }
+
     func testMeetingSetterLockAndAttendanceMatchPrototypeRules() throws {
         let store = SessionStore(activeSession: GroupSession(localInitials: "ADI"))
         let service = MeetingPointService(sessionStore: store)

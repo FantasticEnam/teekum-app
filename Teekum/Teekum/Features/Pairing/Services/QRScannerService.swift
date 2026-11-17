@@ -81,26 +81,45 @@ final class QRScannerService: NSObject, AVCaptureMetadataOutputObjectsDelegate, 
     }
 
     func stop() {
+        ScanTimingTracker.checkpoint("cameraStopQueued")
         requestLock.withLock {
             activeRequest = nil
             codeHandler = nil
             lastCode = nil
         }
         sessionQueue.async { [self] in
-            if session.isRunning { session.stopRunning() }
+            if session.isRunning {
+                session.stopRunning()
+                ScanTimingTracker.checkpoint("cameraStopFinished")
+            }
         }
     }
 
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
         guard let code = metadataObjects.compactMap({ ($0 as? AVMetadataMachineReadableCodeObject)?.stringValue }).first else { return }
+        ScanTimingTracker.start(codePreview: code)
         let delivery = requestLock.withLock { () -> (UUID, @MainActor @Sendable (String) -> Void)? in
             guard let activeRequest, let codeHandler, lastCode != code else { return nil }
             lastCode = code
+            self.codeHandler = nil
             return (activeRequest, codeHandler)
         }
-        guard let (request, handler) = delivery else { return }
+        guard let (request, handler) = delivery else {
+            ScanTimingTracker.checkpoint("codeDroppedOrDuplicate", details: "lastCode was duplicate or request inactive")
+            return
+        }
+        if session.isRunning {
+            session.stopRunning()
+            ScanTimingTracker.checkpoint("cameraStoppedOnDetection")
+        }
+        ScanTimingTracker.checkpoint("queuedMainActorTask", details: "Request \(request.uuidString.prefix(8))")
         Task { @MainActor [weak self] in
-            guard let self, requestLock.withLock({ activeRequest == request }) else { return }
+            ScanTimingTracker.checkpoint("mainActorTaskStarted", details: "Request \(request.uuidString.prefix(8))")
+            guard let self, requestLock.withLock({ activeRequest == request }) else {
+                ScanTimingTracker.checkpoint("mainActorTaskAborted", details: "activeRequest mismatched or cancelled")
+                return
+            }
+            ScanTimingTracker.checkpoint("invokingCodeHandler")
             handler(code)
         }
     }

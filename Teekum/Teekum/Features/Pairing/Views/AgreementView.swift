@@ -74,17 +74,21 @@ struct AgreementView: View {
             .padding(.top, 20)
             .padding(.bottom, 24)
             .frame(maxWidth: .infinity)
-            .foregroundStyle(.white)
-            .background {
-                RadialGradient(
-                    colors: [Color(white: 0.11), Color(white: 0.11), .black],
-                    center: .center,
-                    startRadius: 50,
-                    endRadius: 500
-                )
-                .ignoresSafeArea()
-            }
-            .preferredColorScheme(.dark)
+        }
+        .foregroundStyle(.white)
+        .background {
+            RadialGradient(
+                colors: [Color(white: 0.09), Color(white: 0.09), .black],
+                center: .center,
+                startRadius: 40,
+                endRadius: 405
+            )
+            .ignoresSafeArea()
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            ScanTimingTracker.checkpoint("agreementViewAppeared", details: "AgreementView presentation complete")
+        }
     }
 }
 
