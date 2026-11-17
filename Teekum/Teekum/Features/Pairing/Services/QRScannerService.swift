@@ -87,7 +87,9 @@ final class QRScannerService: NSObject, AVCaptureMetadataOutputObjectsDelegate, 
             lastCode = nil
         }
         sessionQueue.async { [self] in
-            if session.isRunning { session.stopRunning() }
+            if session.isRunning {
+                session.stopRunning()
+            }
         }
     }
 
@@ -96,9 +98,13 @@ final class QRScannerService: NSObject, AVCaptureMetadataOutputObjectsDelegate, 
         let delivery = requestLock.withLock { () -> (UUID, @MainActor @Sendable (String) -> Void)? in
             guard let activeRequest, let codeHandler, lastCode != code else { return nil }
             lastCode = code
+            self.codeHandler = nil
             return (activeRequest, codeHandler)
         }
         guard let (request, handler) = delivery else { return }
+        if session.isRunning {
+            session.stopRunning()
+        }
         Task { @MainActor [weak self] in
             guard let self, requestLock.withLock({ activeRequest == request }) else { return }
             handler(code)

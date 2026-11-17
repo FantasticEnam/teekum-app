@@ -33,6 +33,14 @@ final class PairingViewModel {
     private(set) var isPublicFestivalMesh = false
     private(set) var draftSession: GroupSession?
     private(set) var scannedInvite: GroupSessionInvite?
+    var isShowingAgreement = false {
+        didSet {
+            if !isShowingAgreement {
+                cancelPublicFestivalAgreement()
+                resetScannedInvite()
+            }
+        }
+    }
     var errorMessage: String?
     var isShowingQR: Bool { draftSession != nil }
 
@@ -99,6 +107,9 @@ final class PairingViewModel {
             return
         }
         receiveInvite(invite)
+        if form.hasValidInitials {
+            isShowingAgreement = true
+        }
     }
 
     func pasteInvite(candidates: [String]) {
@@ -123,6 +134,11 @@ final class PairingViewModel {
         scannedInvite = nil
         isPublicFestivalMesh = true
         draftSession = GroupSession(localInitials: form.initials, localColorCode: form.profileColor.wireColorCode)
+        errorMessage = nil
+    }
+
+    func resetScannedInvite() {
+        scannedInvite = nil
         errorMessage = nil
     }
 
