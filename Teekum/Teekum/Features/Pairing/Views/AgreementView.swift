@@ -85,6 +85,9 @@ struct AgreementView: View {
             .ignoresSafeArea()
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            ScanTimingTracker.checkpoint("agreementViewAppeared", details: "AgreementView presentation complete")
+        }
     }
 }
 

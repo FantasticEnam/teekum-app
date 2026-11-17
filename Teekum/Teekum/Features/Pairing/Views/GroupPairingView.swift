@@ -11,7 +11,6 @@ import UIKit
 struct GroupPairingView: View {
     private let sessionStore: SessionStore
     @State private var viewModel: PairingViewModel
-    @State private var isShowingAgreement = false
     @State private var isProfilePickerVisible = false
     @FocusState private var focusedField: PairingField?
 
@@ -43,16 +42,12 @@ struct GroupPairingView: View {
         .onChange(of: sessionStore.pendingInvite, initial: true) { _, invite in
             if let invite { viewModel.receiveInvite(invite) }
         }
-        .onChange(of: viewModel.scannedInvite) { _, invite in
-            if invite != nil, viewModel.form.hasValidInitials {
+        .onChange(of: viewModel.isShowingAgreement) { _, showing in
+            if showing {
                 dismissEditing()
-                isShowingAgreement = true
             }
         }
-        .onChange(of: isShowingAgreement) { _, showing in
-            if !showing { viewModel.cancelPublicFestivalAgreement() }
-        }
-        .navigationDestination(isPresented: $isShowingAgreement) {
+        .navigationDestination(isPresented: $viewModel.isShowingAgreement) {
             AgreementView(
                 form: viewModel.form,
                 mode: viewModel.mode,
@@ -118,7 +113,8 @@ struct GroupPairingView: View {
                         .bold()
                         .padding(.bottom, 10)
                     QRScannerView(
-                        isEnabled: viewModel.form.hasValidInitials && !isShowingAgreement,
+                        isEnabled: viewModel.form.hasValidInitials && !viewModel.isShowingAgreement,
+                        isScanned: viewModel.scannedInvite != nil,
                         onCodeScanned: viewModel.handleScannedCode
                     )
                     if let invite = viewModel.scannedInvite {
@@ -215,7 +211,7 @@ struct GroupPairingView: View {
         guard viewModel.canPerformPrimaryAction else { return }
         dismissEditing()
         if viewModel.mode == .join || viewModel.isShowingQR {
-            isShowingAgreement = true
+            viewModel.isShowingAgreement = true
         } else {
             viewModel.showQRPreview()
         }
@@ -229,7 +225,7 @@ struct GroupPairingView: View {
     private func preparePublicFestivalMesh() {
         dismissEditing()
         viewModel.preparePublicFestivalMesh()
-        isShowingAgreement = true
+        viewModel.isShowingAgreement = true
     }
 
     private func pasteInviteFromClipboard() {
@@ -243,7 +239,7 @@ struct GroupPairingView: View {
         viewModel.pasteInvite(candidates: candidates)
         if viewModel.scannedInvite != nil, viewModel.errorMessage == nil, viewModel.form.hasValidInitials {
             dismissEditing()
-            isShowingAgreement = true
+            viewModel.isShowingAgreement = true
         }
     }
 }
