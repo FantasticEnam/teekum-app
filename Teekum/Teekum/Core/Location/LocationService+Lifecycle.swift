@@ -48,7 +48,7 @@ extension LocationService {
     /// Recreates the publishedPings stream and continuation to recover from task cancellation across sessions.
     public func resetPublishedPingsStream() {
         var streamContinuation: AsyncStream<LocationPin>.Continuation!
-        self.publishedPings = AsyncStream { streamContinuation = $0 }
+        self.publishedPings = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { streamContinuation = $0 }
         self.publishedPingsContinuation = streamContinuation
     }
     

@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct OrbitMapView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isOrbitVisible = false
     @State private var viewModel: OrbitMapViewModel
     @State private var activeModal: OrbitModal?
     @State private var selectedTarget: OrbitSceneView.Target?
@@ -114,6 +116,22 @@ struct OrbitMapView: View {
         }
         .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         .disabled(isLeavingGroup)
+        .onAppear {
+            isOrbitVisible = true
+            location?.setTacticalRadarActive(scenePhase == .active)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            location?.setTacticalRadarActive(isOrbitVisible && phase == .active)
+        }
+        .onChange(of: location?.isTracking) { _, tracking in
+            if tracking == true {
+                location?.setTacticalRadarActive(isOrbitVisible && scenePhase == .active)
+            }
+        }
+        .onDisappear {
+            isOrbitVisible = false
+            location?.setTacticalRadarActive(false)
+        }
         .onChange(of: meetingPoint?.id) { _, id in
             if case .meetingPoint(let targetID) = selectedTarget, targetID != id {
                 selectedTarget = nil
