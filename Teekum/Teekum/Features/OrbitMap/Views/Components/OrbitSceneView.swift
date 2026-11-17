@@ -133,9 +133,6 @@ struct OrbitSceneView: View {
                 batteryLevel: member.batteryLevel,
                 heading: member.heading.map { .degrees($0 - heading) }
             )
-            .overlay(alignment: .bottom) {
-                distanceLabel(projection).offset(y: lowBatteryPercentage == nil ? 18 : 34)
-            }
         }
         .buttonStyle(.plain)
         .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
