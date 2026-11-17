@@ -15,6 +15,7 @@ struct OrbitSceneView: View {
     }
     
     let userColor: Color
+    var userBatteryLevel: Float?
     var members: [Member] = []
     var meetingPoint: MeetingPoint?
     var location: LocationPin?
@@ -24,15 +25,11 @@ struct OrbitSceneView: View {
     var onSelectMeetingPoint: (MeetingPoint.ID) -> Void = { _ in }
     var onSelectMember: (Member.ID) -> Void = { _ in }
 
-    private static let ringDiameterScales = [0.55, 1.1, 1.55]
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoom = 1.0
-    @State private var isRulerVisible = false
-    @GestureState private var pinchMagnification: Double?
+    @GestureState private var pinchMagnification = 1.0
 
     private var radarRange: Double {
-        MeepoConfiguration.Navigation.tacticalRadarRangeMeters / boundedZoom(zoom * (pinchMagnification ?? 1))
+        OrbitRingScale.defaultRange / boundedZoom(zoom * pinchMagnification)
     }
 
     var body: some View {
@@ -41,23 +38,9 @@ struct OrbitSceneView: View {
                 .ignoresSafeArea()
         }
         .background(.black)
-        .task(id: pinchMagnification != nil) {
-            if pinchMagnification != nil {
-                isRulerVisible = true
-            } else if isRulerVisible {
-                do {
-                    try await Task.sleep(for: .seconds(1.5))
-                } catch {
-                    return
-                }
-                withAnimation(.easeOut(duration: 0.25)) {
-                    isRulerVisible = false
-                }
-            }
-        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Orbit radar")
-        .accessibilityValue("Radius \(radarRange.formattedDistance())")
+        .accessibilityValue("Scale \(radarRange.formattedDistance())")
         .accessibilityAction(named: Text("Zoom in")) { zoom = boundedZoom(zoom * 1.25) }
         .accessibilityAction(named: Text("Zoom out")) { zoom = boundedZoom(zoom / 1.25) }
     }
@@ -66,11 +49,15 @@ struct OrbitSceneView: View {
         GeometryReader { geometry in
             let size = geometry.size
             let baseSize = min(size.width, size.height)
-            let outerRadius = baseSize * 1.55 / 2
-            let markerRadius = Double(baseSize * 0.42)
-            let range = radarRange
+            // Reserve space below the rings for their labels and the bottom controls.
+            let referenceRadius = min(baseSize * 1.55 / 2, max(1, size.height / 2 - bottomInset - 100))
+            let backgroundRadius = referenceRadius * 1.12
+            let scale = OrbitRingScale(range: radarRange, radius: referenceRadius)
+            let markerRadius = scale.outerRadius
+            let range = scale.outerDistance
             let userMarker = OrbitUserMarkerView(color: userColor, heading: .degrees(0),
-                isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil)
+                isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil,
+                batteryLevel: userBatteryLevel)
             
             RadialGradient(
                 stops: [
@@ -80,31 +67,30 @@ struct OrbitSceneView: View {
                 ],
                 center: .center,
                 startRadius: 0,
-                endRadius: outerRadius * 1.12
+                endRadius: backgroundRadius
             )
             .frame(width: size.width, height: size.height)
             .overlay {
                 ZStack {
-                    ForEach(Self.ringDiameterScales, id: \.self) { scale in
-                        Circle()
-                            .stroke(
-                                .white.opacity(0.4),
-                                lineWidth: 0.5
+                    OrbitDistanceRingsView(scale: scale)
+                        .mask {
+                            RadialGradient(
+                                stops: [
+                                    .init(color: .white, location: 0),
+                                    .init(color: .white, location: 0.85),
+                                    .init(color: .clear, location: 1)
+                                ],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: backgroundRadius
                             )
-                            .frame(
-                                width: baseSize * scale,
-                                height: baseSize * scale
-                            )
-                    }
-                    
-                    userMarker.positionMarker
-                        .allowsHitTesting(false)
+                        }
                     
                     if let location {
                         ForEach(members) { member in
                             if let coordinate = member.coordinate {
                                 let projection = OrbitProjection(from: location, to: coordinate, heading: heading,
-                                                                 radius: markerRadius, range: range)
+                                                                 radius: markerRadius, range: range, overflowMargin: 20)
                                 let isSelected = selectedTarget == .member(member.id)
                                 if isSelected {
                                     targetLine(to: projection, in: size, isEmergency: member.isEmergency)
@@ -125,17 +111,7 @@ struct OrbitSceneView: View {
                     }
                 }
             }
-            .overlay { userMarker.directionArrow }
-            .overlay(alignment: .bottomTrailing) {
-                if isRulerVisible || pinchMagnification != nil, markerRadius > 0 {
-                    let ringGap = baseSize * (Self.ringDiameterScales[1] - Self.ringDiameterScales[0]) / 2
-                    let pointsPerMeter = OrbitProjection.screenPointsPerMeter(radius: markerRadius, range: range)
-                    zoomRuler(maximumWidth: ringGap, pointsPerMeter: pointsPerMeter, range: range)
-                        .padding(.trailing, 8)
-                        .padding(.bottom, bottomInset + 82)
-                        .transition(.opacity)
-                }
-            }
+            .overlay { userMarker.allowsHitTesting(false) }
             .clipped()
             .contentShape(.rect)
             .simultaneousGesture(
@@ -150,47 +126,14 @@ struct OrbitSceneView: View {
         }
     }
 
-    private func zoomRuler(maximumWidth: CGFloat, pointsPerMeter: Double, range: Double) -> some View {
-        let scale = OrbitRulerScale(pointsPerMeter: pointsPerMeter, maximumWidth: maximumWidth)
-
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(scale.distance.formattedDistance(spaced: false))
-                .font(.caption.monospacedDigit())
-                .frame(width: scale.width, alignment: .trailing)
-
-            Rectangle()
-                .frame(width: scale.width, height: 1)
-                .overlay(alignment: .leading) {
-                    Rectangle().frame(width: 1, height: 6).offset(y: 3)
-                }
-                .overlay {
-                    Rectangle().frame(width: 1, height: 6).offset(y: -3)
-                }
-                .foregroundStyle(.white.opacity(0.55))
-                .frame(height: 12)
-
-            Text("Radius \(range.formattedDistance())")
-                .font(.caption2.monospacedDigit())
-        }
-        .foregroundStyle(.white.opacity(0.75))
-        .animation(reduceMotion ? nil : .interactiveSpring(response: 0.16, dampingFraction: 1), value: scale.width)
-        .frame(width: maximumWidth, alignment: .leading)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-    
     private func boundedZoom(_ scale: Double) -> Double {
-        let minimumRadius = 5.0
-        let maximumZoom = MeepoConfiguration.Navigation.tacticalRadarRangeMeters / minimumRadius
-        return min(max(scale, 0.5), maximumZoom)
+        let baseRange = OrbitRingScale.defaultRange
+        return min(max(scale, baseRange / 120), baseRange / 5)
     }
     
     private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
         let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
-        let lowBatteryPercentage = member.batteryLevel.flatMap { level in
-            let threshold = Float(MeepoConfiguration.Battery.survivalThresholdPercent) / 100
-            return (0...threshold).contains(level) ? level.formattedBatteryPercentage : nil
-        }
+        let lowBatteryPercentage = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel)
         return Button {
             onSelectMember(member.id)
         } label: {
@@ -200,16 +143,18 @@ struct OrbitSceneView: View {
                 isSelected: isSelected,
                 isEmergency: member.isEmergency,
                 showsBloom: projection.isClamped,
-                lowBatteryPercentage: lowBatteryPercentage
+                batteryLevel: member.batteryLevel,
+                heading: member.heading.map { .degrees($0 - heading) }
             )
-            .overlay(alignment: .bottom) { distanceLabel(projection).offset(y: 18) }
         }
         .buttonStyle(.plain)
         .opacity(isStale && !isSelected && !member.isEmergency ? 0.5 : 1)
         .frame(minWidth: 44, minHeight: 44)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Member \(member.initials), \(projection.distance.formattedDistance())")
-        .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
+        .accessibilityValue(member.isEmergency ? Text("SOS active") : member.heading.map {
+            Text("Heading \($0, format: .number.precision(.fractionLength(0))) degrees")
+        } ?? Text("Direction unavailable"))
         .accessibilityHint(lowBatteryPercentage.map { Text("Low battery, \($0)") } ?? Text(""))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .offset(x: projection.x, y: projection.y)
@@ -270,23 +215,38 @@ struct OrbitSceneView: View {
     OrbitSceneView(
         userColor: .yellowProfile,
         members: [
-            Member(id: "NIC", coordinate: .init(latitude: 0.00025, longitude: -0.0001), batteryLevel: 0.2,
-                   color: .greenishTeal, measurementTimestamp: .now),
-            Member(id: "ADI", coordinate: .init(latitude: -0.0004, longitude: 0.0005),
-                   color: .apricot, measurementTimestamp: .now)
+            Member(id: "NIC", coordinate: .init(latitude: 0.00008, longitude: -0.00003), batteryLevel: 0.1,
+                   heading: 315, color: .greenishTeal, measurementTimestamp: .now),
+            Member(id: "ADI", coordinate: .init(latitude: -0.00064, longitude: 0.00002),
+                   heading: 180, color: .apricot, measurementTimestamp: .now)
         ],
         location: location
     )
 }
 
-#Preview("1. Selected Normal (Yellow)") {
+#Preview("YOU above overlapping friends") {
+    let location = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 5)
+    OrbitSceneView(
+        userColor: MemberColor.sandrift.swiftUIColor,
+        members: [
+            Member(id: "NIC", coordinate: .init(latitude: 0, longitude: 0.00004), heading: 240,
+                color: .apricot, measurementTimestamp: .now),
+            Member(id: "AYU", coordinate: .init(latitude: 0.00005, longitude: -0.00002), batteryLevel: 0.1,
+                heading: 0, color: .yellow, measurementTimestamp: .now)
+        ],
+        location: location,
+        selectedTarget: .member("NIC")
+    )
+}
+
+#Preview("Selected friend") {
     let store = SessionStore.preview
     OrbitSceneView(
         userColor: .yellowProfile,
         members: store.members,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
-        selectedTarget: .member("ADI") // Kotak nama kuning, teks hitam, garis putus-putus kuning
+        selectedTarget: .member("ADI")
     )
 }
 
@@ -302,7 +262,7 @@ struct OrbitSceneView: View {
         members: sosMembers,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
-        selectedTarget: .member("ADI") // Kotak merah, teks putih (bukan hitam), panah merah
+        selectedTarget: .member("ADI")
     )
 }
 

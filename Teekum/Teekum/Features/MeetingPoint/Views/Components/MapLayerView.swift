@@ -82,7 +82,7 @@ struct MapLayerView: View {
                                                 .foregroundStyle(.white)
                                                 .fixedSize()
                                                 .shadow(color: .black.opacity(0.8), radius: 2)
-                                                .offset(y: 18)
+                                                .offset(y: showsBattery ? 34 : 18)
                                         }
                                     }
                                 }
