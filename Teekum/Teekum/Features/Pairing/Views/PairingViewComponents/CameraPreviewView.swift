@@ -21,9 +21,7 @@ struct CameraPreviewView: UIViewRepresentable {
 
     func updateUIView(_ uiView: CameraPreviewSurface, context: Context) {}
 
-    static func dismantleUIView(_ uiView: CameraPreviewSurface, coordinator: ()) {
-        uiView.previewLayer.session = nil
-    }
+    static func dismantleUIView(_ uiView: CameraPreviewSurface, coordinator: ()) {}
 }
 
 #Preview("Camera frame") {
