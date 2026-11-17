@@ -21,29 +21,33 @@ struct OrbitMemberMarkerView: View {
         Circle()
             .fill(color)
             .frame(width: size, height: size)
-            .blur(radius: showsBloom ? 4 : 0)
+            .blur(radius: showsBloom ? 6 : 0)
             .shadow(color: showsBloom ? color.opacity(0.7) : .clear, radius: 10)
             .overlay {
-                if isSelected || isEmergency {
+                if !showsBloom && (isSelected || isEmergency) {
                     Circle()
                         .strokeBorder(isEmergency ? Color.alertRed : Color.buttonPrimary, lineWidth: 2)
                         .padding(-4)
                 }
             }
             .overlay {
-                Text(initials)
-                    .font(.custom("Helvetica", size: 13, relativeTo: .caption).bold())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .foregroundStyle(.black)
-                    .padding(3)
+                if !showsBloom {
+                    Text(initials)
+                        .font(.custom("Helvetica", size: 13, relativeTo: .caption).bold())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(.black)
+                        .padding(3)
+                }
             }
             .overlay(alignment: .bottom) {
-                OrbitBatteryIndicatorView(batteryLevel: batteryLevel)
-                    .offset(y: 14)
+                if !showsBloom {
+                    OrbitBatteryIndicatorView(batteryLevel: batteryLevel)
+                        .offset(y: 14)
+                }
             }
             .overlay {
-                if let heading {
+                if !showsBloom, let heading {
                     let width = size * 0.4
                     let height = size * 0.25
                     Path { path in
@@ -66,6 +70,22 @@ struct OrbitMemberMarkerView: View {
                 Text("Low battery, \($0)")
             } ?? Text(""))
     }
+}
+
+#Preview("Outside the rings shows bloom only") {
+    HStack(spacing: 48) {
+        OrbitMemberMarkerView(initials: "ALX", color: .blue, heading: .degrees(135))
+        ZStack {
+            OrbitMemberMarkerView(initials: "ADI", color: .yellowProfile, isSelected: true,
+                showsBloom: true, batteryLevel: 0.05, heading: .degrees(0))
+                .offset(x: -8)
+            OrbitMemberMarkerView(initials: "HSN", color: .greenProfile, isEmergency: true,
+                showsBloom: true, batteryLevel: 0.1, heading: .degrees(90))
+                .offset(x: 8)
+        }
+    }
+    .padding(48)
+    .background(.black)
 }
 
 #Preview("Low battery markers") {
