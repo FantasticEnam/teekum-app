@@ -27,7 +27,7 @@ struct FooterAgreement: View {
                         .foregroundStyle(hasAgreed ? Color.buttonPrimary : secondaryText)
                         .accessibilityHidden(true)
 
-                    Text("I understand and agree to the above conditions and Teekum’s \(Text("Privacy Policy").underline()).")
+                    Text("I understand and agree to the above conditions and Meepo's \(Text("Privacy Policy").underline()).")
                         .font(.custom("Helvetica", size: 12, relativeTo: .subheadline))
                         .foregroundStyle(secondaryText)
                         .multilineTextAlignment(.leading)
@@ -46,7 +46,7 @@ struct FooterAgreement: View {
             .disabled(!hasAgreed)
             .opacity(hasAgreed ? 1 : 0.90)
 
-            Text("By continuing, you agree to Teekum’s \(policyText(String(localized: "Terms of Use"), url: termsOfUseURL)) and \(policyText(String(localized: "Privacy Policy"), url: privacyPolicyURL))")
+            Text("By continuing, you agree to Meepo's \(policyText(String(localized: "Terms of Use"), url: termsOfUseURL)) and \(policyText(String(localized: "Privacy Policy"), url: privacyPolicyURL))")
                 .font(.custom("Helvetica", size: 10, relativeTo: .caption))
                 .foregroundStyle(secondaryText)
                 .multilineTextAlignment(.center)
