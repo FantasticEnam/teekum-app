@@ -22,10 +22,14 @@ struct OrbitProjection {
     init(distance: Double, bearing: Double, heading: Double, radius: Double,
          range: Double = MeepoConfiguration.Navigation.tacticalRadarRangeMeters) {
         let angle = (bearing - heading) * .pi / 180
-        let length = min(max(0, distance) / range, 1) * radius
+        let length = min(max(0, distance), range) * Self.screenPointsPerMeter(radius: radius, range: range)
         x = sin(angle) * length
         y = -cos(angle) * length
         self.distance = distance
         isClamped = distance > range
+    }
+
+    static func screenPointsPerMeter(radius: Double, range: Double) -> Double {
+        radius / range
     }
 }

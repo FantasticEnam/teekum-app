@@ -5,6 +5,7 @@
 //  Created by DIMAS DAFFA ERNANDA on 11/11/26.
 //
 
+import CoreLocation
 import CryptoKit
 import Observation
 import Security
@@ -12,6 +13,47 @@ import XCTest
 @testable import Teekum
 
 final class SessionSafetyTests: XCTestCase {
+    @MainActor
+    func testFreshMeasurementsInvalidateTheObservedOrbitInputs() async {
+        let location = LocationService()
+        let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
+        location.simulateLocation(coordinate: .init(latitude: 0, longitude: 0), timestamp: timestamp)
+        let store = SessionStore(members: [Member(id: "ALX", coordinate: .init(latitude: 0, longitude: 0.0001),
+            measurementTimestamp: timestamp)])
+        let friendChanged = expectation(description: "Orbit observes the friend's new coordinate")
+        withObservationTracking {
+            _ = store.visibleMembers
+        } onChange: {
+            friendChanged.fulfill()
+        }
+        store.upsertMember(Member(id: "ALX", coordinate: .init(latitude: 0, longitude: 0.0003),
+            measurementTimestamp: timestamp.addingTimeInterval(5)))
+        let localChanged = expectation(description: "Orbit observes the local GPS measurement")
+        withObservationTracking {
+            _ = location.currentLocation
+        } onChange: {
+            localChanged.fulfill()
+        }
+        location.simulateLocation(coordinate: .init(latitude: 0, longitude: 0.0002),
+            timestamp: timestamp.addingTimeInterval(5))
+        await fulfillment(of: [friendChanged, localChanged], timeout: 1)
+    }
+
+    @MainActor
+    func testActiveRadarRestoresFineLocationSamplingAfterStationaryMode() {
+        let location = LocationService()
+        location.setStationaryState(true)
+        XCTAssertEqual(location.currentDistanceFilter, 15)
+
+        location.setTacticalRadarActive(true)
+        XCTAssertEqual(location.currentDesiredAccuracy, kCLLocationAccuracyBestForNavigation)
+        XCTAssertEqual(location.currentDistanceFilter, kCLDistanceFilterNone)
+        XCTAssertEqual(location.currentHeadingFilter, kCLHeadingFilterNone)
+
+        location.setTacticalRadarActive(false)
+        XCTAssertEqual(location.currentDistanceFilter, 15)
+    }
+
     func testSharedSequenceIsUniqueAcrossConcurrentEmittersAndAllocatorRestart() async throws {
         let service = "sequence-test-\(UUID())"
         defer { removeKeychainItems(service: service) }

@@ -9,7 +9,6 @@ import SwiftUI
 import MapKit
 
 public struct MapLayerView: View {
-    @State private var selectedMember: Member?
     @Bindable var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
     
@@ -41,7 +40,6 @@ public struct MapLayerView: View {
                                 OrbitMemberMarkerView(
                                     initials: member.initials,
                                     color: member.color.swiftUIColor,
-                                    isSelected: selectedMember?.id == member.id,
                                     isEmergency: member.isEmergency,
                                     size: 22
                                 )
@@ -54,9 +52,6 @@ public struct MapLayerView: View {
                                             .shadow(color: .black.opacity(0.8), radius: 2)
                                             .offset(y: 18)
                                     }
-                                }
-                                .onTapGesture {
-                                    selectedMember = member
                                 }
                             }
                             .annotationTitles(.hidden)
@@ -104,9 +99,6 @@ public struct MapLayerView: View {
             mapFloatingButtons
                 .padding(.trailing, 16)
                 .padding(.bottom, 60)
-        }
-        .fullScreenCover(item: $selectedMember) { member in
-            FriendFinderView(member: member, location: location)
         }
         .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
             guard !hasInitialCentered, let newCoord else { return }
