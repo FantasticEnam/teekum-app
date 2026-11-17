@@ -17,15 +17,17 @@ struct AgreementView: View {
     var onAgree: () -> Void = {}
 
     var body: some View {
-        ScrollView {
+        VStack {
             VStack(spacing: 13) {
                 HeadAgreement(profileColor: form.profileColor.color)
-                AgreementGroupSummaryView(
-                    groupName: form.trimmedSessionName,
-                    initials: form.initials,
-                    mode: mode,
-                    profileColor: form.profileColor.color
-                )
+                VStack {
+                    AgreementGroupSummaryView(
+                        groupName: form.trimmedSessionName,
+                        initials: form.initials,
+                        mode: mode,
+                    )
+                }
+                .foregroundStyle(.black)
 
                 if isPublicFestivalMesh {
                     Text("This is a public festival group. Other participants in this group can read your messages and shared location.")
@@ -37,22 +39,22 @@ struct AgreementView: View {
 
                 CardAgreement(
                     title: "Community-Powered Mesh Network",
-                    description: "Your device can help relay encrypted data between nearby participating devices.",
+                    description: "Your device helps pass messages between nearby participating devices.",
                     icon: "point.3.connected.trianglepath.dotted"
                 )
                 CardAgreement(
                     title: "Encrypted by Design",
-                    description: "Your communications are protected using ChaCha20-Poly1305 encryption.",
+                    description: "Your messages stay private with ChaCha20-Poly1305 encryption.",
                     icon: "lock.shield"
                 )
                 CardAgreement(
                     title: "Battery-Aware Protection",
-                    description: "Network activity is rate-limited to help conserve battery. Automatic relay protection pauses when your battery reaches 20%.",
+                    description: "Limits network activity to help save battery, with automatic safeguards to manage power usage.",
                     icon: "battery.100percent.bolt"
                 )
                 CardAgreement(
                     title: "Stay Connected",
-                    description: "Keep track of your group's activity through supported iOS features, including Live Activities and Offline Chat",
+                    description: "Keep up with your group's activity through handy iOS features like Live Activities.",
                     icon: "square.3.layers.3d"
                 )
 
@@ -70,7 +72,7 @@ struct AgreementView: View {
             }
             .frame(maxWidth: 400)
             .padding(.horizontal, 42)
-            .padding(.top, 43)
+            .padding(.top, 20)
             .padding(.bottom, 24)
             .frame(maxWidth: .infinity)
         }
@@ -79,8 +81,8 @@ struct AgreementView: View {
             RadialGradient(
                 colors: [Color(white: 0.09), Color(white: 0.09), .black],
                 center: .center,
-                startRadius: 40,
-                endRadius: 405
+                startRadius: 50,
+                endRadius: 500
             )
             .ignoresSafeArea()
         }

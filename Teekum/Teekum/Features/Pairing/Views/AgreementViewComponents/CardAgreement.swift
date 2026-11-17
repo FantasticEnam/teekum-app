@@ -16,7 +16,7 @@ struct CardAgreement: View {
     private let secondaryText = Color(white: 0.68)
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 23))
                 .frame(width: 35)
@@ -24,9 +24,9 @@ struct CardAgreement: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.custom("Helvetica-Bold", size: 17, relativeTo: .headline))
+                    .font(.custom("Helvetica-Bold", size: 12, relativeTo: .headline))
                 Text(description)
-                    .font(.custom("Helvetica", size: 14, relativeTo: .subheadline))
+                    .font(.custom("Helvetica", size: 10, relativeTo: .subheadline))
                     .foregroundStyle(secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
