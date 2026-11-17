@@ -70,7 +70,9 @@ public final class LocationPublisher {
             }
             for await location in pingsStream {
                 guard !Task.isCancelled, self.isRunning else { break }
-                await self.handleLocationPingReady(location: location)
+                // A delayed consumer must send the latest fix, preserving its hardware timestamp.
+                let latest = self.locationService.currentLocation ?? location
+                await self.handleLocationPingReady(location: latest)
             }
         }
     }
