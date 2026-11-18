@@ -8,11 +8,17 @@
 import SwiftUI
 
 struct OrbitMapView: View {
+    private enum FriendSelection {
+        case follow(Member.ID)
+        case stopFollowing
+    }
+
     @Environment(\.scenePhase) private var scenePhase
     @State private var isOrbitVisible = false
     @State private var viewModel: OrbitMapViewModel
     @State private var activeModal: OrbitModal?
     @State private var selectedTarget: OrbitSceneView.Target?
+    @State private var pendingFriendSelection: FriendSelection?
     @State private var isLeavingGroup = false
     @State private var isShowingChat = false
     @State private var opensChatAfterModalDismissal = false
@@ -66,6 +72,7 @@ struct OrbitMapView: View {
     }
     
     var body: some View {
+        let followedMember = selectedMember
         ZStack {
             Color.black
                 .ignoresSafeArea()
@@ -108,6 +115,8 @@ struct OrbitMapView: View {
                     profileColor: viewModel.localProfileColor.swiftUIColor,
                     members: visibleMembers,
                     isUserSOSActive: isSOSActive,
+                    followedMember: followedMember,
+                    followDistance: distance(to: followedMember),
                     onOpen: { activeModal = .friends }
                 )
             }
@@ -222,7 +231,7 @@ struct OrbitMapView: View {
                             },
                             onSelectMember: { member in
                                 sos?.recordUserInteraction()
-                                selectedTarget = .member(member.id)
+                                pendingFriendSelection = .follow(member.id)
                                 activeModal = nil
                             },
                             onLeaveGroup: requestLeaveGroup,
@@ -230,7 +239,7 @@ struct OrbitMapView: View {
                             selectedMemberId: selectedMember?.id,
                             onStopFollow: {       
                                 sos?.recordUserInteraction()
-                                selectedTarget = nil
+                                pendingFriendSelection = .stopFollowing
                                 activeModal = nil
                             }
                         )
@@ -317,11 +326,28 @@ struct OrbitMapView: View {
         if isLeavingGroup {
             isLeavingGroup = false
             opensChatAfterModalDismissal = false
+            pendingFriendSelection = nil
             viewModel.leaveGroup()
+        } else if let selection = pendingFriendSelection {
+            pendingFriendSelection = nil
+            switch selection {
+            case .follow(let id):
+                if visibleMembers.contains(where: { $0.id == id }) {
+                    selectedTarget = .member(id)
+                }
+            case .stopFollowing:
+                selectedTarget = nil
+            }
         } else if opensChatAfterModalDismissal {
             opensChatAfterModalDismissal = false
             openChat()
         }
+    }
+
+    private func distance(to member: Member?) -> Double? {
+        guard let origin = location?.currentLocation, let coordinate = member?.coordinate else { return nil }
+        let distance = origin.distance(to: coordinate)
+        return distance.isFinite && distance >= 0 ? distance : nil
     }
     
     private func openChat() {
