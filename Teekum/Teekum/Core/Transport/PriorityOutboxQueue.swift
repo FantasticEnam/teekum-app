@@ -64,9 +64,14 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
     /// Dedicated local group chat FIFO queue (Decision D17: 20-character chat messages).
     private var localChatLane: [OutboxItem] = []
     
-    /// Normal lane keyed by destination peer ID (`nil` key represented as empty string for broadcast).
-    /// Holds strictly the freshest single location ping per destination.
-    private var normalCoalescedLane: [String: OutboxItem] = [:]
+    private struct NormalLaneKey: Hashable {
+        let destinationPeerId: String?
+        let sessionId: UInt32?
+        let memberSlot: UInt8?
+    }
+
+    /// Keeps one pending location ping per sender and destination.
+    private var normalCoalescedLane: [NormalLaneKey: OutboxItem] = [:]
     
     /// Stranger relay ring buffer queue (Decision 7: 32 packets, drop-head on overflow).
     private var strangerRelayLane: [OutboxItem] = []
@@ -214,12 +219,6 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
             localChatLane.append(item)
             return item
         } else {
-            // Normal Location Ping lane: Coalesce per destination
-            let destKey = destinationPeerId ?? ""
-            if normalCoalescedLane[destKey] != nil {
-                obsoletePingsCoalesced += 1
-            }
-            
             let item = OutboxItem(
                 packetData: data,
                 packetType: packetType,
@@ -229,9 +228,25 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
                 isUrgent: false,
                 isRelay: false
             )
-            normalCoalescedLane[destKey] = item
+            enqueueNormal(item)
             return item
         }
+    }
+
+    private func enqueueNormal(_ item: OutboxItem) {
+        let ping = item.packetType == .locationPing ? PacketKey(wireData: item.packetData) : nil
+        let key = NormalLaneKey(
+            destinationPeerId: item.destinationPeerId,
+            sessionId: ping?.sessionId,
+            memberSlot: ping.map { CleartextEnvelope.memberSlot(from: $0.sequenceNumber) }
+        )
+        if let pending = normalCoalescedLane[key] {
+            obsoletePingsCoalesced += 1
+            // A delayed relay copy can arrive after a newer ping from the same sender.
+            if let ping, let queued = PacketKey(wireData: pending.packetData),
+               ping.sequenceNumber <= queued.sequenceNumber { return }
+        }
+        normalCoalescedLane[key] = item
     }
     
     /// Pops the next highest-priority item for transmission.
@@ -239,7 +254,7 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
     /// 1. Urgent lane (SOS, ACK, Meeting updates).
     /// 2. Local chat lane (local user chat messages FIFO, max 16).
     /// 3. Stranger relay lane (communal mesh packets forwarded for other devices).
-    /// 4. Normal coalesced lane (local routine location pings).
+    /// 4. Normal coalesced lane (routine location pings for the current group).
     public func dequeue() -> OutboxItem? {
         if !urgentLane.isEmpty {
             return urgentLane.removeFirst()
@@ -280,8 +295,7 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
             strangerRelayLane.insert(retryItem, at: 0) // Preempt back to front of stranger relay lane
             return true
         } else {
-            let destKey = item.destinationPeerId ?? ""
-            normalCoalescedLane[destKey] = retryItem
+            enqueueNormal(retryItem)
             return true
         }
     }

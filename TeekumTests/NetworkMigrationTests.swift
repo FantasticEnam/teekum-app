@@ -230,6 +230,34 @@ final class NetworkMigrationTests: XCTestCase {
         XCTAssertNil(store.nextTransmission(to: ["next"], now: now))
     }
 
+    func testLocationBroadcastCoalescesOnlyPingsFromTheSameSender() throws {
+        let queue = PriorityOutboxQueue()
+        let local = try wire(type: .locationPing, sequence: 0x0100_0001)
+        let olderRelay = try wire(type: .locationPing, sequence: 0x0200_0001, hopCount: 1)
+        let latestRelay = try wire(type: .locationPing, sequence: 0x0200_0002, hopCount: 1)
+
+        try queue.enqueue(data: local)
+        try queue.enqueue(data: olderRelay)
+        try queue.enqueue(data: latestRelay)
+        try queue.enqueue(data: olderRelay)
+        try queue.enqueue(data: latestRelay, destinationPeerId: "relay")
+
+        XCTAssertEqual(queue.obsoletePingsCoalesced, 2)
+        XCTAssertEqual(queue.queueDepth.normalCount, 3)
+        var broadcasts: Set<Data> = []
+        var targeted: Data?
+        while let item = queue.dequeue() {
+            if item.destinationPeerId == nil {
+                broadcasts.insert(item.packetData)
+            } else {
+                XCTAssertEqual(item.destinationPeerId, "relay")
+                targeted = item.packetData
+            }
+        }
+        XCTAssertEqual(broadcasts, [local, latestRelay])
+        XCTAssertEqual(targeted, latestRelay)
+    }
+
     func testForeignReliableTrafficKeepsPriorityAndConsentPurge() throws {
         let queue = PriorityOutboxQueue()
         try queue.enqueue(data: wire(type: .locationPing, sequence: 1), isRelay: true)
@@ -440,8 +468,8 @@ final class NetworkMigrationTests: XCTestCase {
         XCTAssertEqual(relayed, 1)
     }
 
-    private func wire(type: PacketType, sequence: UInt32) throws -> Data {
-        try RawWirePacket(envelope: CleartextEnvelope(type: type, sessionId: 0x1234, sequenceNumber: sequence),
+    private func wire(type: PacketType, sequence: UInt32, hopCount: UInt8 = 0) throws -> Data {
+        try RawWirePacket(envelope: CleartextEnvelope(type: type, hopCount: hopCount, sessionId: 0x1234, sequenceNumber: sequence),
             ciphertext: Data(repeating: 0, count: 30), authTag: Data(repeating: 0, count: 16)).toWireData()
     }
 }

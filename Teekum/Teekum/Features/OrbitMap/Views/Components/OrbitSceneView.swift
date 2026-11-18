@@ -98,7 +98,7 @@ struct OrbitSceneView: View {
                                 memberMarker(member, projection: projection, isSelected: isSelected)
                             }
                         }
-                        
+
                         if let meetingPoint {
                             let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading,
                                                              radius: markerRadius, range: range)
