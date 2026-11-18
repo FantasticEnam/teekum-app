@@ -62,7 +62,7 @@ nonisolated public enum MeepoConfiguration {
     // MARK: - 2. Broadcast Cadence & Mesh Timing Parameters
     public enum Timing {
         /// Location publishing interval when actively moving with strong nearby peers (default: 4.0s).
-        public static let locationMovingInterval: TimeInterval = 4.0
+        public static let locationMovingInterval: TimeInterval = 2.0
         
         /// Location publishing interval when stationary with nearby peers (default: 20.0s).
         public static let locationStationaryInterval: TimeInterval = 20.0

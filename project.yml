@@ -20,6 +20,10 @@ targets:
   Teekum:
     type: application
     platform: iOS
+    entitlements:
+      path: Config/Teekum.entitlements
+      properties:
+        com.apple.developer.usernotifications.time-sensitive: true
     sources:
       - path: Teekum/Teekum
     info:

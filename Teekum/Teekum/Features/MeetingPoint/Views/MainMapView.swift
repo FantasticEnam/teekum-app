@@ -8,20 +8,27 @@
 import SwiftUI
 import MapKit
 
-public struct MainMapView: View {
+struct MainMapView: View {
     @State private var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
+    @Binding var selectedTarget: OrbitSceneView.Target?
     @Environment(\.dismiss) private var dismiss
     
-    public init(sessionStore: SessionStore, meetingService: MeetingPointService? = nil, location: LocationService? = nil) {
+    init(
+        sessionStore: SessionStore,
+        meetingService: MeetingPointService? = nil,
+        location: LocationService? = nil,
+        selectedTarget: Binding<OrbitSceneView.Target?> = .constant(nil)
+    ) {
         _viewModel = State(initialValue: MeetingPointViewModel(sessionStore: sessionStore, meetingService: meetingService))
         self.location = location
+        self._selectedTarget = selectedTarget
     }
     
-    public var body: some View {
+    var body: some View {
         ZStack(alignment: .bottom){
             // MAP Section
-            MapLayerView(viewModel: viewModel, location: location)
+            MapLayerView(viewModel: viewModel, location: location, selectedTarget: $selectedTarget)
             
             VStack {
                 HStack {

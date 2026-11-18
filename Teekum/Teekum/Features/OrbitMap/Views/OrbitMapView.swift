@@ -34,6 +34,7 @@ struct OrbitMapView: View {
     private var orbitScene: some View {
         OrbitSceneView(
             userColor: viewModel.localProfileColor.swiftUIColor,
+            userBatteryLevel: location?.currentBatteryLevel,
             members: visibleMembers,
             meetingPoint: meetingPoint,
             location: location?.currentLocation,
@@ -191,7 +192,12 @@ struct OrbitMapView: View {
         .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
             Group { switch modal {
             case .mapPoint:
-                MainMapView(sessionStore: viewModel.sessionStore, meetingService: meetingService, location: location)
+                MainMapView(
+                    sessionStore: viewModel.sessionStore,
+                    meetingService: meetingService,
+                    location: location,
+                    selectedTarget: $selectedTarget
+                )
             case .friends:
                 GeometryReader { geometry in
                     ZStack(alignment: .bottom) {
