@@ -81,57 +81,108 @@ struct OrbitSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             
-            if let cached = maps.cachedCity {
+            // 1. Jika Sedang Mengunduh / Update
+            if case .downloading(let cityName, let progress) = maps.downloadState {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Downloading \(cityName)...")
+                            .font(.caption.bold())
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Text("\(Int(progress * 100))%")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(Color.buttonPrimary)
+                    }
+                    ProgressView(value: progress, total: 1.0)
+                        .tint(Color.buttonPrimary)
+                }
+            }
+            // 2. Jika Sudah Ada Peta Tersimpan
+            else if let cached = maps.cachedCity {
                 LabeledContent("Cached area", value: cached.cityName)
                 LabeledContent("Storage used", value: maps.formattedCachedSize)
                 LabeledContent("Downloaded", value: cached.downloadedAt.formatted(date: .abbreviated, time: .shortened))
                 
-                Button(role: .destructive) {
-                                    print("[Settings] 🗑️ Tombol delete cached map ditekan!")
-                                    showingDeleteAlert = true
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "trash")
-                                        Text("Delete cached map")
-                                            .fontWeight(.medium)
-                                    }
-                                    .foregroundStyle(.red)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
+                // A. BLOK RELOKASI: Muncul HANYA jika user pindah kota (>25 km)
+                if maps.isRelocatedFarFromCache(currentCoordinate: location?.currentLocation?.coordinate) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("New Region Detected", systemImage: "location.fill")
+                            .font(.caption.bold())
+                            .foregroundStyle(Color.buttonPrimary)
+                        
+                        Text("You are outside \(cached.cityName). Switch to your current area?")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Button {
+                            guard !maps.downloadState.isBusy else { return }
+                            downloadCurrentCity(maps)
+                        } label: {
+                            HStack {
+                                if maps.downloadState.isBusy {
+                                    ProgressView()
+                                        .tint(.black)
+                                        .padding(.trailing, 4)
+                                    Text("Preparing...")
+                                        .fontWeight(.semibold)
+                                } else {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                    Text("Switch to Current City Map")
+                                        .fontWeight(.semibold)
                                 }
-                                .buttonStyle(.plain)
-                                .alert("Delete Offline Map?", isPresented: $showingDeleteAlert) {
-                                    Button("Delete", role: .destructive) {
-                                        Task {
-                                            print("[Settings] 🗑️ Menghapus peta...")
-                                            await maps.deleteCachedCity()
-                                            print("[Settings] ✅ Peta berhasil dihapus!")
-                                        }
-                                    }
-                                    Button("Cancel", role: .cancel) {}
-                                } message: {
-                                    Text("The cached map for \(cached.cityName) will be removed from your device storage.")
-                                }            } else if case .downloading(let cityName, let progress) = maps.downloadState {                VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Downloading \(cityName)...")
-                    Spacer()
-                    Text("\(Int(progress * 100))%")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.buttonPrimary, in: .rect(cornerRadius: 10))
+                            .foregroundStyle(.black)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Text("Your \(cached.cityName) map is safely kept until the new map is 100% downloaded.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 6)
                 }
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(Color.buttonPrimary)
                 
-                ProgressView(value: progress, total: 1.0)
-                    .tint(Color.buttonPrimary)
+                // B. BLOK STORAGE: Tombol Hapus khusus untuk mengosongkan memori
+                VStack(alignment: .leading, spacing: 4) {
+                    Button(role: .destructive) {
+                        showingDeleteAlert = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "trash")
+                            Text("Remove Map from Storage")
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Text("Frees up \(maps.formattedCachedSize) of device storage.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 4)
+                .alert("Delete Offline Map?", isPresented: $showingDeleteAlert) {
+                    Button("Delete", role: .destructive) {
+                        Task {
+                            await maps.deleteCachedCity()
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("The cached map for \(cached.cityName) will be removed from your device storage.")
+                }
             }
-            } else {
+            // 3. Jika Belum Ada Peta Offline Sama Sekali
+            else {
                 Text("No offline map cached.").foregroundStyle(.secondary)
                 
                 Button {
-                    print("[Settings] 🔘 Tombol 'Download map for current city' ditekan! State: \(maps.downloadState)")
-                    guard !maps.downloadState.isBusy else {
-                        print("[Settings] ⚠️ Sedang sibuk, abaikan tap ganda.")
-                        return
-                    }
+                    guard !maps.downloadState.isBusy else { return }
                     downloadCurrentCity(maps)
                 } label: {
                     HStack {
@@ -139,8 +190,7 @@ struct OrbitSettingsView: View {
                             ProgressView()
                                 .tint(.black)
                                 .padding(.trailing, 4)
-                            Text("Mempersiapkan...")
-                                .fontWeight(.semibold)
+                            Text("Preparing download...")
                         } else {
                             Image(systemName: "arrow.down.circle.fill")
                             Text("Download map for current city")
@@ -198,15 +248,10 @@ struct OrbitSettingsView: View {
         }
         Task {
             do {
-                print("[Settings] 📍 Memulai deteksi lokasi...")
                 let city = try await maps.locateAndDetectCity(using: location)
-                print("[Settings] 📍 Kota terdeteksi: \(city.name)")
-                print("[Settings] 🚀 Memulai unduh peta...")
                 let isOnline = !(connectivity?.isForcedOfflineMode ?? false)
                 try await maps.downloadCity(city, isOnline: isOnline)
-                print("[Settings] ✅ Unduh peta selesai!")
             } catch {
-                print("[Settings] ❌ Gagal unduh peta: \(error)")
                 downloadErrorMessage = error.localizedDescription
                 showingDownloadErrorAlert = true
             }

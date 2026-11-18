@@ -12,7 +12,7 @@ struct OrbitMapView: View {
         case follow(Member.ID)
         case stopFollowing
     }
-
+    
     @Environment(\.scenePhase) private var scenePhase
     @State private var isOrbitVisible = false
     @State private var viewModel: OrbitMapViewModel
@@ -25,6 +25,7 @@ struct OrbitMapView: View {
     @State private var memberToFollow: Member? = nil
     @State private var isShowingFollowAlert = false
     @State private var isShowingStopFollowAlert = false
+    @State private var isShowingRelocationAlert = false
     
     private let location: LocationService?
     private let chat: ChatViewModel?
@@ -132,7 +133,7 @@ struct OrbitMapView: View {
         }
         .overlay(alignment: .top) {
             OrbitFeedbackView(sos: sos, notifications: notifications,
-                showsChatAlert: !isShowingChat, onOpenChat: openChat)
+                              showsChatAlert: !isShowingChat, onOpenChat: openChat)
         }
         .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         .disabled(isLeavingGroup)
@@ -208,6 +209,19 @@ struct OrbitMapView: View {
             }
         }
         
+        // 3. Alert New Location (>25km)
+        .alert(
+            "Peta Wilayah Baru Tersedia",
+            isPresented: $isShowingRelocationAlert
+        ) {
+            Button("Buka Pengaturan") {
+                activeModal = .settings
+            }
+            Button("Nanti Saja", role: .cancel) { }
+        } message: {
+            Text("Anda berada di luar jangkauan peta offline yang tersimpan. Unduh peta kota baru di Pengaturan Grup agar tetap siap siaga saat bencana.")
+        }
+        
         .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
             Group { switch modal {
             case .mapPoint:
@@ -242,7 +256,7 @@ struct OrbitMapView: View {
                             onLeaveGroup: requestLeaveGroup,
                             isUserSOSActive: { isSOSActive },
                             selectedMemberId: selectedMember?.id,
-                            onStopFollow: {       
+                            onStopFollow: {
                                 sos?.recordUserInteraction()
                                 pendingFriendSelection = .stopFollowing
                                 activeModal = nil
@@ -257,14 +271,14 @@ struct OrbitMapView: View {
                 }
                 .presentationBackground(.clear)
             case .settings:
-                            OrbitSettingsView(
-                                location: location,
-                                sos: sos,
-                                offlineMaps: offlineMaps,
-                                connectivity: connectivity,
-                                memberContactLog: { viewModel.sessionStore.memberContactLog },
-                                diagnostics: diagnostics
-                            )
+                OrbitSettingsView(
+                    location: location,
+                    sos: sos,
+                    offlineMaps: offlineMaps,
+                    connectivity: connectivity,
+                    memberContactLog: { viewModel.sessionStore.memberContactLog },
+                    diagnostics: diagnostics
+                )
             case .invite:
                 if let session = viewModel.sessionStore.activeSession {
                     ShareInviteView(session: session) {
@@ -278,6 +292,12 @@ struct OrbitMapView: View {
             }
             .overlay { SOSEdgeGlowView(sos: sos) }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
+            .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
+                checkRelocationAndNotify(at: newCoord)
+            }
+            .onAppear {
+                checkRelocationAndNotify(at: location?.currentLocation?.coordinate)
+            }
         }
     }
     
@@ -353,7 +373,7 @@ struct OrbitMapView: View {
             openChat()
         }
     }
-
+    
     private func distance(to member: Member?) -> Double? {
         guard let origin = location?.currentLocation, let coordinate = member?.coordinate else { return nil }
         let distance = origin.distance(to: coordinate)
@@ -386,6 +406,22 @@ struct OrbitMapView: View {
         sos?.recordUserInteraction()
         let target = OrbitSceneView.Target.meetingPoint(id)
         selectedTarget = selectedTarget == target ? nil : target
+    }
+    
+    // Relocation Notification
+    private func checkRelocationAndNotify(at coord: CLLocationCoordinate2D?) {
+        guard let coord,
+              let offlineMaps,
+              offlineMaps.cachedCity != nil,
+              !offlineMaps.isNudgeDismissedThisLaunch,
+              !offlineMaps.downloadState.isBusy else {
+            return
+        }
+        let isOnline = !(connectivity?.isForcedOfflineMode ?? false) && ((connectivity?.isPathSatisfied ?? false) || (connectivity?.isVerifiedOnline ?? false))
+        if isOnline && offlineMaps.isRelocatedFarFromCache(currentCoordinate: coord) {
+            offlineMaps.dismissNudgeForThisLaunch()
+            isShowingRelocationAlert = true
+        }
     }
 }
 

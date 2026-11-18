@@ -69,9 +69,6 @@ public final class MapboxOfflineTileStoreClient: OfflineTileStoreClient, @unchec
         zoomRange: ClosedRange<UInt8>,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> UInt64 {
-        print("[OfflineMap] 🚀 Memulai unduh peta untuk region: \(regionId)")
-        print("[OfflineMap] 🎨 Style URI: \(styleURIString)")
-        
         let styleURI = StyleURI(rawValue: styleURIString) ?? .dark
         try Task.checkCancellation()
         
@@ -100,7 +97,9 @@ public final class MapboxOfflineTileStoreClient: OfflineTileStoreClient, @unchec
     }
     
     public func removeRegion(regionId: String) async {
-        tileStore.removeTileRegion(forId: regionId)
+        await MainActor.run {
+            self.tileStore.removeTileRegion(forId: regionId)
+        }
     }
     
     public func cancelActiveDownload() {
