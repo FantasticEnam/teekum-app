@@ -13,6 +13,7 @@ struct MapLayerView: View {
     var location: LocationService? = nil
     @Binding var selectedTarget: OrbitSceneView.Target?
     @Namespace private var mapScope
+    @State private var mapHeading: CLLocationDirection = 0
     
     // State untuk mode Satelit
     @State private var isSatellite: Bool = false
@@ -73,7 +74,8 @@ struct MapLayerView: View {
                                         color: member.color.swiftUIColor,
                                         isSelected: isSelected,
                                         isEmergency: member.isEmergency,
-                                        size: 22, batteryLevel: member.batteryLevel
+                                        size: 22, batteryLevel: member.batteryLevel,
+                                        heading: member.heading.map { .degrees($0 - mapHeading) }
                                     )
                                     .overlay(alignment: .bottom) {
                                         if let distance = memberDistance(for: member) {
@@ -112,6 +114,9 @@ struct MapLayerView: View {
                 }
                 .mapStyle(isSatellite ? .hybrid(elevation: .flat) : .standard(elevation: .flat))
                 .mapControlVisibility(.hidden)
+                .onMapCameraChange(frequency: .continuous) { context in
+                    mapHeading = context.camera.heading
+                }
                 .safeAreaPadding(.top, 56)
                 .ignoresSafeArea()
                 // Posisi sentuhan jari
