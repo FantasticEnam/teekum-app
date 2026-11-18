@@ -20,7 +20,6 @@ final class SessionController {
     let chat: ChatViewModel
     let sos: SOSViewModel
     let meeting: MeetingPointService
-    let nearby: NearbyRangingService
     let notifications = NotificationService()
     private(set) var relayState = RelayPolicyState(mode: .disabled)
     private(set) var diagnostics: TransportDiagnostics?
@@ -54,7 +53,6 @@ final class SessionController {
         self.location = location
         let transport = PeerTransportService()
         self.transport = transport
-        nearby = NearbyRangingService(transport: transport, crypto: crypto, sequences: sequences)
         relayPolicy = RelayPolicyManager(transport: transport)
         let routing = RoutingTable()
         routes = RouteDiscoveryService(routingTable: routing, neighborTable: transport.neighborTable,
@@ -74,7 +72,8 @@ final class SessionController {
         sos.onIncomingAlert = { [weak self] alert in
             guard let self, holder.session != nil else { return }
             store.setEmergency(true, for: alert.senderInitials)
-            notifications.notify(title: "SOS from \(alert.senderInitials)", body: alert.emergencyType.title, showBanner: false)
+            notifications.notify(title: "SOS from \(alert.senderInitials)", body: alert.emergencyType.title,
+                                 showBanner: false, interruptionLevel: .timeSensitive)
         }
         sos.onIncomingSOSResolved = { [weak store] initials in
             store?.setEmergency(false, for: initials)
@@ -112,7 +111,6 @@ final class SessionController {
         generation = UUID()
         let current = generation
         router?.stop()
-        nearby.configure(nil)
         holder.session = nil
         let previous = transitionTask
         previous?.cancel()
@@ -187,10 +185,8 @@ final class SessionController {
             }
         }
         let publisher = LocationPublisher(locationService: location, sessionProvider: { [holder] in holder.session },
-            cryptoService: crypto, transport: transport, sequenceAllocator: sequences,
-            supportsNearbyRanging: { [nearby] in nearby.canRange })
+            cryptoService: crypto, transport: transport, sequenceAllocator: sequences)
         self.publisher = publisher
-        nearby.configure(session)
         publisher.start()
         router = makeRouter(generation: current)
         await liveActivity.start(session: session)
@@ -260,7 +256,6 @@ final class SessionController {
             let snapshot = await transport.getDiagnostics()
             guard generation == current else { break }
             diagnostics = snapshot
-            nearby.refresh(connectedLinks: Set(snapshot.activeDirectPeers.filter(\.isDirectLink).map(\.id)))
             let losses = store.refreshMemberVisibility(now: .now, peers: snapshot.activeDirectPeers)
             notifications.notifyGroupActivity(losses.map(\.initials), joined: false)
             meeting.checkExpiration()
@@ -300,7 +295,6 @@ final class SessionController {
                 guard let self, generation == current else { return }
                 let isNew = !store.members.contains { $0.id == ping.senderInitials }
                 store.applyLocationPing(ping, inbound: inbound)
-                nearby.observe(ping, inbound: inbound)
                 if isNew { notifications.notifyGroupActivity([ping.senderInitials], joined: true) }
             }, onSOS: { [weak self] payload, inbound in
                 guard let self, generation == current else { return }
@@ -336,9 +330,6 @@ final class SessionController {
             }, onSOSResolved: { [weak self] event in
                 guard let self, generation == current else { return }
                 await sos.acceptResolution(event)
-            }, onNearbyToken: { [weak self] fragment, inbound in
-                guard let self, generation == current else { return }
-                nearby.receive(fragment, from: inbound.sourcePeerId)
             })
     }
 

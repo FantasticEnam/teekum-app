@@ -16,7 +16,6 @@ struct OrbitSettingsView: View {
     let sos: SOSViewModel?
     let memberContactLog: @MainActor () -> [SessionStore.MemberContactLoss]
     let diagnostics: @MainActor () -> TransportDiagnostics?
-    var nearby: NearbyRangingService? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var packetFilter: PacketFilter = .all
 
@@ -32,10 +31,6 @@ struct OrbitSettingsView: View {
                         if let measured = location.currentLocation {
                             LabeledContent("Accuracy", value: "±\(Int(measured.horizontalAccuracy)) m")
                             Text("Measured \(measured.timestamp, style: .relative) ago").font(.caption)
-                        }
-                        if let nearby {
-                            let ranged = nearby.positions.keys.sorted().joined(separator: ", ")
-                            LabeledContent("Nearby markers", value: ranged.isEmpty ? "None" : ranged)
                         }
                     }
                 }
@@ -140,7 +135,6 @@ struct OrbitSettingsView: View {
         case .ack: "ACK"
         case .chatMessage: "Chat"
         case .sosResolved: "SOS resolved"
-        case .nearbyToken: "Nearby setup"
         }
     }
 

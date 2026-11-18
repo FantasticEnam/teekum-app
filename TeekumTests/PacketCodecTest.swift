@@ -812,12 +812,11 @@ struct PacketCodecTests {
             PacketTypeMapping(type: .routeResp, rawByte: 0x05, byte0: 0x15),
             PacketTypeMapping(type: .ack, rawByte: 0x06, byte0: 0x16),
             PacketTypeMapping(type: .chatMessage, rawByte: 0x07, byte0: 0x17),
-            PacketTypeMapping(type: .sosResolved, rawByte: 0x08, byte0: 0x18),
-            PacketTypeMapping(type: .nearbyToken, rawByte: 0x09, byte0: 0x19)
+            PacketTypeMapping(type: .sosResolved, rawByte: 0x08, byte0: 0x18)
         ]
     )
     func packetTypesRegression(mapping: PacketTypeMapping) throws {
-        #expect(PacketType.allCases.count == 9)
+        #expect(PacketType.allCases.count == 8)
         #expect(mapping.type.rawValue == mapping.rawByte)
 
         let env = CleartextEnvelope(

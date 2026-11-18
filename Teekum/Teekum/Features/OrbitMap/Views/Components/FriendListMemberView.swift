@@ -10,7 +10,6 @@ import SwiftUI
 struct FriendListMemberView: View {
     let member: Member
     let color: Color
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @ScaledMetric(relativeTo: .title2)
     private var avatarSize = 60
@@ -30,17 +29,7 @@ struct FriendListMemberView: View {
                 .minimumScaleFactor(0.6)
                 .frame(width: avatarSize, height: avatarSize)
                 .background {
-                    if member.isEmergency {
-                        if reduceMotion {
-                            emergencyAvatar
-                        } else {
-                            emergencyAvatar.phaseAnimator([1.0, 0.55]) { avatar, opacity in
-                                avatar.opacity(opacity)
-                            } animation: { _ in .easeInOut(duration: 0.8) }
-                        }
-                    } else {
-                        Circle().strokeBorder(color, lineWidth: 1)
-                    }
+                    FriendAvatarBackground(color: color, isEmergency: member.isEmergency)
                 }
                 .accessibilityValue(member.isEmergency ? Text("SOS active") : Text(""))
 
@@ -58,15 +47,6 @@ struct FriendListMemberView: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
-    }
-
-    private var emergencyAvatar: some View {
-        Circle()
-            .inset(by: 3)
-            .fill(Color.alertRed)
-            .overlay {
-                Circle().strokeBorder(Color.alertRed, lineWidth: 2)
-            }
     }
 }
 

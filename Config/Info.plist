@@ -42,8 +42,6 @@ Created by DIMAS DAFFA ERNANDA on 11/11/26.
 	</array>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
-	<key>NSNearbyInteractionUsageDescription</key>
-	<string>Show the direction and distance of nearby group members while Orbit is open.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

@@ -16,7 +16,6 @@ public struct LocationPingPayload: Equatable, Sendable {
     public var batteryLevel: UInt8    // 0...100
     public var heading: UInt8         // 0...255 representing 0..<360 degrees
     public var colorCode: UInt8       // MemberColor code
-    public var supportsNearbyRanging: Bool
     
     public var headingDegrees: CLLocationDirection {
         CLLocationDirection.fromHeadingByte(heading)
@@ -29,8 +28,7 @@ public struct LocationPingPayload: Equatable, Sendable {
         senderInitials: String,
         batteryLevel: UInt8,
         heading: UInt8 = 0,
-        colorCode: UInt8 = 0,
-        supportsNearbyRanging: Bool = false
+        colorCode: UInt8 = 0
     ) {
         self.coordinate = coordinate
         self.timestamp = timestamp
@@ -39,7 +37,6 @@ public struct LocationPingPayload: Equatable, Sendable {
         self.batteryLevel = min(batteryLevel, 100)
         self.heading = heading
         self.colorCode = colorCode
-        self.supportsNearbyRanging = supportsNearbyRanging
     }
     
     public func serialize() -> Data {
@@ -68,8 +65,8 @@ public struct LocationPingPayload: Equatable, Sendable {
         // Byte 17: colorCode (1B UInt8)
         data.append(colorCode)
         
-        data.append(supportsNearbyRanging ? 1 : 0)
-        data.append(Data(repeating: 0, count: 11))
+        // Bytes 18..29: 12 bytes consolidated reserved zero padding (30 - 18 = 12)
+        data.append(Data(repeating: 0, count: 12))
         return data
     }
     
@@ -103,8 +100,7 @@ public struct LocationPingPayload: Equatable, Sendable {
             senderInitials: initials,
             batteryLevel: min(battery, 100),
             heading: heading,
-            colorCode: colorCode,
-            supportsNearbyRanging: data[start + 18] == 1
+            colorCode: colorCode
         )
     }
 }

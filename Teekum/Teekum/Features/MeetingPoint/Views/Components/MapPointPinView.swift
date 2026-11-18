@@ -32,13 +32,12 @@ public struct MapPointPinView: View {
                         .foregroundStyle(Color.buttonPrimary)
             }
             // Pin
-            Image("MeetPoint")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(Color.buttonPrimary)
-                .frame(width: 34, height: 34)
-                .shadow(color: .black.opacity(0.1) ,radius: 3)
+            Image(systemName: "mappin.and.ellipse")
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundStyle(.white)
+                            .frame(width: 34, height: 34)
+                            .shadow(color: .black.opacity(0.1), radius: 3)
         }
     }
 }

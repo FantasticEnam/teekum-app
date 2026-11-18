@@ -16,7 +16,6 @@ struct AppRootView: View {
             OrbitMapView(sessionStore: sessionStore, location: controller?.location,
                 chat: controller?.chat, sos: controller?.sos, meetingService: controller?.meeting,
                 diagnostics: { controller?.diagnostics }, notifications: controller?.notifications,
-                nearby: controller?.nearby,
                 onLeaveGroup: controller.map { owner in { owner.leave() } })
         } else {
             NavigationStack {

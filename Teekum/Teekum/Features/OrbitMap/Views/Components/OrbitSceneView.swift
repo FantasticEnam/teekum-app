@@ -15,9 +15,9 @@ struct OrbitSceneView: View {
     }
     
     let userColor: Color
+    let userNickname: String
     var userBatteryLevel: Float?
     var members: [Member] = []
-    var nearbyPositions: [Member.ID: NearbyOrbitPosition] = [:]
     var meetingPoint: MeetingPoint?
     var location: LocationPin?
     var heading: Double = 0
@@ -51,12 +51,13 @@ struct OrbitSceneView: View {
             let size = geometry.size
             let baseSize = min(size.width, size.height)
             // Reserve space below the rings for their labels and the bottom controls.
-            let referenceRadius = min(baseSize * 1.55 / 2, max(1, size.height / 2 - bottomInset - 100))
+            let referenceRadius = min(baseSize * 1.55 / 2,
+                max(1, size.height / 2 - bottomInset - OrbitFriendsPanel.height - 22))
             let backgroundRadius = referenceRadius * 1.12
             let scale = OrbitRingScale(range: radarRange, radius: referenceRadius)
             let markerRadius = scale.outerRadius
             let range = scale.outerDistance
-            let userMarker = OrbitUserMarkerView(color: userColor, heading: .degrees(0),
+            let userMarker = OrbitUserMarkerView(color: userColor, nickname: userNickname, heading: .degrees(0),
                 isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil,
                 batteryLevel: userBatteryLevel)
             
@@ -87,25 +88,28 @@ struct OrbitSceneView: View {
                             )
                         }
                     
-                    ForEach(members) { member in
-                        let nearby = nearbyPositions[member.id]?.projection(at: .now, radius: markerRadius, range: range)
-                        if let projection = nearby ?? gpsProjection(for: member, radius: markerRadius, range: range) {
-                            let isSelected = selectedTarget == .member(member.id)
-                            if isSelected {
-                                targetLine(to: projection, in: size, isEmergency: member.isEmergency)
+                    if let location {
+                        ForEach(members) { member in
+                            if let coordinate = member.coordinate {
+                                let projection = OrbitProjection(from: location, to: coordinate, heading: heading,
+                                                                 radius: markerRadius, range: range, overflowMargin: 20)
+                                let isSelected = selectedTarget == .member(member.id)
+                                if isSelected {
+                                    targetLine(to: projection, in: size, isEmergency: member.isEmergency)
+                                }
+                                memberMarker(member, projection: projection, isSelected: isSelected)
                             }
-                            memberMarker(member, projection: projection, isSelected: isSelected, usesNearby: nearby != nil)
                         }
-                    }
 
-                    if let location, let meetingPoint {
-                        let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading,
-                                                         radius: markerRadius, range: range)
-                        let isSelected = selectedTarget == .meetingPoint(meetingPoint.id)
-                        if isSelected {
-                            targetLine(to: projection, in: size)
+                        if let meetingPoint {
+                            let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading,
+                                                             radius: markerRadius, range: range)
+                            let isSelected = selectedTarget == .meetingPoint(meetingPoint.id)
+                            if isSelected {
+                                targetLine(to: projection, in: size)
+                            }
+                            meetingMarker(meetingPoint, projection: projection, isSelected: isSelected)
                         }
-                        meetingMarker(meetingPoint, projection: projection, isSelected: isSelected)
                     }
                 }
             }
@@ -129,14 +133,8 @@ struct OrbitSceneView: View {
         return min(max(scale, baseRange / 120), baseRange / 5)
     }
     
-    private func gpsProjection(for member: Member, radius: Double, range: Double) -> OrbitProjection? {
-        guard let location, let coordinate = member.coordinate else { return nil }
-        return OrbitProjection(from: location, to: coordinate, heading: heading,
-            radius: radius, range: range, overflowMargin: 20)
-    }
-
-    private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool, usesNearby: Bool) -> some View {
-        let isStale = !usesNearby && (member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true)
+    private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
+        let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
         let lowBatteryPercentage = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel)
         return Button {
             onSelectMember(member.id)
@@ -218,6 +216,7 @@ struct OrbitSceneView: View {
     
     OrbitSceneView(
         userColor: .yellowProfile,
+        userNickname: "VAN",
         members: [
             Member(id: "NIC", coordinate: .init(latitude: 0.00008, longitude: -0.00003), batteryLevel: 0.1,
                    heading: 315, color: .greenishTeal, measurementTimestamp: .now),
@@ -228,10 +227,11 @@ struct OrbitSceneView: View {
     )
 }
 
-#Preview("YOU above overlapping friends") {
+#Preview("Nickname above overlapping friends") {
     let location = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 5)
     OrbitSceneView(
         userColor: MemberColor.sandrift.swiftUIColor,
+        userNickname: "VAN",
         members: [
             Member(id: "NIC", coordinate: .init(latitude: 0, longitude: 0.00004), heading: 240,
                 color: .apricot, measurementTimestamp: .now),
@@ -247,6 +247,7 @@ struct OrbitSceneView: View {
     let store = SessionStore.preview
     OrbitSceneView(
         userColor: .yellowProfile,
+        userNickname: store.activeSession?.localMemberName ?? "",
         members: store.members,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
@@ -263,6 +264,7 @@ struct OrbitSceneView: View {
     
     return OrbitSceneView(
         userColor: .yellowProfile,
+        userNickname: store.activeSession?.localMemberName ?? "",
         members: sosMembers,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
@@ -274,6 +276,7 @@ struct OrbitSceneView: View {
     let store = SessionStore.preview
     OrbitSceneView(
         userColor: .yellowProfile,
+        userNickname: store.activeSession?.localMemberName ?? "",
         members: store.members,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),

@@ -9,15 +9,6 @@ import XCTest
 @testable import Teekum
 
 final class OrbitRingScaleTests: XCTestCase {
-    func testNearbyProjectionExpiresAndUsesDeviceRelativeBearing() throws {
-        let now = ContinuousClock.now
-        let position = NearbyOrbitPosition(distance: 5, bearing: 30, measuredAt: now)
-        let projection = try XCTUnwrap(position.projection(at: now, radius: 150, range: 15))
-        XCTAssertEqual(projection.x, 25, accuracy: 0.001)
-        XCTAssertEqual(projection.y, -43.301, accuracy: 0.001)
-        XCTAssertNil(position.projection(at: now.advanced(by: .seconds(3)), radius: 150, range: 15))
-    }
-
     func testInitialRingsMatchTheFiveMeterDesign() {
         let scale = OrbitRingScale(range: OrbitRingScale.defaultRange, radius: 300)
         XCTAssertEqual(scale.distances, [5, 10, 15])
