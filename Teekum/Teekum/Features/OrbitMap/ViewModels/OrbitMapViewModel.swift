@@ -23,6 +23,10 @@ final class OrbitMapViewModel {
         return sessionStore.profileColor(for: session.localInitials)
     }
 
+    var localNickname: String {
+        sessionStore.activeSession?.localMemberName ?? ""
+    }
+
     init(sessionStore: SessionStore, onLeaveGroup: (() -> Void)? = nil) {
         self.sessionStore = sessionStore
         self.onLeaveGroup = onLeaveGroup ?? sessionStore.resetSessionState

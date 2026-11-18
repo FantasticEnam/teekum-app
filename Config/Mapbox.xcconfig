@@ -11,4 +11,5 @@ SLASH = /
 MBX_ACCESS_TOKEN =
 MEEPO_MAPBOX_STYLE_URI =
 
+#include? "Debug.xcconfig"
 #include? "Mapbox.local.xcconfig"
