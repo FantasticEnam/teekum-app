@@ -32,6 +32,8 @@ struct OrbitMapView: View {
     private let meetingService: MeetingPointService?
     private let diagnostics: @MainActor () -> TransportDiagnostics?
     private let notifications: NotificationService?
+    private let offlineMaps: OfflineMapManager?
+    private let connectivity: ConnectivityMonitor?
     
     private var meetingPoint: MeetingPoint? { viewModel.sessionStore.activeMeetingPoint }
     private var visibleMembers: [Member] { viewModel.sessionStore.visibleMembers }
@@ -60,6 +62,7 @@ struct OrbitMapView: View {
     
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
          sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
+         offlineMaps: OfflineMapManager? = nil, connectivity: ConnectivityMonitor? = nil,
          diagnostics: @escaping @MainActor () -> TransportDiagnostics? = { nil }, notifications: NotificationService? = nil,
          onLeaveGroup: (() -> Void)? = nil) {
         _viewModel = State(initialValue: OrbitMapViewModel(sessionStore: sessionStore, onLeaveGroup: onLeaveGroup))
@@ -67,6 +70,8 @@ struct OrbitMapView: View {
         self.chat = chat
         self.sos = sos
         self.meetingService = meetingService
+        self.offlineMaps = offlineMaps
+        self.connectivity = connectivity
         self.diagnostics = diagnostics
         self.notifications = notifications
     }
@@ -252,9 +257,14 @@ struct OrbitMapView: View {
                 }
                 .presentationBackground(.clear)
             case .settings:
-                OrbitSettingsView(location: location, sos: sos,
-                                  memberContactLog: { viewModel.sessionStore.memberContactLog },
-                                  diagnostics: diagnostics)
+                            OrbitSettingsView(
+                                location: location,
+                                sos: sos,
+                                offlineMaps: offlineMaps,
+                                connectivity: connectivity,
+                                memberContactLog: { viewModel.sessionStore.memberContactLog },
+                                diagnostics: diagnostics
+                            )
             case .invite:
                 if let session = viewModel.sessionStore.activeSession {
                     ShareInviteView(session: session) {

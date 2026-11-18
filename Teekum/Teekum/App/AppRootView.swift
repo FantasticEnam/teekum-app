@@ -22,10 +22,18 @@ struct AppRootView: View {
                 }
             )
         } else if sessionStore.hasActiveSession {
-            OrbitMapView(sessionStore: sessionStore, location: controller?.location,
-                         chat: controller?.chat, sos: controller?.sos, meetingService: controller?.meeting,
-                         diagnostics: { controller?.diagnostics }, notifications: controller?.notifications,
-                         onLeaveGroup: controller.map { owner in { owner.leave() } })
+            OrbitMapView(
+                sessionStore: sessionStore,
+                location: controller?.location,
+                chat: controller?.chat,
+                sos: controller?.sos,
+                meetingService: controller?.meeting,
+                offlineMaps: controller?.offlineMaps,
+                connectivity: controller?.connectivityMonitor,
+                diagnostics: { controller?.diagnostics },
+                notifications: controller?.notifications,
+                onLeaveGroup: controller.map { owner in { owner.leave() } }
+            )
         } else {
             NavigationStack {
                 GroupPairingView(sessionStore: sessionStore, onActivate: activateSession)
