@@ -49,7 +49,14 @@ struct MapLayerView: View {
             MapReader { proxy in
                 Map(position: $cameraPosition, scope: mapScope) {
                     // Current user point
-                    UserAnnotation()
+                    UserAnnotation {
+                        MapUserAnnotationView(
+                            initials: "YOU",
+                            color: viewModel.localProfileColor.swiftUIColor,
+                            location: location,
+                            mapHeading: $mapHeading
+                        )
+                    }
                     
                     if let userCoord = location?.currentLocation?.coordinate,
                        let targetCoord = followedCoordinate {
@@ -64,32 +71,13 @@ struct MapLayerView: View {
                     ForEach(viewModel.members) { member in
                         if let coordinate = member.coordinate {
                             Annotation("", coordinate: coordinate) {
-                                let isSelected = selectedTarget == .member(member.id)
-                                
-                                Button {
-                                    selectMember(member)
-                                } label: {
-                                    OrbitMemberMarkerView(
-                                        initials: member.initials,
-                                        color: member.color.swiftUIColor,
-                                        isSelected: isSelected,
-                                        isEmergency: member.isEmergency,
-                                        size: 22, batteryLevel: member.batteryLevel,
-                                        heading: member.heading.map { .degrees($0 - mapHeading) }
-                                    )
-                                    .overlay(alignment: .bottom) {
-                                        if let distance = memberDistance(for: member) {
-                                            let showsBattery = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel) != nil
-                                            Text(distance)
-                                                .font(.caption2)
-                                                .foregroundStyle(.white)
-                                                .fixedSize()
-                                                .shadow(color: .black.opacity(0.8), radius: 2)
-                                                .offset(y: showsBattery ? 34 : 18)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(.plain)
+                                MapMemberAnnotationView(
+                                    member: member,
+                                    isSelected: selectedTarget == .member(member.id),
+                                    distance: memberDistance(for: member),
+                                    mapHeading: $mapHeading,
+                                    onTap: { selectMember(member) }
+                                )
                             }
                             .annotationTitles(.hidden)
                         }
@@ -265,7 +253,7 @@ struct MapLayerView: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.4)) {
                     let targetCoord = location?.currentLocation?.coordinate
-                        ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
+                    ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
                     
                     cameraPosition = .camera(
                         MapCamera(
@@ -290,6 +278,55 @@ struct MapLayerView: View {
             .accessibilityLabel("Recenter to user location")
         }
     }
+    
+    private struct MapMemberAnnotationView: View {
+        let member: Member
+        let isSelected: Bool
+        let distance: String?
+        @Binding var mapHeading: CLLocationDirection
+        let onTap: () -> Void
+        
+        var body: some View {
+            Button(action: onTap) {
+                OrbitMemberMarkerView(
+                    initials: member.initials,
+                    color: member.color.swiftUIColor,
+                    isSelected: isSelected,
+                    isEmergency: member.isEmergency,
+                    batteryLevel: member.batteryLevel,
+                    heading: member.heading.map { .degrees($0 - mapHeading) }
+                )
+                .overlay(alignment: .bottom) {
+                    if let distance {
+                        let showsBattery = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel) != nil
+                        Text(distance)
+                            .font(.caption2)
+                            .foregroundStyle(.white)
+                            .fixedSize()
+                            .shadow(color: .black.opacity(0.8), radius: 2)
+                            .offset(y: showsBattery ? 34 : 18)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    private struct MapUserAnnotationView: View {
+            let initials: String
+            let color: Color
+            let location: LocationService?
+            @Binding var mapHeading: CLLocationDirection
+            
+            var body: some View {
+                OrbitMemberMarkerView(
+                    initials: initials,
+                    color: color,
+                    batteryLevel: location?.currentBatteryLevel,
+                    heading: location?.currentHeading.map { .degrees($0 - mapHeading) }
+                )
+            }
+        }
 }
 
 #Preview("Active meeting point") {

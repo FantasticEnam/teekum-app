@@ -1,6 +1,6 @@
 //
 //  MeetingPointViewModel.swift
-//  
+//
 //
 //  Created by Adiat Rahman on 05/11/26.
 //
@@ -15,7 +15,7 @@ public final class MeetingPointViewModel {
     private let sessionStore: SessionStore
     private let meetingService: MeetingPointService
     @ObservationIgnored private var locationManager: CLLocationManager?
-
+    
     public var activeMapPoint: MeetingPoint? { sessionStore.activeMeetingPoint }
     public private(set) var candidateCoordinate: CLLocationCoordinate2D?
     
@@ -29,7 +29,16 @@ public final class MeetingPointViewModel {
         self.sessionStore = sessionStore
         self.meetingService = meetingService ?? MeetingPointService(sessionStore: sessionStore)
     }
-
+    
+    public var localInitials: String {
+        sessionStore.activeSession?.localInitials ?? "YOU"
+    }
+    
+    public var localProfileColor: MemberColor {
+        guard let session = sessionStore.activeSession else { return .sandrift }
+        return sessionStore.profileColor(for: session.localInitials)
+    }
+    
     public var myAttendance: MeetingAttendance? {
         guard let memberID = sessionStore.activeSession?.localMemberId else { return nil }
         return activeMapPoint?.attendance[memberID]
@@ -49,7 +58,7 @@ public final class MeetingPointViewModel {
         sessionStore.visibleMembers
     }
     
-
+    
     public func requestLocationPermission() {
         if locationManager == nil { locationManager = CLLocationManager() }
         if locationManager?.authorizationStatus == .notDetermined {
@@ -73,7 +82,7 @@ public final class MeetingPointViewModel {
         defer { cancelSetMeetingPoint() }
         guard sessionStore.hasActiveSession,
               let coord = candidateCoordinate else { return }
-
+        
         meetingService.proposeMeetingPoint(coordinate: coord)
     }
     
@@ -105,7 +114,7 @@ public final class MeetingPointViewModel {
         meetingService.respond(status: attending ? .attending : .cantMakeIt)
         self.isShowingRSVPAlert = false
     }
-
+    
     public var errorMessage: String? { meetingService.errorMessage }
 }
 
