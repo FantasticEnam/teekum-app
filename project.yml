@@ -28,7 +28,6 @@ targets:
         NSBonjourServices: ["_teekum._tcp", "_teekum._udp"]
         UIBackgroundModes: [location, bluetooth-central, bluetooth-peripheral]
         NSSupportsLiveActivities: true
-        NSNearbyInteractionUsageDescription: "Show the direction and distance of nearby group members while Orbit is open."
         CFBundleURLTypes:
           - CFBundleURLName: com.fantasticenam.meepo
             CFBundleURLSchemes: [teekum]

@@ -258,66 +258,6 @@ final class NetworkMigrationTests: XCTestCase {
         XCTAssertEqual(targeted, latestRelay)
     }
 
-    func testNearbyTokenFragmentsReassembleOutOfOrderAndRejectInvalidLengths() throws {
-        let token = Data((0..<256).map(UInt8.init))
-        let fragments = NearbyTokenFragment.payloads(for: token, from: "ALX", to: "BOB", transfer: 1)
-        XCTAssertGreaterThan(fragments.count, 1)
-        XCTAssertEqual(fragments.first?.count, PacketConstants.encryptedPayloadSize)
-        var assembly = NearbyTokenFragment.Assembly()
-        for fragment in fragments.dropFirst().reversed() {
-            XCTAssertNil(assembly.receive(try XCTUnwrap(NearbyTokenFragment(payload: fragment))))
-        }
-        let first = try XCTUnwrap(fragments.first)
-        XCTAssertEqual(assembly.receive(try XCTUnwrap(NearbyTokenFragment(payload: first))), token)
-
-        var invalid = first
-        invalid[9] = 255
-        XCTAssertNil(NearbyTokenFragment(payload: invalid))
-        XCTAssertTrue(NearbyTokenFragment.payloads(for: Data(repeating: 0, count: 1027),
-            from: "ALX", to: "BOB", transfer: 1).isEmpty)
-    }
-
-    @MainActor
-    func testNearbyTokenRequiresAnAuthenticatedDirectPacketForTheLocalMember() async throws {
-        let transport = NetworkTestTransport()
-        let crypto = CryptoService()
-        let keyData = Data(repeating: 7, count: 32)
-        let key = SymmetricKey(data: keyData)
-        let sender = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "ALX")
-        let receiver = GroupSession(sessionId: sender.sessionId, symmetricKeyData: keyData, localInitials: "BOB")
-        let discovery = RouteDiscoveryService(routingTable: RoutingTable(), neighborTable: NeighborTable(),
-            transport: transport, cryptoService: crypto)
-        let relay = RelayPolicyManager(storageKeyPrefix: "nearby-token-\(UUID())",
-            transport: transport, defaultMode: .disabled)
-        var accepted: [String] = []
-        let router = PacketRouter(cryptoService: crypto, peerTransport: transport, relayPolicyManager: relay,
-            routeDiscoveryService: discovery, seenPacketCache: SeenPacketCache(),
-            onLocationPing: { _, _ in }, onSOS: { _, _ in }, onACK: { _ in },
-            onMeetingUpdate: { _ in }, onChat: { _ in },
-            onNearbyToken: { fragment, _ in accepted.append(fragment.sender) })
-        let cases: [(UInt32, UInt8, String)] = [(sender.sessionId, 1, "BOB"), (0x2345, 0, "BOB"),
-            (sender.sessionId, 0, "CAR"), (sender.sessionId, 0, "BOB")]
-        for (index, test) in cases.enumerated() {
-            let payload = try XCTUnwrap(NearbyTokenFragment.payloads(for: Data([1, 2, 3]),
-                from: "ALX", to: test.2, transfer: 1).first)
-            let sequence = CleartextEnvelope.makeSequenceNumber(memberSlot: sender.memberSlot, counter: UInt32(index + 1))
-            let envelope = CleartextEnvelope(type: .nearbyToken, hopLimit: 1, hopCount: test.1,
-                sessionId: test.0, sequenceNumber: sequence)
-            let frame = try await crypto.sealToWireBytes(payload: payload, envelope: envelope, using: key)
-            if index == cases.count - 1 {
-                var invalid = frame
-                invalid[invalid.index(before: invalid.endIndex)] ^= 1
-                let tampered = try RawWirePacket.fromWireData(invalid)
-                await router.routeInboundPacket(.init(rawPacket: tampered, sourcePeerId: "ble-test"), for: receiver)
-            }
-            let packet = try RawWirePacket.fromWireData(frame)
-            await router.routeInboundPacket(.init(rawPacket: packet, sourcePeerId: "ble-test"), for: receiver)
-        }
-        XCTAssertEqual(accepted, ["ALX"])
-        let relayed = await transport.broadcastCount
-        XCTAssertEqual(relayed, 0)
-    }
-
     func testForeignReliableTrafficKeepsPriorityAndConsentPurge() throws {
         let queue = PriorityOutboxQueue()
         try queue.enqueue(data: wire(type: .locationPing, sequence: 1), isRelay: true)

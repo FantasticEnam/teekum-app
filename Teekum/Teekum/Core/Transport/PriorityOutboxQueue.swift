@@ -75,7 +75,6 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
     
     /// Stranger relay ring buffer queue (Decision 7: 32 packets, drop-head on overflow).
     private var strangerRelayLane: [OutboxItem] = []
-    private var nearbyTokenLane: [OutboxItem] = []
     
     /// Counter tracking obsolete location pings coalesced and discarded before transmission.
     public private(set) var obsoletePingsCoalesced: Int = 0
@@ -102,12 +101,12 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
     
     /// Total count of items currently waiting in the outbox across all lanes.
     public var totalQueuedCount: Int {
-        urgentLane.count + localChatLane.count + normalCoalescedLane.count + strangerRelayLane.count + nearbyTokenLane.count
+        urgentLane.count + localChatLane.count + normalCoalescedLane.count + strangerRelayLane.count
     }
     
     /// True when there are no items waiting to be sent across any lane.
     public var isEmpty: Bool {
-        totalQueuedCount == 0
+        urgentLane.isEmpty && localChatLane.isEmpty && normalCoalescedLane.isEmpty && strangerRelayLane.isEmpty
     }
     
     /// Current count of pending urgent packets.
@@ -129,7 +128,7 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
     public var queueDepth: QueueDepth {
         QueueDepth(
             urgentCount: urgentLane.count,
-            normalCount: normalCoalescedLane.count + nearbyTokenLane.count,
+            normalCount: normalCoalescedLane.count,
             relayCount: strangerRelayLane.count,
             chatCount: localChatLane.count
         )
@@ -274,15 +273,7 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
             return item
         }
         
-        return nearbyTokenLane.isEmpty ? nil : nearbyTokenLane.removeFirst()
-    }
-
-    func enqueueNearbyTokens(_ frames: [Data], to peerId: String) {
-        guard nearbyTokenLane.count + frames.count <= 64 else { return }
-        nearbyTokenLane.append(contentsOf: frames.map {
-            OutboxItem(packetData: $0, packetType: .nearbyToken, destinationPeerId: peerId,
-                       maxRetries: 0, isUrgent: false)
-        })
+        return nil
     }
     
     /// Re-queues an item that encountered a transient transmission failure, if retries remain.
@@ -322,6 +313,5 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
         localChatLane.removeAll()
         normalCoalescedLane.removeAll()
         strangerRelayLane.removeAll()
-        nearbyTokenLane.removeAll()
     }
 }

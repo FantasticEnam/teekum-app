@@ -26,7 +26,6 @@ struct OrbitMapView: View {
     private let meetingService: MeetingPointService?
     private let diagnostics: @MainActor () -> TransportDiagnostics?
     private let notifications: NotificationService?
-    private let nearby: NearbyRangingService?
     
     private var meetingPoint: MeetingPoint? { viewModel.sessionStore.activeMeetingPoint }
     private var visibleMembers: [Member] { viewModel.sessionStore.visibleMembers }
@@ -37,7 +36,6 @@ struct OrbitMapView: View {
             userColor: viewModel.localProfileColor.swiftUIColor,
             userBatteryLevel: location?.currentBatteryLevel,
             members: visibleMembers,
-            nearbyPositions: nearby?.positions ?? [:],
             meetingPoint: meetingPoint,
             location: location?.currentLocation,
             heading: location?.currentHeading ?? 0,
@@ -56,7 +54,6 @@ struct OrbitMapView: View {
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
          sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
          diagnostics: @escaping @MainActor () -> TransportDiagnostics? = { nil }, notifications: NotificationService? = nil,
-         nearby: NearbyRangingService? = nil,
          onLeaveGroup: (() -> Void)? = nil) {
         _viewModel = State(initialValue: OrbitMapViewModel(sessionStore: sessionStore, onLeaveGroup: onLeaveGroup))
         self.location = location
@@ -65,7 +62,6 @@ struct OrbitMapView: View {
         self.meetingService = meetingService
         self.diagnostics = diagnostics
         self.notifications = notifications
-        self.nearby = nearby
     }
     
     var body: some View {
@@ -124,12 +120,9 @@ struct OrbitMapView: View {
         .onAppear {
             isOrbitVisible = true
             location?.setTacticalRadarActive(scenePhase == .active)
-            nearby?.setForeground(scenePhase == .active)
         }
         .onChange(of: scenePhase) { _, phase in
             location?.setTacticalRadarActive(isOrbitVisible && phase == .active)
-            // iOS can temporarily make the scene inactive while asking for Nearby Interaction access.
-            if phase != .inactive { nearby?.setForeground(isOrbitVisible && phase == .active) }
         }
         .onChange(of: location?.isTracking) { _, tracking in
             if tracking == true {
@@ -139,7 +132,6 @@ struct OrbitMapView: View {
         .onDisappear {
             isOrbitVisible = false
             location?.setTacticalRadarActive(false)
-            nearby?.setForeground(false)
         }
         .onChange(of: meetingPoint?.id) { _, id in
             if case .meetingPoint(let targetID) = selectedTarget, targetID != id {
@@ -247,7 +239,7 @@ struct OrbitMapView: View {
             case .settings:
                 OrbitSettingsView(location: location, sos: sos,
                                   memberContactLog: { viewModel.sessionStore.memberContactLog },
-                                  diagnostics: diagnostics, nearby: nearby)
+                                  diagnostics: diagnostics)
             case .invite:
                 if let session = viewModel.sessionStore.activeSession {
                     ShareInviteView(session: session) {

@@ -11,12 +11,6 @@ import Network
 // MARK: - Frame Transmission & Priority Outbox
 
 extension PeerTransportService {
-    func sendNearbyTokens(_ frames: [Data], to peerId: String, session: GroupSession) {
-        guard activeSession == session,
-              blePeers.contains(peerId) || connections[peerId]?.isReady == true else { return }
-        outbox.enqueueNearbyTokens(frames, to: peerId)
-        triggerOutboxFlush()
-    }
     
     // MARK: - MeshTransport Sending & Forwarding
     
