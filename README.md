@@ -71,7 +71,15 @@ open Teekum.xcodeproj
 
 The output is **`Teekum.xcodeproj` at the repository root**. Select the **Teekum** scheme, choose an iPhone simulator running iOS 27+, and press **Run** (`⌘R`). On a fresh install the app opens Pairing. An existing saved group can be restored from device-only Keychain and local metadata.
 
-For a physical device, set your Development Team for **Teekum** and **TeekumWidgets** in Signing & Capabilities, and choose a compatible iPhone. If signing requires a different bundle identifier, adjust `PRODUCT_BUNDLE_IDENTIFIER` through the configuration agreed on by the team.
+For a physical device, save your signing settings once in `Config/Device.local.xcconfig`. Use the Team ID shown in your Apple Developer account and a development bundle ID available to that team:
+
+```xcconfig
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+MEEPO_DEBUG_BUNDLE_ID = com.yourname.meepo.dev
+MEEPO_DEBUG_DISPLAY_NAME = Meepo Dev
+```
+
+The file is ignored by Git and read by Debug after a normal XcodeGen run. The widget and test targets use the same bundle ID prefix. Choose your iPhone and run the **Teekum** scheme. Release uses the shared Meepo bundle ID and the Time Sensitive Notifications entitlement. Use the team that owns Meepo for TestFlight and for testing that entitlement.
 
 No external Swift packages, CocoaPods or backend credentials are required. The app requests camera, local network, Bluetooth, location, motion and notification permissions as needed.
 

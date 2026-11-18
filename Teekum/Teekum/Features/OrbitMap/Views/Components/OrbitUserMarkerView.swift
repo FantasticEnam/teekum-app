@@ -9,6 +9,7 @@ import SwiftUI
 
 struct OrbitUserMarkerView: View {
     let color: Color
+    let nickname: String
     var heading: Angle? = nil
     var isEmergency = false
     var isTargetSelected = false
@@ -20,9 +21,12 @@ struct OrbitUserMarkerView: View {
             .fill(isEmergency ? Color.alertRed : color)
             .frame(width: size, height: size)
             .overlay {
-                Text("YOU")
+                Text(nickname)
                     .font(.custom("Helvetica", size: 13, relativeTo: .caption).bold())
                     .foregroundStyle(.black)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .padding(.horizontal, 2)
             }
             .overlay { directionArrow }
             .overlay(alignment: .bottom) {
@@ -30,7 +34,7 @@ struct OrbitUserMarkerView: View {
                     .offset(y: 14)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Your position")
+            .accessibilityLabel(nickname.isEmpty ? Text("Your position") : Text("\(nickname), your position"))
             .accessibilityValue(
                 isEmergency ? "SOS active" : (heading == nil ? "Direction unavailable" : "Direction available")
             )
@@ -60,10 +64,10 @@ struct OrbitUserMarkerView: View {
 #Preview("User Marker States") {
     HStack(spacing: 60) {
         // 1. Normal
-        OrbitUserMarkerView(color: .yellowProfile, heading: .degrees(0), batteryLevel: 0.1)
+        OrbitUserMarkerView(color: .yellowProfile, nickname: "VAN", heading: .degrees(0), batteryLevel: 0.1)
 
         // 2. SOS Emergency
-        OrbitUserMarkerView(color: .yellowProfile, heading: .degrees(0), isEmergency: true)
+        OrbitUserMarkerView(color: .yellowProfile, nickname: "VAN", heading: .degrees(0), isEmergency: true)
     }
     .padding(100)
     .background(.black)

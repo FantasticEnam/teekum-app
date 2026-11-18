@@ -1,0 +1,11 @@
+//
+//  Debug.xcconfig
+//  Teekum
+//
+//  Created by DIMAS DAFFA ERNANDA on 18/11/26.
+//
+
+MEEPO_DEBUG_BUNDLE_ID = com.fantasticenam.meepo
+MEEPO_DEBUG_DISPLAY_NAME = Meepo
+
+#include? "Device.local.xcconfig"

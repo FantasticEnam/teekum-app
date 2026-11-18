@@ -8,11 +8,17 @@
 import SwiftUI
 
 struct OrbitMapView: View {
+    private enum FriendSelection {
+        case follow(Member.ID)
+        case stopFollowing
+    }
+
     @Environment(\.scenePhase) private var scenePhase
     @State private var isOrbitVisible = false
     @State private var viewModel: OrbitMapViewModel
     @State private var activeModal: OrbitModal?
     @State private var selectedTarget: OrbitSceneView.Target?
+    @State private var pendingFriendSelection: FriendSelection?
     @State private var isLeavingGroup = false
     @State private var isShowingChat = false
     @State private var opensChatAfterModalDismissal = false
@@ -34,6 +40,7 @@ struct OrbitMapView: View {
     private var orbitScene: some View {
         OrbitSceneView(
             userColor: viewModel.localProfileColor.swiftUIColor,
+            userNickname: viewModel.localNickname,
             userBatteryLevel: location?.currentBatteryLevel,
             members: visibleMembers,
             meetingPoint: meetingPoint,
@@ -65,6 +72,7 @@ struct OrbitMapView: View {
     }
     
     var body: some View {
+        let followedMember = selectedMember
         ZStack {
             Color.black
                 .ignoresSafeArea()
@@ -72,8 +80,7 @@ struct OrbitMapView: View {
             orbitScene
             
             VStack(alignment: .leading) {
-                OrbitHeaderView(groupName: viewModel.groupName,
-                                onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
+                OrbitHeaderView(groupName: viewModel.groupName, onSettings: { activeModal = .settings })
                 
                 if let activity = notifications?.groupActivity {
                     groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
@@ -98,15 +105,22 @@ struct OrbitMapView: View {
                     onSOS: {
                         sos?.triggerSOS()
                     },
-                    onExpand: {
-                        activeModal = .friends
-                    },
+                    onOpenMap: { activeModal = .mapPoint },
                     onChat: openChat,
                     unreadCount: chat?.unreadCount ?? 0,
                     isSOSActive: isSOSActive
                 )
+                OrbitFriendsPanel(
+                    nickname: viewModel.localNickname,
+                    profileColor: viewModel.localProfileColor.swiftUIColor,
+                    members: visibleMembers,
+                    isUserSOSActive: isSOSActive,
+                    followedMember: followedMember,
+                    followDistance: distance(to: followedMember),
+                    onOpen: { activeModal = .friends }
+                )
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 24)
         }
         .overlay {
             if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
@@ -212,19 +226,20 @@ struct OrbitMapView: View {
                         
                         FriendListSheet(
                             sessionStore: viewModel.sessionStore,
-                            onAddFriend: {
+                            onShareInvite: {
                                 activeModal = .invite
                             },
                             onSelectMember: { member in
                                 sos?.recordUserInteraction()
-                                selectedTarget = .member(member.id)
+                                pendingFriendSelection = .follow(member.id)
                                 activeModal = nil
                             },
                             onLeaveGroup: requestLeaveGroup,
+                            isUserSOSActive: { isSOSActive },
                             selectedMemberId: selectedMember?.id,
                             onStopFollow: {       
                                 sos?.recordUserInteraction()
-                                selectedTarget = nil
+                                pendingFriendSelection = .stopFollowing
                                 activeModal = nil
                             }
                         )
@@ -311,11 +326,28 @@ struct OrbitMapView: View {
         if isLeavingGroup {
             isLeavingGroup = false
             opensChatAfterModalDismissal = false
+            pendingFriendSelection = nil
             viewModel.leaveGroup()
+        } else if let selection = pendingFriendSelection {
+            pendingFriendSelection = nil
+            switch selection {
+            case .follow(let id):
+                if visibleMembers.contains(where: { $0.id == id }) {
+                    selectedTarget = .member(id)
+                }
+            case .stopFollowing:
+                selectedTarget = nil
+            }
         } else if opensChatAfterModalDismissal {
             opensChatAfterModalDismissal = false
             openChat()
         }
+    }
+
+    private func distance(to member: Member?) -> Double? {
+        guard let origin = location?.currentLocation, let coordinate = member?.coordinate else { return nil }
+        let distance = origin.distance(to: coordinate)
+        return distance.isFinite && distance >= 0 ? distance : nil
     }
     
     private func openChat() {

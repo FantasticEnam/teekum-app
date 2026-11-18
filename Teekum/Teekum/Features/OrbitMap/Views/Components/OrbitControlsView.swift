@@ -9,13 +9,11 @@ import SwiftUI
 
 struct OrbitControlsView: View {
     let onSOS: () -> Void
-    let onExpand: () -> Void
+    let onOpenMap: () -> Void
     var onChat: () -> Void = {}
     var unreadCount = 0
     var isSOSActive = false
 
-    private let friendsPanelHeight: CGFloat = 44
-    
     var body: some View {
         HStack(alignment: .bottom) {
             if isSOSActive {
@@ -30,70 +28,48 @@ struct OrbitControlsView: View {
                 SOSSwipeButtonView(onSwipeCompleted: onSOS)
                     .zIndex(1)
             }
-        
+
             Spacer()
-            
-            Button(action: onExpand) {
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 30, weight: .semibold))
-                    .offset(y:15)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 176)
-                    .frame(height: friendsPanelHeight)
-                    .background {
-                        OrbitPanelShape(
-                            cornerRadius: 0,
-                            crestHeight: nil,
-                            crestWidth: 176
-                        )
-                        .fill(Color.blackCard)
-                        .ignoresSafeArea(.container, edges: .bottom)
-                        .allowsHitTesting(false)
-                    }
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .layoutPriority(1)
-            .accessibilityLabel("Open friends")
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 20)
-                    .onEnded { value in
-                        let upwardDistance = -value.translation.height
-                        if upwardDistance >= 36, upwardDistance > abs(value.translation.width) {
-                            onExpand()
+
+            VStack(spacing: 6) {
+                control("Open meeting point map", icon: "mappin.and.ellipse", action: onOpenMap)
+                control("Open Group Chat", icon: "message.fill", action: onChat)
+                    .accessibilityValue("\(unreadCount) unread messages")
+                    .overlay(alignment: .topTrailing) {
+                        if unreadCount > 0 {
+                            Text("\(unreadCount)")
+                                .font(.caption2.bold())
+                                .padding(5)
+                                .background(Color.alertRed, in: .circle)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
                         }
                     }
-            )
-            
-            Spacer()
-            
-            Button(action: onChat) {
-                Image(systemName: "message.fill")
-                    .font(.system(size: 30, weight: .semibold))
-//                    .frame(width: 62, height: 62)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .accessibilityLabel("Open Group Chat")
-            .accessibilityValue("\(unreadCount) unread messages")
-            .overlay(alignment: .topTrailing) {
-                if unreadCount > 0 {
-                    Text("\(unreadCount)")
-                        .font(.caption2.bold())
-                        .padding(5)
-                        .background(Color.alertRed, in: .circle)
-                        .accessibilityHidden(true)
-                }
             }
         }
+    }
 
+    private func control(_ title: LocalizedStringKey, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .labelStyle(.iconOnly)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 60, height: 60)
+                .contentShape(.circle)
+                .glassEffect(.regular.interactive(), in: .circle)
+        }
+        .buttonStyle(.plain)
     }
 }
 
 #Preview {
     OrbitControlsView(
         onSOS: {},
-        onExpand: {}
+        onOpenMap: {},
+        unreadCount: 2
     )
+    .padding(24)
+    .background(.black)
+    .preferredColorScheme(.dark)
 }

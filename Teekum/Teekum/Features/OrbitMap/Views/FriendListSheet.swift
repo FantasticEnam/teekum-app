@@ -8,9 +8,10 @@
 import SwiftUI
 
 struct FriendListSheet: View {
-    let onAddFriend: () -> Void
+    let onShareInvite: () -> Void
     let onSelectMember: (Member) -> Void
     let onLeaveGroup: () -> Void
+    private let isUserSOSActive: @MainActor () -> Bool
     var selectedMemberId: String? = nil
     var onStopFollow: () -> Void = {}
     
@@ -26,16 +27,18 @@ struct FriendListSheet: View {
     
     init(
         sessionStore: SessionStore,
-        onAddFriend: @escaping () -> Void,
+        onShareInvite: @escaping () -> Void,
         onSelectMember: @escaping (Member) -> Void,
         onLeaveGroup: @escaping () -> Void,
+        isUserSOSActive: @escaping @MainActor () -> Bool = { false },
         selectedMemberId: String? = nil,
         onStopFollow: @escaping () -> Void = {}
     ) {
         _viewModel = State(initialValue: FriendListViewModel(sessionStore: sessionStore))
-        self.onAddFriend = onAddFriend
+        self.onShareInvite = onShareInvite
         self.onSelectMember = onSelectMember
         self.onLeaveGroup = onLeaveGroup
+        self.isUserSOSActive = isUserSOSActive
         self.selectedMemberId = selectedMemberId
         self.onStopFollow = onStopFollow
     }
@@ -45,17 +48,18 @@ struct FriendListSheet: View {
         let members = viewModel.filteredMembers
         
         VStack(spacing: 0) {
-            Button(
-                "Close friends",
-                systemImage: "chevron.down"
-            ) {
+            Button {
                 dismiss()
+            } label: {
+                Capsule()
+                    .fill(.white.opacity(0.12))
+                    .frame(width: 96, height: 3)
+                    .padding(.top, 9)
+                    .frame(width: 144, height: 40, alignment: .top)
+                    .contentShape(.rect)
             }
-            .labelStyle(.iconOnly)
-            .font(.system(size: 24, weight: .medium))
-            .foregroundStyle(.secondary)
-            .frame(width: 144, height: 44)
-            .contentShape(.rect)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close friends")
             .simultaneousGesture(
                 DragGesture(minimumDistance: 20)
                     .onEnded { value in
@@ -66,51 +70,38 @@ struct FriendListSheet: View {
                     }
             )
             
-            HStack(spacing: 12) {
-                HStack {
-                    TextField("Search initials…", text: $viewModel.searchQuery)
-                        .focused($isSearchFocused)
-                        .submitLabel(.done)
-                        .onSubmit { isSearchFocused = false }
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                    
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                }
-                .padding(.horizontal, 18)
-                .frame(minHeight: 54)
-                .background(
-                    .white.opacity(0.1),
-                    in: .capsule
-                )
-                
-                Button(
-                    "Add friend",
-                    systemImage: "person.badge.plus",
-                    action: {
-                        isSearchFocused = false
-                        onAddFriend()
-                    }
-                )
-                .labelStyle(.iconOnly)
-                .font(.title3)
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
+            HStack {
+                TextField("Search name", text: $viewModel.searchQuery)
+                    .focused($isSearchFocused)
+                    .submitLabel(.done)
+                    .onSubmit { isSearchFocused = false }
+                    .autocorrectionDisabled()
+
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, 32)
-            .padding(.top, 24)
-            .padding(.bottom, 28)
-            
+            .font(.subheadline)
+            .padding(.horizontal, 20)
+            .frame(minHeight: 44)
+            .background(.white.opacity(0.1), in: .capsule)
+            .padding(.horizontal, 34)
+
+            roomHeader
+                .padding(.horizontal, 34)
+                .padding(.top, 29)
+                .padding(.bottom, 20)
+
+            Divider()
+                .padding(.horizontal, 33)
+
             ScrollView {
                 if members.isEmpty {
                     ContentUnavailableView(
                         "No friends found",
                         systemImage: "person.2",
                         description: Text(
-                            "Try another initial or add a friend."
+                            "Try another name or share an invite."
                         )
                     )
                 } else {
@@ -121,7 +112,7 @@ struct FriendListSheet: View {
                                 spacing: 16
                             )
                         ],
-                        spacing: 24
+                        spacing: 20
                     ) {
                         ForEach(members) { member in
                             Button {
@@ -137,7 +128,8 @@ struct FriendListSheet: View {
                             .accessibilityHint("Show this friend on the Orbit radar")
                         }
                     }
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, 29)
+                    .padding(.top, 14)
                     .padding(.bottom, 16)
                 }
             }
@@ -155,7 +147,7 @@ struct FriendListSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            OrbitPanelShape()
+            RoundedRectangle(cornerRadius: 54)
                 .fill(Color.blackCard)
                 .ignoresSafeArea(edges: .bottom)
                 .onTapGesture { isSearchFocused = false }
@@ -205,27 +197,77 @@ struct FriendListSheet: View {
             }
         }
     }
+
+    private var roomHeader: some View {
+        let count = viewModel.roomCount
+        let total = count == 1 ? Text("1 Person") : Text("\(count) Persons")
+
+        return HStack {
+            if let profile = localProfile {
+                FriendListMemberView(member: profile, color: profile.color.swiftUIColor)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .accessibilityLabel("\(profile.initials), your profile")
+                    .accessibilityValue(profile.isEmergency ? Text("SOS active") : Text(""))
+            }
+
+            Spacer()
+
+            Button {
+                isSearchFocused = false
+                onShareInvite()
+            } label: {
+                HStack(spacing: 4) {
+                    total
+                    Image(systemName: "plus.circle.fill")
+                }
+                .font(.caption2.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 9)
+                .frame(minHeight: 34)
+                .background(.white.opacity(0.12), in: .capsule)
+                .overlay { Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1) }
+                .frame(minHeight: 44)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Share invite QR")
+            .accessibilityValue(total)
+        }
+    }
+
+    private var localProfile: Member? {
+        var profile = viewModel.localProfile
+        profile?.isEmergency = isUserSOSActive()
+        return profile
+    }
 }
 
-#Preview {
-    FriendListSheet(
-        sessionStore: .preview,
-        onAddFriend: {},
+#Preview("Room with 20 persons") {
+    let store = SessionStore.preview
+    store.activeSession?.localInitials = "VAN"
+    store.members = ["NIC", "AYU", "GES", "ADY", "AYI", "HSN", "RIO", "NAD", "ALX", "ADI",
+                     "AML", "EBI", "DAF", "ANA", "JON", "MIA", "NOV", "EVA", "UNA"].enumerated().map { index, id in
+        Member(id: id, measurementTimestamp: .now.addingTimeInterval(-Double(index % 8 + 1) * 60))
+    }
+    return FriendListSheet(
+        sessionStore: store,
+        onShareInvite: {},
         onSelectMember: { _ in },
         onLeaveGroup: {}
     )
     .preferredColorScheme(.dark)
 }
 
-#Preview("Friend with active SOS") {
+#Preview("Local and friend SOS") {
     let store = SessionStore.preview
     store.setEmergency(true, for: "ADI")
     
     return FriendListSheet(
         sessionStore: store,
-        onAddFriend: {},
+        onShareInvite: {},
         onSelectMember: { _ in },
-        onLeaveGroup: {}
+        onLeaveGroup: {},
+        isUserSOSActive: { true }
     )
     .preferredColorScheme(.dark)
 }
