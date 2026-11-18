@@ -72,7 +72,8 @@ final class SessionController {
         sos.onIncomingAlert = { [weak self] alert in
             guard let self, holder.session != nil else { return }
             store.setEmergency(true, for: alert.senderInitials)
-            notifications.notify(title: "SOS from \(alert.senderInitials)", body: alert.emergencyType.title, showBanner: false)
+            notifications.notify(title: "SOS from \(alert.senderInitials)", body: alert.emergencyType.title,
+                                 showBanner: false, interruptionLevel: .timeSensitive)
         }
         sos.onIncomingSOSResolved = { [weak store] initials in
             store?.setEmergency(false, for: initials)
