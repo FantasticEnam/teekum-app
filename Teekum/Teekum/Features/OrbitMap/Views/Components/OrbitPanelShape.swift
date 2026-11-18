@@ -77,30 +77,18 @@ struct OrbitPanelShape: Shape {
     }
 }
 
-#Preview("Sheet and collapsed handle") {
-    VStack(spacing: 32) {
-        OrbitPanelShape()
-            .fill(Color.blackCard)
-            .frame(height: 280)
-            .overlay(alignment: .top) {
-                Image(systemName: "chevron.down")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                    .frame(height: 44)
-            }
-
-        OrbitPanelShape(cornerRadius: 0, crestHeight: nil, crestWidth: 176)
-            .fill(Color.blackCard)
-            .frame(width: 176, height: 88)
-            .overlay(alignment: .top) {
-                Image(systemName: "chevron.up")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                    .frame(height: 54)
-            }
-    }
-    .padding(24)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(.black)
-    .preferredColorScheme(.dark)
+#Preview("Friends sheet background") {
+    OrbitPanelShape()
+        .fill(Color.blackCard)
+        .frame(height: 280)
+        .overlay(alignment: .top) {
+            Image(systemName: "chevron.down")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+                .frame(height: 44)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.black)
+        .preferredColorScheme(.dark)
 }

@@ -15,6 +15,7 @@ struct OrbitSceneView: View {
     }
     
     let userColor: Color
+    let userNickname: String
     var userBatteryLevel: Float?
     var members: [Member] = []
     var meetingPoint: MeetingPoint?
@@ -50,12 +51,13 @@ struct OrbitSceneView: View {
             let size = geometry.size
             let baseSize = min(size.width, size.height)
             // Reserve space below the rings for their labels and the bottom controls.
-            let referenceRadius = min(baseSize * 1.55 / 2, max(1, size.height / 2 - bottomInset - 100))
+            let referenceRadius = min(baseSize * 1.55 / 2,
+                max(1, size.height / 2 - bottomInset - OrbitFriendsPanel.height - 22))
             let backgroundRadius = referenceRadius * 1.12
             let scale = OrbitRingScale(range: radarRange, radius: referenceRadius)
             let markerRadius = scale.outerRadius
             let range = scale.outerDistance
-            let userMarker = OrbitUserMarkerView(color: userColor, heading: .degrees(0),
+            let userMarker = OrbitUserMarkerView(color: userColor, nickname: userNickname, heading: .degrees(0),
                 isEmergency: isUserSOSActive, isTargetSelected: selectedTarget != nil,
                 batteryLevel: userBatteryLevel)
             
@@ -214,6 +216,7 @@ struct OrbitSceneView: View {
     
     OrbitSceneView(
         userColor: .yellowProfile,
+        userNickname: "VAN",
         members: [
             Member(id: "NIC", coordinate: .init(latitude: 0.00008, longitude: -0.00003), batteryLevel: 0.1,
                    heading: 315, color: .greenishTeal, measurementTimestamp: .now),
@@ -224,10 +227,11 @@ struct OrbitSceneView: View {
     )
 }
 
-#Preview("YOU above overlapping friends") {
+#Preview("Nickname above overlapping friends") {
     let location = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 5)
     OrbitSceneView(
         userColor: MemberColor.sandrift.swiftUIColor,
+        userNickname: "VAN",
         members: [
             Member(id: "NIC", coordinate: .init(latitude: 0, longitude: 0.00004), heading: 240,
                 color: .apricot, measurementTimestamp: .now),
@@ -243,6 +247,7 @@ struct OrbitSceneView: View {
     let store = SessionStore.preview
     OrbitSceneView(
         userColor: .yellowProfile,
+        userNickname: store.activeSession?.localMemberName ?? "",
         members: store.members,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
@@ -259,6 +264,7 @@ struct OrbitSceneView: View {
     
     return OrbitSceneView(
         userColor: .yellowProfile,
+        userNickname: store.activeSession?.localMemberName ?? "",
         members: sosMembers,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),
@@ -270,6 +276,7 @@ struct OrbitSceneView: View {
     let store = SessionStore.preview
     OrbitSceneView(
         userColor: .yellowProfile,
+        userNickname: store.activeSession?.localMemberName ?? "",
         members: store.members,
         meetingPoint: store.activeMeetingPoint,
         location: LocationPin(coordinate: .init(latitude: -6.1988, longitude: 106.8225), horizontalAccuracy: 5),

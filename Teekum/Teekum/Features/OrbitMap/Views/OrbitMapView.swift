@@ -34,6 +34,7 @@ struct OrbitMapView: View {
     private var orbitScene: some View {
         OrbitSceneView(
             userColor: viewModel.localProfileColor.swiftUIColor,
+            userNickname: viewModel.localNickname,
             userBatteryLevel: location?.currentBatteryLevel,
             members: visibleMembers,
             meetingPoint: meetingPoint,
@@ -72,8 +73,7 @@ struct OrbitMapView: View {
             orbitScene
             
             VStack(alignment: .leading) {
-                OrbitHeaderView(groupName: viewModel.groupName,
-                                onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
+                OrbitHeaderView(groupName: viewModel.groupName, onSettings: { activeModal = .settings })
                 
                 if let activity = notifications?.groupActivity {
                     groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
@@ -98,15 +98,19 @@ struct OrbitMapView: View {
                     onSOS: {
                         sos?.triggerSOS()
                     },
-                    onExpand: {
-                        activeModal = .friends
-                    },
+                    onOpenMap: { activeModal = .mapPoint },
                     onChat: openChat,
                     unreadCount: chat?.unreadCount ?? 0,
                     isSOSActive: isSOSActive
                 )
+                OrbitFriendsPanel(
+                    nickname: viewModel.localNickname,
+                    profileColor: viewModel.localProfileColor.swiftUIColor,
+                    members: visibleMembers,
+                    onOpen: { activeModal = .friends }
+                )
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 24)
         }
         .overlay {
             if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
