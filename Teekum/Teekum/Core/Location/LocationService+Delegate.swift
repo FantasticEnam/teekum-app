@@ -14,9 +14,21 @@ extension LocationService {
     
     public nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor [weak self] in
-            guard let self, self.isTracking else { return }
-            for location in locations {
-                self.applyLocationMeasurement(location)
+            guard let self else { return }
+            if self.isTracking {
+                for location in locations {
+                    self.applyLocationMeasurement(location)
+                }
+            } else if let last = locations.last {
+                self.applyLocationMeasurement(last)
+            }
+            
+            // Jika ada request singleFix yang menunggu, selesaikan sekarang
+            if let continuation = self.singleFixContinuation {
+                self.singleFixTimeoutTask?.cancel()
+                self.singleFixTimeoutTask = nil
+                self.singleFixContinuation = nil
+                continuation.resume(returning: self.currentLocation)
             }
         }
     }
@@ -38,7 +50,7 @@ extension LocationService {
             self.authorizationStatus = newStatus
             
             switch newStatus {
-            #if os(iOS)
+#if os(iOS)
             case .authorizedWhenInUse, .authorizedAlways:
                 self.isGPSAvailable = true
                 self.permissionContinuation?.resume(returning: true)
@@ -49,7 +61,7 @@ extension LocationService {
                         self.locationManager.startUpdatingHeading()
                     }
                 }
-            #else
+#else
             case .authorizedAlways:
                 self.isGPSAvailable = true
                 self.permissionContinuation?.resume(returning: true)
@@ -57,7 +69,7 @@ extension LocationService {
                 if self.isTracking {
                     self.locationManager.startUpdatingLocation()
                 }
-            #endif
+#endif
             case .denied, .restricted:
                 self.isGPSAvailable = false
                 self.permissionContinuation?.resume(returning: false)
@@ -79,6 +91,14 @@ extension LocationService {
                 if clError.code == .denied {
                     self.isGPSAvailable = false
                 }
+            }
+            
+            // Jika gagal tapi ada singleFix yang menunggu, selesaikan dengan fallback lokasi terakhir
+            if let continuation = self.singleFixContinuation {
+                self.singleFixTimeoutTask?.cancel()
+                self.singleFixTimeoutTask = nil
+                self.singleFixContinuation = nil
+                continuation.resume(returning: self.currentLocation)
             }
         }
     }

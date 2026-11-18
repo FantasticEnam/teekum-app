@@ -21,12 +21,14 @@ final class SessionController {
     let sos: SOSViewModel
     let meeting: MeetingPointService
     let notifications = NotificationService()
+    let connectivityMonitor: ConnectivityMonitor
+    let offlineMaps: OfflineMapManager
     private(set) var relayState = RelayPolicyState(mode: .disabled)
     private(set) var diagnostics: TransportDiagnostics?
     var errorMessage: String?
     var isTransitioning = false
     var isShowingGroupSwitch = false
-
+    
     private let holder: SessionHolder
     private let crypto = CryptoService()
     private let sequences = PacketSequenceAllocator()
@@ -44,9 +46,14 @@ final class SessionController {
     private var didRestore = false
     private var directPeers: Set<String> = []
     private var routeProbes: [String: Task<Void, Never>] = [:]
-
+    
     init(store: SessionStore = SessionStore()) {
         self.store = store
+        let connectivity = ConnectivityMonitor()
+        self.connectivityMonitor = connectivity
+        self.offlineMaps = OfflineMapManager()
+        connectivity.start()
+        
         let holder = SessionHolder()
         self.holder = holder
         let location = LocationService()
@@ -56,19 +63,19 @@ final class SessionController {
         relayPolicy = RelayPolicyManager(transport: transport)
         let routing = RoutingTable()
         routes = RouteDiscoveryService(routingTable: routing, neighborTable: transport.neighborTable,
-            transport: transport, cryptoService: crypto, sequenceAllocator: sequences)
+                                       transport: transport, cryptoService: crypto, sequenceAllocator: sequences)
         let chatEngine = ChatMessageEngine(transport: transport, cryptoService: crypto,
-            routingTable: routing, neighborTable: transport.neighborTable, rateLimiter: transport.rateLimiter,
-            sequenceAllocator: sequences)
+                                           routingTable: routing, neighborTable: transport.neighborTable, rateLimiter: transport.rateLimiter,
+                                           sequenceAllocator: sequences)
         self.chatEngine = chatEngine
         chat = ChatViewModel(service: chatEngine, sessionProvider: { holder.session })
         let sosEngine = SOSForwardingEngine(transport: transport, cryptoService: crypto,
-            routingTable: routing, neighborTable: transport.neighborTable, rateLimiter: transport.rateLimiter,
-            sequenceAllocator: sequences, sessionProvider: { holder.session }, audioAlerter: DefaultSOSAudioAlerter())
+                                            routingTable: routing, neighborTable: transport.neighborTable, rateLimiter: transport.rateLimiter,
+                                            sequenceAllocator: sequences, sessionProvider: { holder.session }, audioAlerter: DefaultSOSAudioAlerter())
         self.sosEngine = sosEngine
         sos = SOSViewModel(engine: sosEngine, locationService: location, sessionProvider: { holder.session })
         meeting = MeetingPointService(sessionStore: store, cryptoService: crypto, transport: transport,
-            sequenceAllocator: sequences)
+                                      sequenceAllocator: sequences)
         sos.onIncomingAlert = { [weak self] alert in
             guard let self, holder.session != nil else { return }
             store.setEmergency(true, for: alert.senderInitials)
@@ -79,7 +86,7 @@ final class SessionController {
             store?.setEmergency(false, for: initials)
         }
     }
-
+    
     func restore() async {
         guard !didRestore, ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         didRestore = true
@@ -91,22 +98,22 @@ final class SessionController {
             }
         } catch { errorMessage = "Unable to restore your group. Please join again." }
     }
-
+    
     func activate(_ session: GroupSession) { transition(to: session, acceptedConsent: true) }
     func leave() { transition(to: nil, acceptedConsent: false) }
-
+    
     func joinPendingInvite() {
         guard let invite = store.pendingInvite else { return }
         leave()
         store.pendingInvite = invite
         isShowingGroupSwitch = false
     }
-
+    
     func cancelPendingInvite() {
         store.pendingInvite = nil
         isShowingGroupSwitch = false
     }
-
+    
     private func transition(to session: GroupSession?, acceptedConsent: Bool) {
         generation = UUID()
         let current = generation
@@ -158,7 +165,7 @@ final class SessionController {
             }
         }
     }
-
+    
     private func prepareServices(_ session: GroupSession, generation current: UUID) async {
         guard generation == current, !Task.isCancelled else { return }
         do { try location.startTracking() }
@@ -185,13 +192,13 @@ final class SessionController {
             }
         }
         let publisher = LocationPublisher(locationService: location, sessionProvider: { [holder] in holder.session },
-            cryptoService: crypto, transport: transport, sequenceAllocator: sequences)
+                                          cryptoService: crypto, transport: transport, sequenceAllocator: sequences)
         self.publisher = publisher
         publisher.start()
         router = makeRouter(generation: current)
         await liveActivity.start(session: session)
     }
-
+    
     private func stopServices() async {
         router?.stop()
         router = nil
@@ -213,7 +220,7 @@ final class SessionController {
         diagnostics = nil
         directPeers.removeAll()
     }
-
+    
     private func consumeSession(_ session: GroupSession, generation current: UUID) async {
         guard let router else { return }
         let inbound = await transport.inboundPackets
@@ -230,7 +237,7 @@ final class SessionController {
             }
         }
     }
-
+    
     private func consumeInbound(_ inbound: AsyncStream<InboundPacket>, router: PacketRouter,
                                 session: GroupSession, generation current: UUID) async {
         for await packet in inbound {
@@ -238,14 +245,14 @@ final class SessionController {
             await router.routeInboundPacket(packet, for: session)
         }
     }
-
+    
     private func consumePeers(_ peers: AsyncStream<[PeerInfo]>, generation current: UUID) async {
         for await update in peers {
             guard generation == current, !Task.isCancelled else { break }
             await acceptPeerUpdate(update)
         }
     }
-
+    
     private func maintainSession(_ session: GroupSession, generation current: UUID) async {
         var lastGlobalProbe = Date.distantPast
         var lastProbe: [String: Date] = [:]
@@ -266,9 +273,9 @@ final class SessionController {
                 if stale { location.triggerCadenceEvaluation() }
             }
             await liveActivity.update(peerCount: store.visibleMembers.count + 1, unreadCount: chat.unreadCount,
-                meeting: store.activeMeetingPoint, location: location.currentLocation,
-                sosSender: sos.outgoingEventId != nil ? session.localInitials : store.members.first(where: \.isEmergency)?.id,
-                relay: relayState)
+                                      meeting: store.activeMeetingPoint, location: location.currentLocation,
+                                      sosSender: sos.outgoingEventId != nil ? session.localInitials : store.members.first(where: \.isEmergency)?.id,
+                                      relay: relayState)
             guard generation == current else { break }
             let now = Date.now
             if now.timeIntervalSince(lastGlobalProbe) >= MeshTimingConfiguration.default.staleRouteReqStaggerInterval,
@@ -287,52 +294,52 @@ final class SessionController {
             }
         }
     }
-
+    
     private func makeRouter(generation current: UUID) -> PacketRouter {
         PacketRouter(cryptoService: crypto, peerTransport: transport, relayPolicyManager: relayPolicy,
-            routeDiscoveryService: routes, seenPacketCache: seen,
-            onLocationPing: { [weak self] ping, inbound in
-                guard let self, generation == current else { return }
-                let isNew = !store.members.contains { $0.id == ping.senderInitials }
-                store.applyLocationPing(ping, inbound: inbound)
-                if isNew { notifications.notifyGroupActivity([ping.senderInitials], joined: true) }
-            }, onSOS: { [weak self] payload, inbound in
-                guard let self, generation == current else { return }
-                let isNew = !store.members.contains { $0.id == payload.senderInitials }
-                store.applySOSLocation(payload, inbound: inbound)
-                if isNew { notifications.notifyGroupActivity([payload.senderInitials], joined: true) }
-                try? await sosEngine.handleInboundSOSPacket(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
-            }, onACK: { [weak self] inbound in
-                guard let self, generation == current else { return }
-                await sosEngine.handleInboundACK(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
-                guard generation == current else { return }
-                _ = await chatEngine.processDeliveryACK(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
-            }, onMeetingUpdate: { [weak self] update in
-                guard let self, generation == current, meeting.applyInboundUpdate(update) else { return }
-                if update.senderInitials != store.activeSession?.localInitials {
-                    switch update.action {
-                    case .propose:
-                        notifications.notify(title: "Meeting point", body: "\(update.senderInitials) updated the group rendezvous.")
-                    case .cancel:
-                        notifications.notify(title: "Meeting point", body: "\(update.senderInitials) cancelled the group rendezvous.")
-                    case .accept, .decline:
-                        break
-                    }
+                     routeDiscoveryService: routes, seenPacketCache: seen,
+                     onLocationPing: { [weak self] ping, inbound in
+            guard let self, generation == current else { return }
+            let isNew = !store.members.contains { $0.id == ping.senderInitials }
+            store.applyLocationPing(ping, inbound: inbound)
+            if isNew { notifications.notifyGroupActivity([ping.senderInitials], joined: true) }
+        }, onSOS: { [weak self] payload, inbound in
+            guard let self, generation == current else { return }
+            let isNew = !store.members.contains { $0.id == payload.senderInitials }
+            store.applySOSLocation(payload, inbound: inbound)
+            if isNew { notifications.notifyGroupActivity([payload.senderInitials], joined: true) }
+            try? await sosEngine.handleInboundSOSPacket(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
+        }, onACK: { [weak self] inbound in
+            guard let self, generation == current else { return }
+            await sosEngine.handleInboundACK(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
+            guard generation == current else { return }
+            _ = await chatEngine.processDeliveryACK(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
+        }, onMeetingUpdate: { [weak self] update in
+            guard let self, generation == current, meeting.applyInboundUpdate(update) else { return }
+            if update.senderInitials != store.activeSession?.localInitials {
+                switch update.action {
+                case .propose:
+                    notifications.notify(title: "Meeting point", body: "\(update.senderInitials) updated the group rendezvous.")
+                case .cancel:
+                    notifications.notify(title: "Meeting point", body: "\(update.senderInitials) cancelled the group rendezvous.")
+                case .accept, .decline:
+                    break
                 }
-            }, onChat: { [weak self] inbound in
-                guard let self, generation == current,
-                      let outcome = try? await chatEngine.handleInboundPacket(inbound, relay: false) else { return }
-                guard generation == current else { return }
-                if let message = outcome.deliveredMessage {
-                    notifications.notifyChat(sender: message.senderInitials, body: message.text,
-                        showBanner: !chat.isChatSheetPresented)
-                }
-            }, onSOSResolved: { [weak self] event in
-                guard let self, generation == current else { return }
-                await sos.acceptResolution(event)
-            })
+            }
+        }, onChat: { [weak self] inbound in
+            guard let self, generation == current,
+                  let outcome = try? await chatEngine.handleInboundPacket(inbound, relay: false) else { return }
+            guard generation == current else { return }
+            if let message = outcome.deliveredMessage {
+                notifications.notifyChat(sender: message.senderInitials, body: message.text,
+                                         showBanner: !chat.isChatSheetPresented)
+            }
+        }, onSOSResolved: { [weak self] event in
+            guard let self, generation == current else { return }
+            await sos.acceptResolution(event)
+        })
     }
-
+    
     private func acceptPeerUpdate(_ peers: [PeerInfo]) async {
         let current = generation
         let connected = Set(peers.filter(\.isDirectLink).map(\.id))
@@ -353,7 +360,7 @@ final class SessionController {
             await meeting.syncActiveMeetingPointToPeers()
         }
     }
-
+    
     private var hasDistantMembers: Bool {
         store.members.contains { member in
             if let rssi = member.rssi, rssi <= MeshTimingConfiguration.default.distantRSSIThreshold { return true }
@@ -361,7 +368,7 @@ final class SessionController {
             return local.distance(to: coordinate) >= MeshTimingConfiguration.default.distantDistanceThresholdMeters
         }
     }
-
+    
     func updatePower() async {
         location.updateBatteryState()
         await relayPolicy.updatePowerMetrics(batteryLevel: location.currentBatteryLevel, isLowPowerMode: location.isLowPowerMode)
@@ -370,7 +377,7 @@ final class SessionController {
         chat.updateBattery(level: location.currentBatteryLevel, isLowPower: location.isLowPowerMode)
         relayState = await relayPolicy.currentState()
     }
-
+    
     func handleURL(_ url: URL) {
         if url.scheme == "teekum", url.host == "session" { leave(); return }
         if url.scheme == "teekum", ["meeting", "sos"].contains(url.host ?? ""), store.hasActiveSession {
