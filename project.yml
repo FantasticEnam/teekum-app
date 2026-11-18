@@ -5,6 +5,11 @@ options:
   deploymentTarget:
     iOS: "27.0"
 
+packages:
+  MapboxMaps:
+    url: https://github.com/mapbox/mapbox-maps-ios.git
+    from: "11.0.0"
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -20,6 +25,9 @@ targets:
   Teekum:
     type: application
     platform: iOS
+    configFiles:
+      Debug: Config/Mapbox.xcconfig
+      Release: Config/Mapbox.xcconfig
     entitlements:
       path: Config/Teekum.entitlements
       properties:
@@ -32,12 +40,15 @@ targets:
         NSBonjourServices: ["_teekum._tcp", "_teekum._udp"]
         UIBackgroundModes: [location, bluetooth-central, bluetooth-peripheral]
         NSSupportsLiveActivities: true
+        MBXAccessToken: $(MBX_ACCESS_TOKEN)
+        MeepoMapboxStyleURI: $(MEEPO_MAPBOX_STYLE_URI)
         CFBundleURLTypes:
           - CFBundleURLName: com.fantasticenam.meepo
             CFBundleURLSchemes: [teekum]
     dependencies:
       - target: TeekumWidgets
         embed: true
+      - package: MapboxMaps
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo

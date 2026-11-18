@@ -1,0 +1,11 @@
+//
+//  Mapbox.local.xcconfig.example
+//  Teekum
+//
+//  Created by Adiat Rahman on 18/11/26.
+//
+
+// Copy this file to Config/Mapbox.local.xcconfig (gitignored) and fill in your values.
+// Note: Use $(SLASH) to prevent Xcode from treating `//` as an xcconfig comment.
+MBX_ACCESS_TOKEN = pk.YOUR_PUBLIC_MAPBOX_ACCESS_TOKEN
+MEEPO_MAPBOX_STYLE_URI = mapbox:$(SLASH)/styles/adiatraa/cmwlvdssc002w01sd0jrmg3xq

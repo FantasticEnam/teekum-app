@@ -1,0 +1,14 @@
+//
+//  Mapbox.xcconfig
+//  Teekum
+//
+//  Created by Adiat Rahman on 18/11/26.
+//
+
+// Safe empty defaults so clean clones and CI compile without local secrets.
+// Local developer values are loaded from Config/Mapbox.local.xcconfig (gitignored).
+SLASH = /
+MBX_ACCESS_TOKEN =
+MEEPO_MAPBOX_STYLE_URI =
+
+#include? "Mapbox.local.xcconfig"
