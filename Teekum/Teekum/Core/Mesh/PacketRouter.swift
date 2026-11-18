@@ -22,6 +22,7 @@ public final class PacketRouter {
     private let onACK: (InboundPacket) async -> Void
     private let onMeetingUpdate: (MeetingUpdatePayload) -> Void
     private let onChat: (InboundPacket) async -> Void
+    private let onNearbyToken: (NearbyTokenFragment, InboundPacket) -> Void
     private var isActive = true
 
     public init(
@@ -35,7 +36,8 @@ public final class PacketRouter {
         onACK: @escaping (InboundPacket) async -> Void,
         onMeetingUpdate: @escaping (MeetingUpdatePayload) -> Void,
         onChat: @escaping (InboundPacket) async -> Void,
-        onSOSResolved: @escaping (SOSResolvedPayload) async -> Void = { _ in }
+        onSOSResolved: @escaping (SOSResolvedPayload) async -> Void = { _ in },
+        onNearbyToken: @escaping (NearbyTokenFragment, InboundPacket) -> Void = { _, _ in }
     ) {
         self.cryptoService = cryptoService
         self.peerTransport = peerTransport
@@ -48,6 +50,7 @@ public final class PacketRouter {
         self.onACK = onACK
         self.onMeetingUpdate = onMeetingUpdate
         self.onChat = onChat
+        self.onNearbyToken = onNearbyToken
     }
 
     public func stop() {
@@ -59,6 +62,9 @@ public final class PacketRouter {
         let raw = inbound.rawPacket
         let envelope = raw.envelope
         guard envelope.version == PacketConstants.protocolVersion, envelope.hopCount <= envelope.hopLimit else { return }
+        if envelope.type == .nearbyToken {
+            guard envelope.sessionId == session.sessionId, envelope.hopCount == 0, envelope.hopLimit == 1 else { return }
+        }
         guard envelope.sessionId == session.sessionId else {
             await handleStrangerRelayPacket(inbound)
             return
@@ -108,6 +114,13 @@ public final class PacketRouter {
                   ping.senderInitials != session.localInitials else { return }
             onLocationPing(ping, inbound)
             await relayMeshPacketIfNeeded(inbound, for: session)
+
+        case .nearbyToken:
+            guard let fragment = NearbyTokenFragment(payload: decrypted),
+                  fragment.recipient == session.localInitials, fragment.sender != session.localInitials,
+                  let sender = InitialsCodec.encode(fragment.sender),
+                  sender[0] ^ sender[1] == envelope.memberSlot else { return }
+            onNearbyToken(fragment, inbound)
 
         case .meetingUpdate:
             guard let update = try? MeetingUpdatePayload.deserialize(from: decrypted) else { return }

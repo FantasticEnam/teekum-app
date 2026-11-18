@@ -17,6 +17,7 @@ struct OrbitSceneView: View {
     let userColor: Color
     var userBatteryLevel: Float?
     var members: [Member] = []
+    var nearbyPositions: [Member.ID: NearbyOrbitPosition] = [:]
     var meetingPoint: MeetingPoint?
     var location: LocationPin?
     var heading: Double = 0
@@ -86,28 +87,25 @@ struct OrbitSceneView: View {
                             )
                         }
                     
-                    if let location {
-                        ForEach(members) { member in
-                            if let coordinate = member.coordinate {
-                                let projection = OrbitProjection(from: location, to: coordinate, heading: heading,
-                                                                 radius: markerRadius, range: range, overflowMargin: 20)
-                                let isSelected = selectedTarget == .member(member.id)
-                                if isSelected {
-                                    targetLine(to: projection, in: size, isEmergency: member.isEmergency)
-                                }
-                                memberMarker(member, projection: projection, isSelected: isSelected)
-                            }
-                        }
-                        
-                        if let meetingPoint {
-                            let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading,
-                                                             radius: markerRadius, range: range)
-                            let isSelected = selectedTarget == .meetingPoint(meetingPoint.id)
+                    ForEach(members) { member in
+                        let nearby = nearbyPositions[member.id]?.projection(at: .now, radius: markerRadius, range: range)
+                        if let projection = nearby ?? gpsProjection(for: member, radius: markerRadius, range: range) {
+                            let isSelected = selectedTarget == .member(member.id)
                             if isSelected {
-                                targetLine(to: projection, in: size)
+                                targetLine(to: projection, in: size, isEmergency: member.isEmergency)
                             }
-                            meetingMarker(meetingPoint, projection: projection, isSelected: isSelected)
+                            memberMarker(member, projection: projection, isSelected: isSelected, usesNearby: nearby != nil)
                         }
+                    }
+
+                    if let location, let meetingPoint {
+                        let projection = OrbitProjection(from: location, to: meetingPoint.coordinate, heading: heading,
+                                                         radius: markerRadius, range: range)
+                        let isSelected = selectedTarget == .meetingPoint(meetingPoint.id)
+                        if isSelected {
+                            targetLine(to: projection, in: size)
+                        }
+                        meetingMarker(meetingPoint, projection: projection, isSelected: isSelected)
                     }
                 }
             }
@@ -131,8 +129,14 @@ struct OrbitSceneView: View {
         return min(max(scale, baseRange / 120), baseRange / 5)
     }
     
-    private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
-        let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
+    private func gpsProjection(for member: Member, radius: Double, range: Double) -> OrbitProjection? {
+        guard let location, let coordinate = member.coordinate else { return nil }
+        return OrbitProjection(from: location, to: coordinate, heading: heading,
+            radius: radius, range: range, overflowMargin: 20)
+    }
+
+    private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool, usesNearby: Bool) -> some View {
+        let isStale = !usesNearby && (member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true)
         let lowBatteryPercentage = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel)
         return Button {
             onSelectMember(member.id)

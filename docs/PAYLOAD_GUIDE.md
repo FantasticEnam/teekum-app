@@ -59,6 +59,7 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 | ack | 0x06 | 0x16 | ACKPayload |
 | chatMessage | 0x07 | 0x17 | ChatMessagePayload |
 | sosResolved | 0x08 | 0x18 | SOSResolvedPayload |
+| nearbyToken | 0x09 | 0x19 | NearbyTokenFragment |
 
 ## 3. Field Encoding
 
@@ -86,9 +87,14 @@ Sources are in `Core/Packets/Payloads/`.
 | 15 | batteryLevel: UInt8 |
 | 16 | heading: UInt8 |
 | 17 | colorCode: UInt8 |
-| 18..29 | 12 zero reserved bytes |
+| 18 | Nearby ranging capability: 1 when offered, otherwise 0 |
+| 19..29 | 11 zero reserved bytes |
 
 **No statusCode or targetRefId is serialized.** LocationPublisher's executable construction follows this sensor-only layout despite older comments describing status piggybacking. SessionStore still has localStatus/localTargetRefId and Status remains a domain enum; agree their transport behavior separately. Chat presets are separate messages, not an implicit field in this payload.
+
+### NearbyTokenFragment — 0x09
+
+After receiving an authenticated direct location ping with byte 18 set to 1, an eligible peer can send Nearby Interaction setup fragments on that link. A fragment uses the standard authenticated 56-byte frame with hop count 0 and hop limit 1. Payload bytes 0–3 hold both base-27 initials, sender first. Bytes 4–7 hold the big-endian transfer identifier. Bytes 8–10 hold the zero-based fragment index, fragment count, and chunk length. Bytes 11–29 hold up to 19 bytes of the archived discovery token, padded with zeros. A transfer is limited to 54 fragments. The receiver checks the group tag, sender slot, recipient and direct link. These packets have no relay or carry path. Older builds continue using the location fields and ignore byte 18.
 
 ### 4.2 SOSPayload — 0x02
 

@@ -21,6 +21,7 @@ public final class LocationPublisher {
     public let cryptoService: CryptoServiceProtocol
     public let transport: PeerTransport
     private let sequenceAllocator: PacketSequenceAllocator?
+    private let supportsNearbyRanging: () -> Bool
     private var generation = UUID()
     
     // MARK: - State Properties
@@ -44,13 +45,15 @@ public final class LocationPublisher {
         sessionProvider: @escaping @Sendable () -> GroupSession?,
         cryptoService: CryptoServiceProtocol,
         transport: PeerTransport,
-        sequenceAllocator: PacketSequenceAllocator? = nil
+        sequenceAllocator: PacketSequenceAllocator? = nil,
+        supportsNearbyRanging: @escaping () -> Bool = { false }
     ) {
         self.locationService = locationService
         self.sessionProvider = sessionProvider
         self.cryptoService = cryptoService
         self.transport = transport
         self.sequenceAllocator = sequenceAllocator
+        self.supportsNearbyRanging = supportsNearbyRanging
     }
     
     // MARK: - Lifecycle Controls
@@ -109,7 +112,8 @@ public final class LocationPublisher {
             senderInitials: session.localInitials,
             batteryLevel: batteryPct,
             heading: headingByte,
-            colorCode: session.localColorCode
+            colorCode: session.localColorCode,
+            supportsNearbyRanging: supportsNearbyRanging()
         )
         
         let payloadData = payload.serialize()
