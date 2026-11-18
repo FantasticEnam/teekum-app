@@ -73,10 +73,11 @@ struct MapLayerView: View {
                                         color: member.color.swiftUIColor,
                                         isSelected: isSelected,
                                         isEmergency: member.isEmergency,
-                                        size: 22
+                                        size: 22, batteryLevel: member.batteryLevel
                                     )
                                     .overlay(alignment: .bottom) {
                                         if let distance = memberDistance(for: member) {
+                                            let showsBattery = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel) != nil
                                             Text(distance)
                                                 .font(.caption2)
                                                 .foregroundStyle(.white)
