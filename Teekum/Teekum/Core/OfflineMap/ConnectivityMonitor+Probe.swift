@@ -8,8 +8,8 @@
 import Foundation
 extension ConnectivityMonitor {
     nonisolated public static func performDefaultReachabilityProbe(
-        url: URL = URL(string: "https://captive.apple.com/hotspot-detect.html")!,
-        timeout: TimeInterval = 1.5
+        url: URL = URL(string: "http://captive.apple.com/hotspot-detect.html")!,
+        timeout: TimeInterval = 3.0
     ) async -> Bool {
         // 1. Buat URLSession sementara (ephemeral = tanpa cache/cookie ke disk)
         let config = URLSessionConfiguration.ephemeral

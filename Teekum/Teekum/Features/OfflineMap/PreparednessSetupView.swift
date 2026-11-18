@@ -11,7 +11,7 @@ import CoreLocation
 struct PreparednessSetupView: View {
     @Bindable var offlineMaps: OfflineMapManager
     let locationService: LocationService
-    let isOnline: Bool
+    let connectivity: ConnectivityMonitor
     let onComplete: () -> Void
     
     @State private var isDetectingCity = false
@@ -25,7 +25,7 @@ struct PreparednessSetupView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "map.circle.fill")
                         .font(.system(size: 64))
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(Color.buttonPrimary)
                         .padding(.top, 24)
                     
                     Text("Peta Darurat Offline")
@@ -75,7 +75,7 @@ struct PreparednessSetupView: View {
                         } label: {
                             Image(systemName: "location.circle")
                                 .font(.title2)
-                                .foregroundStyle(.yellow)
+                                .foregroundStyle(Color.buttonPrimary)
                         }
                         .disabled(offlineMaps.downloadState.isBusy || isDetectingCity)
                     }
@@ -101,10 +101,10 @@ struct PreparednessSetupView: View {
                                 Text("\(Int(progress * 100))%")
                             }
                             .font(.caption.monospacedDigit())
-                            .foregroundStyle(.yellow)
+                            .foregroundStyle(Color.buttonPrimary)
                             
                             ProgressView(value: progress, total: 1.0)
-                                .tint(.yellow)
+                                .tint(Color.buttonPrimary)
                         }
                     }
                 }
@@ -122,6 +122,16 @@ struct PreparednessSetupView: View {
                 VStack(spacing: 12) {
                     if let city = offlineMaps.detectedCity {
                         Button {
+                            if connectivity.isForcedOfflineMode {
+                                errorMessage = "Mode Offline sedang dipaksa aktif. Matikan mode offline di Pengaturan untuk mengunduh."
+                                showingErrorAlert = true
+                                return
+                            }
+                            guard connectivity.isPathSatisfied || connectivity.isVerifiedOnline else {
+                                errorMessage = "Tidak ada koneksi internet. Pastikan Wi-Fi atau data seluler Anda aktif."
+                                showingErrorAlert = true
+                                return
+                            }
                             startCityDownload(city)
                         } label: {
                             HStack {
@@ -135,10 +145,10 @@ struct PreparednessSetupView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(Color.yellow, in: .rect(cornerRadius: 14))
+                            .background(Color.buttonPrimary, in: .rect(cornerRadius: 14))
                             .foregroundStyle(.black)
                         }
-                        .disabled(!isOnline || offlineMaps.downloadState.isBusy)
+                        .disabled(offlineMaps.downloadState.isBusy)
                     } else {
                         Button {
                             detectCurrentCity()
@@ -147,13 +157,14 @@ struct PreparednessSetupView: View {
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(Color.yellow, in: .rect(cornerRadius: 14))
+                                .background(Color.buttonPrimary, in: .rect(cornerRadius: 14))
                                 .foregroundStyle(.black)
                         }
                         .disabled(isDetectingCity)
                     }
                     
                     Button {
+                        offlineMaps.cancelDownload()
                         offlineMaps.markPreparednessCompleted()
                         onComplete()
                     } label: {
@@ -197,6 +208,7 @@ struct PreparednessSetupView: View {
     private func startCityDownload(_ city: DetectedCity) {
         Task {
             do {
+                let isOnline = !connectivity.isForcedOfflineMode && (connectivity.isPathSatisfied || connectivity.isVerifiedOnline)
                 try await offlineMaps.downloadCity(city, isOnline: isOnline)
                 onComplete()
             } catch {

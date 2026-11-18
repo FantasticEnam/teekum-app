@@ -16,7 +16,7 @@ struct AppRootView: View {
             PreparednessSetupView(
                 offlineMaps: controller.offlineMaps,
                 locationService: controller.location,
-                isOnline: controller.connectivityMonitor.isVerifiedOnline,
+                connectivity: controller.connectivityMonitor,
                 onComplete: {
                     controller.offlineMaps.markPreparednessCompleted()
                 }

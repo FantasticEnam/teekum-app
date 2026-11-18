@@ -201,9 +201,7 @@ public final class OfflineMapManager {
     }
     public func cancelDownload() {
         client.cancelActiveDownload()
-        if case .downloading = downloadState {
-            downloadState = .idle
-        }
+        downloadState = .idle
     }
     public func deleteCachedCity() async {
         cancelDownload()

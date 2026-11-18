@@ -11,7 +11,7 @@ struct OrbitSettingsView: View {
     private enum PacketFilter {
         case all, chatAndSOS, outsideGroup, relayed
     }
-
+    
     let location: LocationService?
     let sos: SOSViewModel?
     let offlineMaps: OfflineMapManager?
@@ -24,7 +24,7 @@ struct OrbitSettingsView: View {
     @State private var showingDeleteAlert = false
     @State private var downloadErrorMessage: String?
     @State private var showingDownloadErrorAlert = false
-
+    
     var body: some View {
         let snapshot = diagnostics()
         let activity = memberContactLog()
@@ -62,25 +62,10 @@ struct OrbitSettingsView: View {
             }
             .navigationTitle("Group settings")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close", systemImage: "xmark", action: dismiss.callAsFunction) } }
-            .alert("Delete Offline Map?", isPresented: $showingDeleteAlert) {
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await offlineMaps?.deleteCachedCity()
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("The cached map for \(offlineMaps?.cachedCity?.cityName ?? "this city") will be removed from your device storage.")
-            }
-            .alert("Download Failed", isPresented: $showingDownloadErrorAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(downloadErrorMessage ?? "An unexpected error occurred.")
-            }
         }
         .preferredColorScheme(.dark)
     }
-
+    
     // MARK: - Offline Map Section
     private func offlineMapSection(_ maps: OfflineMapManager) -> some View {
         Section("Offline map") {
@@ -102,50 +87,88 @@ struct OrbitSettingsView: View {
                 LabeledContent("Downloaded", value: cached.downloadedAt.formatted(date: .abbreviated, time: .shortened))
                 
                 Button(role: .destructive) {
-                    showingDeleteAlert = true
-                } label: {
-                    Label("Delete cached map", systemImage: "trash")
+                                    print("[Settings] 🗑️ Tombol delete cached map ditekan!")
+                                    showingDeleteAlert = true
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "trash")
+                                        Text("Delete cached map")
+                                            .fontWeight(.medium)
+                                    }
+                                    .foregroundStyle(.red)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .alert("Delete Offline Map?", isPresented: $showingDeleteAlert) {
+                                    Button("Delete", role: .destructive) {
+                                        Task {
+                                            print("[Settings] 🗑️ Menghapus peta...")
+                                            await maps.deleteCachedCity()
+                                            print("[Settings] ✅ Peta berhasil dihapus!")
+                                        }
+                                    }
+                                    Button("Cancel", role: .cancel) {}
+                                } message: {
+                                    Text("The cached map for \(cached.cityName) will be removed from your device storage.")
+                                }            } else if case .downloading(let cityName, let progress) = maps.downloadState {                VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Downloading \(cityName)...")
+                    Spacer()
+                    Text("\(Int(progress * 100))%")
                 }
-            } else if case .downloading(let cityName, let progress) = maps.downloadState {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Downloading \(cityName)...")
-                        Spacer()
-                        Text("\(Int(progress * 100))%")
-                    }
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.yellow)
-                    
-                    ProgressView(value: progress, total: 1.0)
-                        .tint(.yellow)
-                }
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(Color.buttonPrimary)
+                
+                ProgressView(value: progress, total: 1.0)
+                    .tint(Color.buttonPrimary)
+            }
             } else {
                 Text("No offline map cached.").foregroundStyle(.secondary)
                 
                 Button {
+                    print("[Settings] 🔘 Tombol 'Download map for current city' ditekan! State: \(maps.downloadState)")
+                    guard !maps.downloadState.isBusy else {
+                        print("[Settings] ⚠️ Sedang sibuk, abaikan tap ganda.")
+                        return
+                    }
                     downloadCurrentCity(maps)
                 } label: {
-                    if maps.downloadState.isBusy {
-                        HStack {
-                            ProgressView().tint(.yellow)
-                            Text("Preparing download...")
+                    HStack {
+                        if maps.downloadState.isBusy {
+                            ProgressView()
+                                .tint(.black)
+                                .padding(.trailing, 4)
+                            Text("Mempersiapkan...")
+                                .fontWeight(.semibold)
+                        } else {
+                            Image(systemName: "arrow.down.circle.fill")
+                            Text("Download map for current city")
+                                .fontWeight(.semibold)
                         }
-                    } else {
-                        Label("Download map for current city", systemImage: "arrow.down.circle")
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.buttonPrimary, in: .rect(cornerRadius: 10))
+                    .foregroundStyle(.black)
                 }
-                .disabled(maps.downloadState.isBusy || !(connectivity?.isVerifiedOnline ?? false))
+                .buttonStyle(.plain)
+                .alert("Download Failed", isPresented: $showingDownloadErrorAlert) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(downloadErrorMessage ?? "An unexpected error occurred.")
+                }
             }
         }
     }
-
+    
     private var forcedOfflineBinding: Binding<Bool> {
         Binding(
             get: { connectivity?.isForcedOfflineMode ?? false },
             set: { connectivity?.isForcedOfflineMode = $0 }
         )
     }
-
+    
     private var engineStatusText: String {
         guard let connectivity else { return "Unknown" }
         if connectivity.isForcedOfflineMode {
@@ -153,16 +176,21 @@ struct OrbitSettingsView: View {
         }
         return connectivity.isVerifiedOnline ? "Apple Maps (Online)" : "Mapbox (Offline)"
     }
-
+    
     private var engineStatusColor: Color {
         guard let connectivity else { return .secondary }
         if connectivity.isForcedOfflineMode {
             return .orange
         }
-        return connectivity.isVerifiedOnline ? .green : .yellow
+        return connectivity.isVerifiedOnline ? .green : Color.buttonPrimary
     }
-
+    
     private func downloadCurrentCity(_ maps: OfflineMapManager) {
+        if connectivity?.isForcedOfflineMode == true {
+            downloadErrorMessage = "Cannot download while Forced Offline Mode is active. Turn off 'Force offline mode' first."
+            showingDownloadErrorAlert = true
+            return
+        }
         guard let location else {
             downloadErrorMessage = "Location service is unavailable."
             showingDownloadErrorAlert = true
@@ -170,15 +198,21 @@ struct OrbitSettingsView: View {
         }
         Task {
             do {
+                print("[Settings] 📍 Memulai deteksi lokasi...")
                 let city = try await maps.locateAndDetectCity(using: location)
-                try await maps.downloadCity(city, isOnline: connectivity?.isVerifiedOnline ?? false)
+                print("[Settings] 📍 Kota terdeteksi: \(city.name)")
+                print("[Settings] 🚀 Memulai unduh peta...")
+                let isOnline = !(connectivity?.isForcedOfflineMode ?? false)
+                try await maps.downloadCity(city, isOnline: isOnline)
+                print("[Settings] ✅ Unduh peta selesai!")
             } catch {
+                print("[Settings] ❌ Gagal unduh peta: \(error)")
                 downloadErrorMessage = error.localizedDescription
                 showingDownloadErrorAlert = true
             }
         }
     }
-
+    
     // MARK: - Existing Sections
     private func groupActivity(_ losses: [SessionStore.MemberContactLoss]) -> some View {
         Section("Group activity") {
@@ -196,7 +230,7 @@ struct OrbitSettingsView: View {
             }
         }
     }
-
+    
     private func packetLog(_ packets: [TransportDiagnostics.PacketEvent]) -> some View {
         let filtered = packets.reversed().filter { packet in
             switch packetFilter {
@@ -221,7 +255,7 @@ struct OrbitSettingsView: View {
             }
         }
     }
-
+    
     private func packetRow(_ packet: TransportDiagnostics.PacketEvent) -> some View {
         let received = packet.direction == .received
         let envelope = packet.envelope
@@ -250,7 +284,7 @@ struct OrbitSettingsView: View {
         }
         .accessibilityElement(children: .combine)
     }
-
+    
     private func packetTitle(_ type: PacketType) -> LocalizedStringKey {
         switch type {
         case .locationPing: "Location ping"
@@ -263,7 +297,7 @@ struct OrbitSettingsView: View {
         case .sosResolved: "SOS resolved"
         }
     }
-
+    
     private func packetStatus(_ packet: TransportDiagnostics.PacketEvent) -> LocalizedStringKey {
         switch (packet.direction, packet.isOutsideGroup) {
         case (.received, false): "Received · Group SID"
@@ -291,14 +325,14 @@ struct OrbitSettingsView: View {
         recentEvents: [],
         recentPackets: [
             .init(envelope: .init(type: .chatMessage, sessionId: 0x4321, sequenceNumber: 12),
-                direction: .received, peerId: "ADI", isOutsideGroup: false),
+                  direction: .received, peerId: "ADI", isOutsideGroup: false),
             .init(envelope: .init(type: .sos, sessionId: 0x1234, sequenceNumber: 19),
-                direction: .received, peerId: "ble-c-13AB", isOutsideGroup: true),
+                  direction: .received, peerId: "ble-c-13AB", isOutsideGroup: true),
             .init(envelope: .init(type: .sos, hopCount: 1, sessionId: 0x1234, sequenceNumber: 19),
-                direction: .dispatched, peerId: "ble-p-82CD", isOutsideGroup: true)
+                  direction: .dispatched, peerId: "ble-p-82CD", isOutsideGroup: true)
         ]
     )
-
+    
     OrbitSettingsView(
         location: nil,
         sos: nil,
