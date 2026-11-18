@@ -27,7 +27,8 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
     }
 
-    func notify(title: String, body: String, showBanner: Bool = true) {
+    func notify(title: String, body: String, showBanner: Bool = true,
+                interruptionLevel: UNNotificationInterruptionLevel = .active) {
         if showBanner {
             showMessage("\(title): \(body)")
         }
@@ -36,6 +37,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         content.title = title
         content.body = body
         content.sound = .default
+        content.interruptionLevel = interruptionLevel
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
