@@ -26,27 +26,11 @@ struct MainMapView: View {
     }
     
     var body: some View {
-        ZStack(alignment: .bottom){
-            // MAP Section
-            MapLayerView(viewModel: viewModel, location: location, selectedTarget: $selectedTarget)
-            
-            VStack {
-                HStack {
-                    Button {
-                        dismiss() // Menutup peta dan kembali ke Orbit
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
-                    .controlSize(.large)
-                    .accessibilityLabel("Back to Orbit")
-                    .padding(.leading, 16)
-                    
-                    Spacer()
-                }
-                Spacer()
+        NavigationStack {
+            ZStack(alignment: .bottom) {
+                // MAP Section
+                MapLayerView(viewModel: viewModel, location: location, selectedTarget: $selectedTarget)
+                
                 if let error = viewModel.errorMessage {
                     Text(error)
                         .font(.footnote)
@@ -55,7 +39,18 @@ struct MainMapView: View {
                         .padding()
                 }
             }
-            
+            .navigationTitle("Set Meeting Point")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .accessibilityLabel("Back to Orbit")
+                }
+            }
         }
         .onAppear {
             viewModel.requestLocationPermission()
