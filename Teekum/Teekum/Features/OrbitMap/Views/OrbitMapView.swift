@@ -107,6 +107,7 @@ struct OrbitMapView: View {
                     nickname: viewModel.localNickname,
                     profileColor: viewModel.localProfileColor.swiftUIColor,
                     members: visibleMembers,
+                    isUserSOSActive: isSOSActive,
                     onOpen: { activeModal = .friends }
                 )
             }
@@ -216,7 +217,7 @@ struct OrbitMapView: View {
                         
                         FriendListSheet(
                             sessionStore: viewModel.sessionStore,
-                            onAddFriend: {
+                            onShareInvite: {
                                 activeModal = .invite
                             },
                             onSelectMember: { member in
@@ -225,6 +226,7 @@ struct OrbitMapView: View {
                                 activeModal = nil
                             },
                             onLeaveGroup: requestLeaveGroup,
+                            isUserSOSActive: { isSOSActive },
                             selectedMemberId: selectedMember?.id,
                             onStopFollow: {       
                                 sos?.recordUserInteraction()

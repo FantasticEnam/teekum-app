@@ -11,6 +11,7 @@ struct OrbitFriendsPanel: View {
     let nickname: String
     let profileColor: Color
     let members: [Member]
+    var isUserSOSActive = false
     let onOpen: () -> Void
 
     static let height: CGFloat = 88
@@ -20,8 +21,14 @@ struct OrbitFriendsPanel: View {
     private let badgeSize: CGFloat = 46
 
     var body: some View {
-        let visibleFriends = members.prefix(members.count > friendSlots ? friendSlots - 1 : friendSlots)
+        let hasOverflow = members.count > friendSlots
+        let orderedFriends = hasOverflow
+            ? members.filter(\.isEmergency) + members.filter { !$0.isEmergency }
+            : members
+        let visibleFriends = orderedFriends.prefix(hasOverflow ? friendSlots - 1 : friendSlots)
         let hiddenCount = members.count - visibleFriends.count
+        let hiddenSOS = orderedFriends.dropFirst(visibleFriends.count).contains(where: \.isEmergency)
+        let hasSOS = isUserSOSActive || members.contains(where: \.isEmergency)
 
         Button(action: onOpen) {
             VStack(spacing: 16) {
@@ -33,7 +40,7 @@ struct OrbitFriendsPanel: View {
                     let spacing = sectionSpacing * 2 + friendSpacing * CGFloat(friendSlots - 1) + 1
                     let size = min(badgeSize, max(0, geometry.size.width - spacing) / CGFloat(friendSlots + 1))
                     HStack(spacing: sectionSpacing) {
-                        badge(nickname, color: profileColor, size: size)
+                        badge(nickname, color: profileColor, size: size, isEmergency: isUserSOSActive)
 
                         Rectangle()
                             .fill(.white.opacity(0.08))
@@ -41,10 +48,10 @@ struct OrbitFriendsPanel: View {
 
                         HStack(spacing: friendSpacing) {
                             ForEach(visibleFriends) { member in
-                                badge(member.initials, color: member.color.swiftUIColor, size: size)
+                                badge(member.initials, color: member.color.swiftUIColor, size: size, isEmergency: member.isEmergency)
                             }
                             if hiddenCount > 0 {
-                                badge("+\(hiddenCount)", color: .white.opacity(0.45), size: size)
+                                badge("+\(hiddenCount)", color: .white.opacity(0.45), size: size, isEmergency: hiddenSOS)
                             }
                         }
                     }
@@ -61,7 +68,7 @@ struct OrbitFriendsPanel: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Open friends")
-        .accessibilityValue("\(members.count) friends")
+        .accessibilityValue(hasSOS ? Text("\(members.count) friends, SOS active") : Text("\(members.count) friends"))
         .simultaneousGesture(
             DragGesture(minimumDistance: 20)
                 .onEnded { value in
@@ -73,9 +80,8 @@ struct OrbitFriendsPanel: View {
         )
     }
 
-    private func badge(_ text: String, color: Color, size: CGFloat) -> some View {
-        Circle()
-            .strokeBorder(color, lineWidth: 0.75)
+    private func badge(_ text: String, color: Color, size: CGFloat, isEmergency: Bool) -> some View {
+        FriendAvatarBackground(color: color, isEmergency: isEmergency, borderWidth: 0.75)
             .frame(width: size, height: size)
             .overlay {
                 Text(text)
@@ -86,6 +92,15 @@ struct OrbitFriendsPanel: View {
                     .padding(.horizontal, 3)
             }
     }
+}
+
+#Preview("Local and friend SOS") {
+    let friends = [Member(id: "NIC"), Member(id: "AYU"), Member(id: "GES"), Member(id: "ADY"),
+                   Member(id: "HSN", isEmergency: true)]
+    OrbitFriendsPanel(nickname: "VAN", profileColor: .purple, members: friends, isUserSOSActive: true, onOpen: {})
+        .padding(24)
+        .background(.black)
+        .preferredColorScheme(.dark)
 }
 
 #Preview("Four friends and overflow") {
