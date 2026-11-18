@@ -48,8 +48,20 @@ private final class CancelableBox: @unchecked Sendable {
 }
 // Implementasi asli Mapbox v11 menggunakan `OfflineManager` + `TileStore.default`.
 public final class MapboxOfflineTileStoreClient: OfflineTileStoreClient, @unchecked Sendable {
+    private let offlineManager: OfflineManager
+    private let tileStore: TileStore
     private let cancelables = CancelableBox()
-    public init() {}
+    
+    public init() {
+        // 1. Set token Mapbox ke global options sebelum OfflineManager dibuat
+        let token = (Bundle.main.object(forInfoDictionaryKey: "MBXAccessToken") as? String) ?? ""
+        if !token.isEmpty {
+            MapboxOptions.accessToken = token
+        }
+        self.offlineManager = OfflineManager()
+        self.tileStore = TileStore.default
+    }
+    
     public func downloadRegion(
         regionId: String,
         styleURIString: String,
@@ -57,13 +69,14 @@ public final class MapboxOfflineTileStoreClient: OfflineTileStoreClient, @unchec
         zoomRange: ClosedRange<UInt8>,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> UInt64 {
+        print("[OfflineMap] 🚀 Memulai unduh peta untuk region: \(regionId)")
+        print("[OfflineMap] 🎨 Style URI: \(styleURIString)")
+        
         let styleURI = StyleURI(rawValue: styleURIString) ?? .dark
-        let offlineManager = OfflineManager()
-        let tileStore = TileStore.default
         try Task.checkCancellation()
+        
         // Tahap 1 (0% -> 15%): Download style JSON, sprites, & font glyphs
         let styleSize = try await downloadStylePack(
-            offlineManager: offlineManager,
             styleURI: styleURI,
             regionId: regionId,
             onProgress: { fraction in
@@ -71,10 +84,9 @@ public final class MapboxOfflineTileStoreClient: OfflineTileStoreClient, @unchec
             }
         )
         try Task.checkCancellation()
+        
         // Tahap 2 (15% -> 100%): Download vector tiles untuk kotak 40x40 km (z0-z14)
         let tileSize = try await downloadTileRegion(
-            offlineManager: offlineManager,
-            tileStore: tileStore,
             styleURI: styleURI,
             regionId: regionId,
             box: box,
@@ -86,104 +98,119 @@ public final class MapboxOfflineTileStoreClient: OfflineTileStoreClient, @unchec
         onProgress(1.0)
         return styleSize + tileSize
     }
+    
     public func removeRegion(regionId: String) async {
-        TileStore.default.removeTileRegion(forId: regionId)
+        tileStore.removeTileRegion(forId: regionId)
     }
+    
     public func cancelActiveDownload() {
         cancelables.cancelAll()
     }
+    
     private func downloadStylePack(
-        offlineManager: OfflineManager,
         styleURI: StyleURI,
         regionId: String,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> UInt64 {
-        guard let options = StylePackLoadOptions(
-            glyphsRasterizationMode: .ideographsRasterizedLocally, // Hemat ukuran font CJK/Unicode
-            metadata: ["regionId": regionId],
-            acceptExpired: false
-        ) else {
-            throw OfflineMapError.downloadFailed("Invalid style pack load options.")
-        }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                let cancelable = offlineManager.loadStylePack(
-                    for: styleURI,
-                    loadOptions: options,
-                    progress: { progress in
-                        guard progress.requiredResourceCount > 0 else { return }
-                        let fraction = Double(progress.completedResourceCount) / Double(progress.requiredResourceCount)
-                        onProgress(fraction)
-                    },
-                    completion: { [cancelables] result in
-                        cancelables.setStylePack(nil)
-                        switch result {
-                        case .success(let pack):
-                            continuation.resume(returning: pack.completedResourceSize)
-                        case .failure(let error):
-                            if case StylePackError.canceled = error {
-                                continuation.resume(throwing: OfflineMapError.cancelled)
-                            } else {
-                                continuation.resume(throwing: OfflineMapError.downloadFailed(error.localizedDescription))
+                Task { @MainActor [self, cancelables] in
+                    // Buat options LANGSUNG di dalam @MainActor agar tidak menyeberang thread
+                    guard let options = StylePackLoadOptions(
+                        glyphsRasterizationMode: .ideographsRasterizedLocally,
+                        metadata: ["regionId": regionId],
+                        acceptExpired: false
+                    ) else {
+                        continuation.resume(throwing: OfflineMapError.downloadFailed("Invalid style pack load options."))
+                        return
+                    }
+                    
+                    let cancelable = self.offlineManager.loadStylePack(
+                        for: styleURI,
+                        loadOptions: options,
+                        progress: { progress in
+                            guard progress.requiredResourceCount > 0 else { return }
+                            let fraction = Double(progress.completedResourceCount) / Double(progress.requiredResourceCount)
+                            onProgress(fraction)
+                        },
+                        completion: { [self, cancelables] result in
+                            cancelables.setStylePack(nil)
+                            switch result {
+                            case .success(let pack):
+                                continuation.resume(returning: pack.completedResourceSize)
+                            case .failure(let error):
+                                print("[OfflineMap] Style pack error: \(error.localizedDescription)")
+                                if case StylePackError.canceled = error {
+                                    continuation.resume(throwing: OfflineMapError.cancelled)
+                                } else {
+                                    continuation.resume(throwing: OfflineMapError.downloadFailed(error.localizedDescription))
+                                }
                             }
                         }
-                    }
-                )
-                cancelables.setStylePack(cancelable)
+                    )
+                    cancelables.setStylePack(cancelable)
+                }
             }
         } onCancel: { [cancelables] in
             cancelables.cancelAll()
         }
     }
+    
     private func downloadTileRegion(
-        offlineManager: OfflineManager,
-        tileStore: TileStore,
         styleURI: StyleURI,
         regionId: String,
         box: OfflineMapBounds.CoordinateBox,
         zoomRange: ClosedRange<UInt8>,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws -> UInt64 {
-        let descriptorOptions = TilesetDescriptorOptions(styleURI: styleURI, zoomRange: zoomRange, tilesets: nil)
-        let descriptor = offlineManager.createTilesetDescriptor(for: descriptorOptions)
-        let polygon = Polygon([box.polygonRing])
-        guard let loadOptions = TileRegionLoadOptions(
-            geometry: .polygon(polygon),
-            descriptors: [descriptor],
-            metadata: ["regionId": regionId],
-            acceptExpired: false,
-            networkRestriction: .none // Izinkan download lewat Wi-Fi maupun Cellular
-        ) else {
-            throw OfflineMapError.downloadFailed("Invalid tile region load options.")
-        }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                let cancelable = tileStore.loadTileRegion(
-                    forId: regionId,
-                    loadOptions: loadOptions,
-                    progress: { progress in
-                        guard progress.requiredResourceCount > 0 else { return }
-                        let fraction = Double(progress.completedResourceCount) / Double(progress.requiredResourceCount)
-                        onProgress(fraction)
-                    },
-                    completion: { [cancelables] result in
-                        cancelables.setTileRegion(nil)
-                        switch result {
-                        case .success(let region):
-                            continuation.resume(returning: region.completedResourceSize)
-                        case .failure(let error):
-                            if case TileRegionError.canceled = error {
-                                continuation.resume(throwing: OfflineMapError.cancelled)
-                            } else {
-                                continuation.resume(throwing: OfflineMapError.downloadFailed(error.localizedDescription))
+                Task { @MainActor [self, cancelables] in
+                    // Buat descriptorOptions & polygon LANGSUNG di dalam @MainActor
+                    let descriptorOptions = TilesetDescriptorOptions(styleURI: styleURI, zoomRange: zoomRange, tilesets: nil)
+                    let descriptor = self.offlineManager.createTilesetDescriptor(for: descriptorOptions)
+                    let polygon = Polygon([box.polygonRing])
+                    guard let loadOptions = TileRegionLoadOptions(
+                        geometry: .polygon(polygon),
+                        descriptors: [descriptor],
+                        metadata: ["regionId": regionId],
+                        acceptExpired: false,
+                        networkRestriction: .none
+                    ) else {
+                        continuation.resume(throwing: OfflineMapError.downloadFailed("Invalid tile region load options."))
+                        return
+                    }
+                    
+                    let cancelable = self.tileStore.loadTileRegion(
+                        forId: regionId,
+                        loadOptions: loadOptions,
+                        progress: { progress in
+                            guard progress.requiredResourceCount > 0 else { return }
+                            let fraction = Double(progress.completedResourceCount) / Double(progress.requiredResourceCount)
+                            onProgress(fraction)
+                        },
+                        completion: { [self, cancelables] result in
+                            cancelables.setTileRegion(nil)
+                            switch result {
+                            case .success(let region):
+                                print("[OfflineMap] ✅ Peta offline sukses tersimpan! Ukuran: \(region.completedResourceSize) bytes")
+                                continuation.resume(returning: region.completedResourceSize)
+                            case .failure(let error):
+                                print("[OfflineMap] Tile region error: \(error.localizedDescription)")
+                                if case TileRegionError.canceled = error {
+                                    continuation.resume(throwing: OfflineMapError.cancelled)
+                                } else {
+                                    continuation.resume(throwing: OfflineMapError.downloadFailed(error.localizedDescription))
+                                }
                             }
                         }
-                    }
-                )
-                cancelables.setTileRegion(cancelable)
+                    )
+                    cancelables.setTileRegion(cancelable)
+                }
             }
         } onCancel: { [cancelables] in
             cancelables.cancelAll()
         }
     }
 }
+

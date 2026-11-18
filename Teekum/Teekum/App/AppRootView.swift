@@ -10,20 +10,29 @@ import SwiftUI
 struct AppRootView: View {
     let sessionStore: SessionStore
     var controller: SessionController?
-
+    
     var body: some View {
-        if sessionStore.hasActiveSession {
+        if let controller, !controller.offlineMaps.hasCompletedPreparednessSetup {
+            PreparednessSetupView(
+                offlineMaps: controller.offlineMaps,
+                locationService: controller.location,
+                isOnline: controller.connectivityMonitor.isVerifiedOnline,
+                onComplete: {
+                    controller.offlineMaps.markPreparednessCompleted()
+                }
+            )
+        } else if sessionStore.hasActiveSession {
             OrbitMapView(sessionStore: sessionStore, location: controller?.location,
-                chat: controller?.chat, sos: controller?.sos, meetingService: controller?.meeting,
-                diagnostics: { controller?.diagnostics }, notifications: controller?.notifications,
-                onLeaveGroup: controller.map { owner in { owner.leave() } })
+                         chat: controller?.chat, sos: controller?.sos, meetingService: controller?.meeting,
+                         diagnostics: { controller?.diagnostics }, notifications: controller?.notifications,
+                         onLeaveGroup: controller.map { owner in { owner.leave() } })
         } else {
             NavigationStack {
                 GroupPairingView(sessionStore: sessionStore, onActivate: activateSession)
             }
         }
     }
-
+    
     private var activateSession: (@MainActor (GroupSession) -> Void)? {
         guard let controller else { return nil }
         return { controller.activate($0) }
