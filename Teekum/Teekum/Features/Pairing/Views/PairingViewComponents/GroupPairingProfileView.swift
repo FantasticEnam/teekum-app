@@ -43,7 +43,7 @@ struct GroupPairingProfileView: View {
             if isProfilePickerVisible {
                 ProfilePickerView(selectedColor: $profileColor)
             } else {
-                Text("Your Initial")
+                Text("3-Letter Nickname")
                     .padding(.top, 20)
                     .font(.custom("Helvetica", size: 17, relativeTo: .headline))
                     .bold()
