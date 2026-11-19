@@ -85,7 +85,7 @@ Start at the entry point for a screen or action. Follow the owner column when ch
 | Lost-contact notification and Group activity log | [OrbitSettingsView](../Teekum/Teekum/Features/OrbitMap/Views/OrbitSettingsView.swift) | [SessionStore](../Teekum/Teekum/Core/Session/SessionStore.swift) records losses. [SessionController](../Teekum/Teekum/App/SessionController.swift) sends notifications. |
 | Live Activity | [LiveActivityManager](../Teekum/Teekum/Core/LiveActivity/LiveActivityManager.swift), [TeekumWidgets](../TeekumWidgets) | `SessionController` drives updates and teardown. Widget verification requires a device. |
 
-Member markers in Orbit and Map are informational. Selecting a member in the Friend List highlights their Orbit marker.
+Tap a member marker in Orbit or select a member in the Friend List to follow them. Overlapping Orbit markers share a +N badge, and split as soon as the projected circles have enough room. The badge follows the group’s bearing as the device rotates. Tap it to reveal the members and select one to follow. The badge keeps an SOS outline when a member in the group has an active SOS. Members beyond the outer ring keep the bloom treatment.
 
 ### 3.4 Session Data Flow
 
