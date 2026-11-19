@@ -24,6 +24,10 @@ struct FriendListSheet: View {
     
     @ScaledMetric(relativeTo: .title2)
     private var cellWidth = 66
+
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: cellWidth), spacing: 16)]
+    }
     
     init(
         sessionStore: SessionStore,
@@ -44,7 +48,6 @@ struct FriendListSheet: View {
     }
     
     var body: some View {
-        @Bindable var viewModel = viewModel
         let members = viewModel.filteredMembers
         
         VStack(spacing: 0) {
@@ -70,72 +73,36 @@ struct FriendListSheet: View {
                     }
             )
             
-            HStack {
-                TextField("Search name", text: $viewModel.searchQuery)
-                    .focused($isSearchFocused)
-                    .submitLabel(.done)
-                    .onSubmit { isSearchFocused = false }
-                    .autocorrectionDisabled()
+            VStack(spacing: 0) {
+                searchAndInvite
 
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
-            .font(.subheadline)
-            .padding(.horizontal, 20)
-            .frame(minHeight: 44)
-            .background(.white.opacity(0.1), in: .capsule)
-            .padding(.horizontal, 34)
+                localProfileRow
+                    .padding(.top, 29)
+                    .padding(.bottom, 20)
 
-            roomHeader
-                .padding(.horizontal, 34)
-                .padding(.top, 29)
-                .padding(.bottom, 20)
+                Divider()
 
-            Divider()
-                .padding(.horizontal, 33)
-
-            ScrollView {
-                if members.isEmpty {
-                    ContentUnavailableView(
-                        "No friends found",
-                        systemImage: "person.2",
-                        description: Text(
-                            "Try another name or share an invite."
-                        )
-                    )
-                } else {
-                    LazyVGrid(
-                        columns: [
-                            GridItem(
-                                .adaptive(minimum: cellWidth),
-                                spacing: 16
+                GeometryReader { geometry in
+                    ScrollView {
+                        if members.isEmpty {
+                            ContentUnavailableView(
+                                "No friends found",
+                                systemImage: "person.2",
+                                description: Text("Try another name or share an invite.")
                             )
-                        ],
-                        spacing: 20
-                    ) {
-                        ForEach(members) { member in
-                            Button {
-                                isSearchFocused = false
-                                memberToConfirm = member
-                            } label: {
-                                FriendListMemberView(
-                                    member: member,
-                                    color: member.color.swiftUIColor
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityHint("Show this friend on the Orbit radar")
+                            .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                        } else {
+                            memberGrid(members)
+                                .padding(.top, 14)
+                                .padding(.bottom, 16)
                         }
                     }
-                    .padding(.horizontal, 29)
-                    .padding(.top, 14)
-                    .padding(.bottom, 16)
+                    .scrollDismissesKeyboard(.interactively)
+                    .contentShape(.rect)
+                    .simultaneousGesture(TapGesture().onEnded { isSearchFocused = false })
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
-            .contentShape(.rect)
-            .simultaneousGesture(TapGesture().onEnded { isSearchFocused = false })
+            .padding(.horizontal, 24)
             
             if !isSearchFocused {
                 PrimaryButtonView(title: "Leave Group") {
@@ -198,40 +165,64 @@ struct FriendListSheet: View {
         }
     }
 
-    private var roomHeader: some View {
-        let count = viewModel.roomCount
-        let total = count == 1 ? Text("1 Person") : Text("\(count) Persons")
+    private var searchAndInvite: some View {
+        @Bindable var viewModel = viewModel
+        return HStack(spacing: 10) {
+            HStack {
+                TextField("Search name", text: $viewModel.searchQuery)
+                    .focused($isSearchFocused)
+                    .submitLabel(.done)
+                    .onSubmit { isSearchFocused = false }
+                    .autocorrectionDisabled()
 
-        return HStack {
-            if let profile = localProfile {
-                FriendListMemberView(member: profile, color: profile.color.swiftUIColor)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .accessibilityLabel("\(profile.initials), your profile")
-                    .accessibilityValue(profile.isEmergency ? Text("SOS active") : Text(""))
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
-
-            Spacer()
+            .font(.subheadline)
+            .padding(.horizontal, 20)
+            .frame(minHeight: 46)
+            .background(.white.opacity(0.1), in: .capsule)
 
             Button {
                 isSearchFocused = false
                 onShareInvite()
             } label: {
-                HStack(spacing: 4) {
-                    total
-                    Image(systemName: "plus.circle.fill")
-                }
-                .font(.caption2.bold())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 9)
-                .frame(minHeight: 34)
-                .background(.white.opacity(0.12), in: .capsule)
-                .overlay { Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1) }
-                .frame(minHeight: 44)
-                .contentShape(.rect)
+                Image(systemName: "person.fill.badge.plus")
+                    .font(.title3)
+                    .foregroundStyle(.white)
+                    .frame(width: 76, height: 46)
+                    .contentShape(.capsule)
+                    .glassEffect(.regular.interactive(), in: .capsule)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Share invite QR")
-            .accessibilityValue(total)
+        }
+    }
+
+    @ViewBuilder
+    private var localProfileRow: some View {
+        if let profile = localProfile {
+            LazyVGrid(columns: columns) {
+                FriendListMemberView(member: profile, color: profile.color.swiftUIColor)
+                    .accessibilityLabel("\(profile.initials), your profile")
+                    .accessibilityValue(profile.isEmergency ? Text("SOS active") : Text(""))
+            }
+        }
+    }
+
+    private func memberGrid(_ members: [Member]) -> some View {
+        LazyVGrid(columns: columns, spacing: 20) {
+            ForEach(members) { member in
+                Button {
+                    isSearchFocused = false
+                    memberToConfirm = member
+                } label: {
+                    FriendListMemberView(member: member, color: member.color.swiftUIColor)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Show this friend on the Orbit radar")
+            }
         }
     }
 
@@ -242,13 +233,25 @@ struct FriendListSheet: View {
     }
 }
 
-#Preview("Room with 20 persons") {
+#Preview("Invite beside search and aligned friend grid") {
     let store = SessionStore.preview
     store.activeSession?.localInitials = "VAN"
     store.members = ["NIC", "AYU", "GES", "ADY", "AYI", "HSN", "RIO", "NAD", "ALX", "ADI",
                      "AML", "EBI", "DAF", "ANA", "JON", "MIA", "NOV", "EVA", "UNA"].enumerated().map { index, id in
         Member(id: id, measurementTimestamp: .now.addingTimeInterval(-Double(index % 8 + 1) * 60))
     }
+    return FriendListSheet(
+        sessionStore: store,
+        onShareInvite: {},
+        onSelectMember: { _ in },
+        onLeaveGroup: {}
+    )
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Centered empty friends list") {
+    let store = SessionStore.preview
+    store.members = []
     return FriendListSheet(
         sessionStore: store,
         onShareInvite: {},
