@@ -13,6 +13,7 @@ struct MainMapView: View {
     @Binding var selectedTarget: OrbitSceneView.Target?
     var connectivity: ConnectivityMonitor? = nil
     var offlineMaps: OfflineMapManager? = nil
+    @Environment(\.dismiss) private var dismiss
     
     init(
         sessionStore: SessionStore,
@@ -40,20 +41,35 @@ struct MainMapView: View {
                 offlineMaps: offlineMaps
             )
             
-            if let error = viewModel.errorMessage {
-                Text(error)
-                    .font(.footnote)
-                    .padding()
-                    .background(.black.opacity(0.8), in: .rect(cornerRadius: 12))
-                    .padding()
+            VStack {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 42, height: 42)
+                    }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
+                    .controlSize(.large)
+                    .accessibilityLabel("Back to Orbit")
+                    .padding(.leading, 16)
+                    
+                    Spacer()
+                }
+                Spacer()
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .font(.footnote)
+                        .padding()
+                        .background(.black.opacity(0.8), in: .rect(cornerRadius: 12))
+                        .padding()
+                }
             }
             
         }
-        .navigationTitle("Set Meeting Point")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .onAppear {
             viewModel.requestLocationPermission()
             location?.setTacticalRadarActive(true)

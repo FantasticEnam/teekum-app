@@ -26,7 +26,6 @@ struct OrbitMapView: View {
     @State private var isShowingFollowAlert = false
     @State private var isShowingStopFollowAlert = false
     @State private var isShowingRelocationAlert = false
-    @State private var isNavigatingToMap = false
     
     private let location: LocationService?
     private let chat: ChatViewModel?
@@ -80,74 +79,62 @@ struct OrbitMapView: View {
     
     var body: some View {
         let followedMember = selectedMember
-        NavigationStack {
-            ZStack {
-                Color.black
-                    .ignoresSafeArea()
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
+            
+            orbitScene
+            
+            VStack(alignment: .leading) {
+                OrbitHeaderView(groupName: viewModel.groupName, onSettings: { activeModal = .settings })
                 
-                orbitScene
-                
-                VStack(alignment: .leading) {
-                    OrbitHeaderView(groupName: viewModel.groupName, onSettings: { activeModal = .settings })
-                    
-                    if let activity = notifications?.groupActivity {
-                        groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
-                    }
-                    
-                    if location?.currentLocation == nil {
-                        Label("Waiting for your location", systemImage: "location.slash")
-                            .font(.caption).padding(8)
-                            .background(Color.blackCard, in: .capsule)
-                        if let meetingPoint, selectedTarget != .meetingPoint(meetingPoint.id) {
-                            Button("Meeting point set", systemImage: "mappin.circle.fill") {
-                                selectMeetingPoint(meetingPoint.id)
-                            }
-                            .buttonStyle(.glass)
-                        }
-                    }
-                    
-                    targetSummary
-                    
-                    Spacer()
-                    OrbitControlsView(
-                        onSOS: {
-                            sos?.triggerSOS()
-                        },
-                        onOpenMap: { isNavigatingToMap = true },
-                        onChat: openChat,
-                        unreadCount: chat?.unreadCount ?? 0,
-                        isSOSActive: isSOSActive
-                    )
-                    OrbitFriendsPanel(
-                        nickname: viewModel.localNickname,
-                        profileColor: viewModel.localProfileColor.swiftUIColor,
-                        members: visibleMembers,
-                        isUserSOSActive: isSOSActive,
-                        followedMember: followedMember,
-                        followDistance: distance(to: followedMember),
-                        onOpen: { activeModal = .friends }
-                    )
+                if let activity = notifications?.groupActivity {
+                    groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
                 }
-                .padding(.horizontal, 24)
-            }
-            .navigationDestination(isPresented: $isNavigatingToMap) {
-                MainMapView(
-                    sessionStore: viewModel.sessionStore,
-                    meetingService: meetingService,
-                    location: location,
-                    selectedTarget: $selectedTarget,
-                    connectivity: connectivity,
-                    offlineMaps: offlineMaps
+                
+                if location?.currentLocation == nil {
+                    Label("Waiting for your location", systemImage: "location.slash")
+                        .font(.caption).padding(8)
+                        .background(Color.blackCard, in: .capsule)
+                    if let meetingPoint, selectedTarget != .meetingPoint(meetingPoint.id) {
+                        Button("Meeting point set", systemImage: "mappin.circle.fill") {
+                            selectMeetingPoint(meetingPoint.id)
+                        }
+                        .buttonStyle(.glass)
+                    }
+                }
+                
+                targetSummary
+                
+                Spacer()
+                OrbitControlsView(
+                    onSOS: {
+                        sos?.triggerSOS()
+                    },
+                    onOpenMap: { activeModal = .mapPoint },
+                    onChat: openChat,
+                    unreadCount: chat?.unreadCount ?? 0,
+                    isSOSActive: isSOSActive
+                )
+                OrbitFriendsPanel(
+                    nickname: viewModel.localNickname,
+                    profileColor: viewModel.localProfileColor.swiftUIColor,
+                    members: visibleMembers,
+                    isUserSOSActive: isSOSActive,
+                    followedMember: followedMember,
+                    followDistance: distance(to: followedMember),
+                    onOpen: { activeModal = .friends }
                 )
             }
-            .toolbar(.hidden, for: .navigationBar)
-            .overlay {
-                if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
-            }
-            .overlay(alignment: .top) {
-                OrbitFeedbackView(sos: sos, notifications: notifications,
-                                  showsChatAlert: !isShowingChat, onOpenChat: openChat)
-            }
+            .padding(.horizontal, 24)
+        }
+        .overlay {
+            if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
+        }
+        .overlay(alignment: .top) {
+            OrbitFeedbackView(sos: sos, notifications: notifications,
+                              showsChatAlert: !isShowingChat, onOpenChat: openChat)
+        }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
             .disabled(isLeavingGroup)
             .onAppear {
@@ -182,7 +169,7 @@ struct OrbitMapView: View {
             }
             .onChange(of: viewModel.sessionStore.pendingDeepLink, initial: true) { _, url in
                 guard let url else { return }
-                if url.host == "meeting" { isNavigatingToMap = true }
+                if url.host == "meeting" { activeModal = .mapPoint }
                 if url.host == "sos", let alert = sos?.incomingAlert { selectedTarget = .member(alert.senderInitials) }
                 viewModel.sessionStore.pendingDeepLink = nil
             }
@@ -241,6 +228,15 @@ struct OrbitMapView: View {
             
             .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
                 Group { switch modal {
+                case .mapPoint:
+                    MainMapView(
+                        sessionStore: viewModel.sessionStore,
+                        meetingService: meetingService,
+                        location: location,
+                        selectedTarget: $selectedTarget,
+                        connectivity: connectivity,
+                        offlineMaps: offlineMaps
+                    )
                 case .friends:
                     GeometryReader { geometry in
                         ZStack(alignment: .bottom) {
@@ -303,7 +299,6 @@ struct OrbitMapView: View {
                 .overlay { SOSEdgeGlowView(sos: sos) }
                 .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
             }
-        }
     }
     
     private func groupActivityPill(_ message: String, color: Color) -> some View {

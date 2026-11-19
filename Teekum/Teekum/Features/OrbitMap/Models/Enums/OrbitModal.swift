@@ -6,6 +6,7 @@
 //
 
 enum OrbitModal: Identifiable, Hashable {
+    case mapPoint
     case friends
     case settings
     case invite
