@@ -13,7 +13,7 @@ import UIKit
 @MainActor
 @Observable
 final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
-    private(set) var message: String?
+    private(set) var banner: (title: String, body: String, icon: String)?
     private(set) var chatAlert: (sender: String, body: String)?
     private(set) var groupActivity: (message: String, memberID: String)?
     private var dismissTask: Task<Void, Never>?
@@ -28,9 +28,10 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func notify(title: String, body: String, showBanner: Bool = true,
+                icon: String = "bell.fill",
                 interruptionLevel: UNNotificationInterruptionLevel = .active) {
         if showBanner {
-            showMessage("\(title): \(body)")
+            showMessage(body, title: title, icon: icon)
         }
         guard UIApplication.shared.applicationState != .active else { return }
         let content = UNMutableNotificationContent()
@@ -65,14 +66,15 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         chatAlert = nil
     }
 
-    private func showMessage(_ text: String, memberID: String? = nil, chatSender: String? = nil) {
-        message = memberID == nil && chatSender == nil ? text : nil
+    private func showMessage(_ text: String, memberID: String? = nil, chatSender: String? = nil,
+                             title: String? = nil, icon: String = "bell.fill") {
+        banner = title.map { ($0, text, icon) }
         chatAlert = chatSender.map { ($0, text) }
         groupActivity = memberID.map { (text, $0) }
         dismissTask?.cancel()
         dismissTask = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(4)) } catch { return }
-            self?.message = nil
+            self?.banner = nil
             self?.chatAlert = nil
             self?.groupActivity = nil
         }
@@ -81,7 +83,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     func clear() {
         dismissTask?.cancel()
         dismissTask = nil
-        message = nil
+        banner = nil
         chatAlert = nil
         groupActivity = nil
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()

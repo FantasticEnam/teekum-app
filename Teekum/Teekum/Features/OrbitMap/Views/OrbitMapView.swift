@@ -32,6 +32,7 @@ struct OrbitMapView: View {
     private let meetingService: MeetingPointService?
     private let diagnostics: @MainActor () -> TransportDiagnostics?
     private let notifications: NotificationService?
+    private let onFollowMember: (String, UInt32?) -> Void
     
     private var meetingPoint: MeetingPoint? { viewModel.sessionStore.activeMeetingPoint }
     private var visibleMembers: [Member] { viewModel.sessionStore.visibleMembers }
@@ -61,6 +62,7 @@ struct OrbitMapView: View {
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
          sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
          diagnostics: @escaping @MainActor () -> TransportDiagnostics? = { nil }, notifications: NotificationService? = nil,
+         onFollowMember: @escaping (String, UInt32?) -> Void = { _, _ in },
          onLeaveGroup: (() -> Void)? = nil) {
         _viewModel = State(initialValue: OrbitMapViewModel(sessionStore: sessionStore, onLeaveGroup: onLeaveGroup))
         self.location = location
@@ -69,6 +71,7 @@ struct OrbitMapView: View {
         self.meetingService = meetingService
         self.diagnostics = diagnostics
         self.notifications = notifications
+        self.onFollowMember = onFollowMember
     }
     
     var body: some View {
@@ -127,7 +130,7 @@ struct OrbitMapView: View {
         }
         .overlay(alignment: .top) {
             OrbitFeedbackView(sos: sos, notifications: notifications,
-                showsChatAlert: !isShowingChat, onOpenChat: openChat)
+                showsChatAlert: !isShowingChat, onOpenChat: openChat, onHelpOffered: followSOS)
         }
         .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         .disabled(isLeavingGroup)
@@ -167,7 +170,8 @@ struct OrbitMapView: View {
             if let chat {
                 ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
                     .safeAreaInset(edge: .top) {
-                        OrbitFeedbackView(sos: sos, notifications: notifications, showsChatAlert: false)
+                        OrbitFeedbackView(sos: sos, notifications: notifications,
+                            showsChatAlert: false, onHelpOffered: followSOS)
                     }
                     .overlay { SOSEdgeGlowView(sos: sos) }
             }
@@ -182,7 +186,7 @@ struct OrbitMapView: View {
             Button("Cancel", role: .cancel) { }
             Button("Follow") {
                 if let member = memberToFollow {
-                    selectedTarget = .member(member.id)
+                    followMember(member.id)
                 }
             }
         } message: {
@@ -264,7 +268,7 @@ struct OrbitMapView: View {
                 }
             } }
             .safeAreaInset(edge: .top) {
-                OrbitFeedbackView(sos: sos, notifications: notifications, onOpenChat: openChat)
+                OrbitFeedbackView(sos: sos, notifications: notifications, onOpenChat: openChat, onHelpOffered: followSOS)
             }
             .overlay { SOSEdgeGlowView(sos: sos) }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
@@ -333,7 +337,7 @@ struct OrbitMapView: View {
             switch selection {
             case .follow(let id):
                 if visibleMembers.contains(where: { $0.id == id }) {
-                    selectedTarget = .member(id)
+                    followMember(id)
                 }
             case .stopFollowing:
                 selectedTarget = nil
@@ -348,6 +352,16 @@ struct OrbitMapView: View {
         guard let origin = location?.currentLocation, let coordinate = member?.coordinate else { return nil }
         let distance = origin.distance(to: coordinate)
         return distance.isFinite && distance >= 0 ? distance : nil
+    }
+
+    private func followSOS(_ alert: IncomingSOSAlert) {
+        followMember(alert.senderInitials, sosEventId: alert.id)
+    }
+
+    private func followMember(_ id: Member.ID, sosEventId: UInt32? = nil) {
+        guard selectedTarget != .member(id) || sosEventId != nil else { return }
+        selectedTarget = .member(id)
+        onFollowMember(id, sosEventId ?? sos?.incomingEventID(for: id))
     }
     
     private func openChat() {
