@@ -10,19 +10,26 @@ import SwiftUI
 struct IncomingSOSAlertBannerView: View {
     let alert: IncomingSOSAlert
     let onDismiss: () -> Void
+    let onOfferHelp: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .title) private var warningIconSize = 42
 
     var body: some View {
+        let actions = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+
         VStack(spacing: 14) {
             HStack(spacing: 14) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: warningIconSize))
-                    .foregroundStyle(Color.yellowProfile)
+                    .foregroundStyle(.yellow)
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Emergency Alert!")
-                        .font(.custom("Helvetica", size: 19, relativeTo: .headline))
+                        .font(.custom("Helvetica", size: 19, relativeTo: .headline).bold())
                         .accessibilityAddTraits(.isHeader)
                     if alert.timestamp.timeIntervalSince1970 > 0 {
                         Text("**\(alert.senderInitials)** has sent an SOS request. Head to their location and check on them!")
@@ -36,14 +43,9 @@ struct IncomingSOSAlertBannerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 8)
 
-            Button(action: onDismiss) {
-                Text("I’ll be there!")
-                    .font(.custom("Helvetica", size: 17, relativeTo: .headline))
-                    .foregroundStyle(Color.alertRed)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .background(.white, in: .capsule)
-                    .contentShape(.capsule)
+            actions {
+                actionButton("Dismiss", action: onDismiss)
+                actionButton("I’ll be there!", action: onOfferHelp)
             }
             .buttonStyle(.plain)
         }
@@ -52,11 +54,24 @@ struct IncomingSOSAlertBannerView: View {
         .foregroundStyle(.white)
         .accessibilityElement(children: .contain)
     }
+
+    private func actionButton(_ title: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.alertRed)
+                .multilineTextAlignment(.center)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(.white, in: .capsule)
+                .contentShape(.capsule)
+        }
+    }
 }
 
 #if DEBUG
-#Preview("Incoming SOS") {
-    IncomingSOSAlertBannerView(alert: .preview, onDismiss: {})
+#Preview("Incoming SOS with Dismiss and Follow") {
+    IncomingSOSAlertBannerView(alert: .preview, onDismiss: {}, onOfferHelp: {})
         .padding()
         .background(.black)
         .preferredColorScheme(.dark)
