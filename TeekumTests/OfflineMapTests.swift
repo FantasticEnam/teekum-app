@@ -7,6 +7,7 @@
 
 import XCTest
 import CoreLocation
+import SwiftUI
 @testable import Teekum
 
 // MARK: - Mock Tile Store Actor untuk Menghindari Network Nyata (Swift 6 Safe)
@@ -199,5 +200,118 @@ final class OfflineMapTests: XCTestCase {
         } catch {
             XCTFail("Error yang dilempar bukan insufficientStorage: \(error)")
         }
+    }
+    
+    // MARK: - 5. CoordinateBox Contains
+    func testCoordinateBoxContains() {
+        let box = OfflineMapBounds.CoordinateBox(
+            minLatitude: -7.0,
+            maxLatitude: -6.0,
+            minLongitude: 106.0,
+            maxLongitude: 108.0
+        )
+        
+        let inside = CLLocationCoordinate2D(latitude: -6.5, longitude: 107.0)
+        let northOutside = CLLocationCoordinate2D(latitude: -5.9, longitude: 107.0)
+        let southOutside = CLLocationCoordinate2D(latitude: -7.1, longitude: 107.0)
+        let eastOutside = CLLocationCoordinate2D(latitude: -6.5, longitude: 108.1)
+        let westOutside = CLLocationCoordinate2D(latitude: -6.5, longitude: 105.9)
+        
+        XCTAssertTrue(box.contains(inside))
+        XCTAssertFalse(box.contains(northOutside))
+        XCTAssertFalse(box.contains(southOutside))
+        XCTAssertFalse(box.contains(eastOutside))
+        XCTAssertFalse(box.contains(westOutside))
+    }
+    
+    // MARK: - 6. Style URI Fallback
+    @MainActor
+    func testStyleURIFallback() {
+        let mock = MockTileStoreClient()
+        let managerWithCustom = OfflineMapManager(
+            defaults: testDefaults,
+            client: mock,
+            styleURIProvider: { "mapbox://styles/custom/style" }
+        )
+        XCTAssertEqual(managerWithCustom.activeStyleURIString, "mapbox://styles/custom/style")
+        
+        let managerWithInvalid = OfflineMapManager(
+            defaults: testDefaults,
+            client: mock,
+            styleURIProvider: { "invalid-uri-scheme" }
+        )
+        XCTAssertEqual(managerWithInvalid.activeStyleURIString, OfflineMapManager.fallbackDarkStyleURI)
+    }
+    
+    // MARK: - 7. Relocation & Download Suggestions
+    @MainActor
+    func testRelocationAndDownloadSuggestions() async throws {
+        let mock = MockTileStoreClient()
+        let manager = OfflineMapManager(
+            defaults: testDefaults,
+            client: mock,
+            availableBytesProvider: { 500_000_000 },
+            styleURIProvider: { "mapbox://styles/dummy" }
+        )
+        
+        let bandungCoord = CLLocationCoordinate2D(latitude: -6.9175, longitude: 107.6191)
+        let cimahiCoord = CLLocationCoordinate2D(latitude: -6.8722, longitude: 107.5420) // ~5 km
+        let jakartaCoord = CLLocationCoordinate2D(latitude: -6.2088, longitude: 106.8456) // ~120 km
+        
+        // 1. Belum ada cache, online -> harus menyarankan download
+        XCTAssertTrue(manager.shouldSuggestCityDownload(currentCoordinate: bandungCoord, isVerifiedOnline: true))
+        // Offline -> tidak boleh menyarankan
+        XCTAssertFalse(manager.shouldSuggestCityDownload(currentCoordinate: bandungCoord, isVerifiedOnline: false))
+        
+        // 2. Download Bandung
+        let bandung = DetectedCity(name: "Bandung", coordinate: bandungCoord)
+        try await manager.downloadCity(bandung, isOnline: true)
+        
+        // Dekat Bandung (<25 km) -> tidak perlu download baru
+        XCTAssertFalse(manager.shouldSuggestCityDownload(currentCoordinate: cimahiCoord, isVerifiedOnline: true))
+        XCTAssertFalse(manager.isRelocatedFarFromCache(currentCoordinate: cimahiCoord))
+        
+        // Pindah jauh ke Jakarta (>25 km) -> harus menyarankan download
+        XCTAssertTrue(manager.shouldSuggestCityDownload(currentCoordinate: jakartaCoord, isVerifiedOnline: true))
+        XCTAssertTrue(manager.isRelocatedFarFromCache(currentCoordinate: jakartaCoord))
+        
+        // User dismiss nudge -> tidak menyarankan lagi di sesi ini
+        manager.dismissNudgeForThisLaunch()
+        XCTAssertFalse(manager.shouldSuggestCityDownload(currentCoordinate: jakartaCoord, isVerifiedOnline: true))
+    }
+    
+    // MARK: - 8. Delete Cached City Lifecycle
+    @MainActor
+    func testDeleteCachedCityRemovesFromDiskAndDefaults() async throws {
+        let mock = MockTileStoreClient()
+        let manager = OfflineMapManager(
+            defaults: testDefaults,
+            client: mock,
+            availableBytesProvider: { 500_000_000 },
+            styleURIProvider: { "mapbox://styles/dummy" }
+        )
+        let bandung = DetectedCity(name: "Bandung", coordinate: CLLocationCoordinate2D(latitude: -6.9175, longitude: 107.6191))
+        try await manager.downloadCity(bandung, isOnline: true)
+        XCTAssertNotNil(manager.cachedCity)
+        
+        await manager.deleteCachedCity()
+        XCTAssertNil(manager.cachedCity)
+        let removed = await mock.removedRegions
+        XCTAssertEqual(removed.count, 1)
+    }
+    
+    // MARK: - 9. MeetingPointViewModel Profile & Nickname Integration
+    @MainActor
+    func testMeetingPointViewModelProfileAndNickname() {
+        // Tanpa active session -> default fallback
+        let emptyStore = SessionStore()
+        let emptyVM = MeetingPointViewModel(sessionStore: emptyStore)
+        XCTAssertEqual(emptyVM.localNickname, "")
+        
+        // Dengan active session "ADI"
+        let activeStore = SessionStore(activeSession: GroupSession(localInitials: "ADI"))
+        let activeVM = MeetingPointViewModel(sessionStore: activeStore)
+        XCTAssertEqual(activeVM.localNickname, "ADI")
+        XCTAssertEqual(activeVM.localProfileColor, activeStore.profileColor(for: "ADI").swiftUIColor)
     }
 }
