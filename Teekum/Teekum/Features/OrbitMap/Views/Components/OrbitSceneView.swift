@@ -165,11 +165,11 @@ struct OrbitSceneView: View {
     
     private func meetingMarker(_ point: MeetingPoint, projection: OrbitProjection, isSelected: Bool) -> some View {
         Button { onSelectMeetingPoint(point.id) } label: {
-            Image(.meetPoint)
+            Image(systemName: "mappin.and.ellipse")
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(Color.buttonPrimary)
+                .foregroundStyle(.white)
                 .frame(width: 23, height: 34)
                 .background {
                     if isSelected {
