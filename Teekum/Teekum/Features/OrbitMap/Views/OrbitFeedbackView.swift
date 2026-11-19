@@ -13,6 +13,7 @@ struct OrbitFeedbackView: View {
     var showsChatAlert = true
     var onOpenChat: () -> Void = {}
     var onHelpOffered: (IncomingSOSAlert) -> Void = { _ in }
+    var onDeepLink: ((URL) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -39,8 +40,16 @@ struct OrbitFeedbackView: View {
                     onOpen: onOpenChat, onDismiss: dismissChatAlert)
                     .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             } else if let banner = notifications?.banner {
-                NotificationBannerView(title: banner.title, message: banner.body, icon: banner.icon)
-                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                Button {
+                    if let url = banner.deepLinkURL {
+                        onDeepLink?(url)
+                    }
+                    notifications?.dismissBanner()
+                } label: {
+                    NotificationBannerView(title: banner.title, message: banner.body, icon: banner.icon)
+                }
+                .buttonStyle(.plain)
+                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
         }
         .padding(.horizontal)
