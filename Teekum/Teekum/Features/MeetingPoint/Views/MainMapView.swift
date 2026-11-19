@@ -6,29 +6,40 @@
 //
 
 import SwiftUI
-import MapKit
 
 struct MainMapView: View {
     @State private var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
     @Binding var selectedTarget: OrbitSceneView.Target?
+    var connectivity: ConnectivityMonitor? = nil
+    var offlineMaps: OfflineMapManager? = nil
     @Environment(\.dismiss) private var dismiss
     
     init(
         sessionStore: SessionStore,
         meetingService: MeetingPointService? = nil,
         location: LocationService? = nil,
-        selectedTarget: Binding<OrbitSceneView.Target?> = .constant(nil)
+        selectedTarget: Binding<OrbitSceneView.Target?> = .constant(nil),
+        connectivity: ConnectivityMonitor? = nil,
+        offlineMaps: OfflineMapManager? = nil
     ) {
         _viewModel = State(initialValue: MeetingPointViewModel(sessionStore: sessionStore, meetingService: meetingService))
         self.location = location
         self._selectedTarget = selectedTarget
+        self.connectivity = connectivity
+        self.offlineMaps = offlineMaps
     }
     
     var body: some View {
         ZStack(alignment: .bottom){
             // MAP Section
-            MapLayerView(viewModel: viewModel, location: location, selectedTarget: $selectedTarget)
+            MapLayerView(
+                viewModel: viewModel,
+                location: location,
+                selectedTarget: $selectedTarget,
+                connectivity: connectivity,
+                offlineMaps: offlineMaps
+            )
             
             VStack {
                 HStack {
@@ -98,7 +109,6 @@ struct MainMapView: View {
         }
         
     }
-    
 }
 
 #Preview {

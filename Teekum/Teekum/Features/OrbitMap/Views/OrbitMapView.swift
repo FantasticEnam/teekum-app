@@ -229,7 +229,9 @@ struct OrbitMapView: View {
                     sessionStore: viewModel.sessionStore,
                     meetingService: meetingService,
                     location: location,
-                    selectedTarget: $selectedTarget
+                    selectedTarget: $selectedTarget,
+                    connectivity: connectivity,
+                    offlineMaps: offlineMaps
                 )
             case .friends:
                 GeometryReader { geometry in
