@@ -15,8 +15,35 @@ struct AgreementView: View {
     var errorMessage: String? = nil
     var isPublicFestivalMesh = false
     var onAgree: () -> Void = {}
+
+    @State private var hasAgreed = false
+    @State private var hasReachedAgreementEnd = false
     
     var body: some View {
+        ViewThatFits(in: .vertical) {
+            agreementContent(cardScrolls: true)
+            ScrollView {
+                agreementContent(cardScrolls: false)
+            }
+        }
+        .frame(maxWidth: 400)
+        .padding(.horizontal, 42)
+        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity)
+        .foregroundStyle(.white)
+        .background {
+            RadialGradient(
+                colors: [Color(white: 0.09), Color(white: 0.09), .black],
+                center: .center,
+                startRadius: 40,
+                endRadius: 405
+            )
+            .ignoresSafeArea()
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func agreementContent(cardScrolls: Bool) -> some View {
         VStack(spacing: 13) {
             HeadAgreement(profileColor: form.profileColor.color)
             VStack {
@@ -36,28 +63,13 @@ struct AgreementView: View {
                     .padding(.vertical)
             }
             
-            CardAgreement(
-                title: "Community-Powered Mesh Network",
-                description: "Your device helps pass messages between nearby participating devices.",
-                icon: "point.3.connected.trianglepath.dotted"
-            )
-            CardAgreement(
-                title: "Encrypted by Design",
-                description: "Your messages stay private with ChaCha20-Poly1305 encryption.",
-                icon: "lock.shield"
-            )
-            CardAgreement(
-                title: "Battery-Aware Protection",
-                description: "Limits network activity to help save battery, with automatic safeguards to manage power usage.",
-                icon: "battery.100percent.bolt"
-            )
-            CardAgreement(
-                title: "Stay Connected",
-                description: "Keep up with your group's activity through handy iOS features like Live Activities.",
-                icon: "square.3.layers.3d"
-            )
+            CardAgreement(isScrollable: cardScrolls) {
+                hasReachedAgreementEnd = true
+            }
             
             FooterAgreement(
+                hasAgreed: $hasAgreed,
+                canCheckAgreement: hasReachedAgreementEnd,
                 termsOfUseURL: termsOfUseURL,
                 privacyPolicyURL: privacyPolicyURL,
                 onAgree: onAgree
@@ -69,23 +81,6 @@ struct AgreementView: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: 400)
-        .padding(.horizontal, 42)
-        .padding(.top, 20)
-        .padding(.bottom, 24)
-        .frame(maxWidth: .infinity)
-        
-        .foregroundStyle(.white)
-        .background {
-            RadialGradient(
-                colors: [Color(white: 0.09), Color(white: 0.09), .black],
-                center: .center,
-                startRadius: 40,
-                endRadius: 405
-            )
-            .ignoresSafeArea()
-        }
-        .preferredColorScheme(.dark)
     }
 }
 

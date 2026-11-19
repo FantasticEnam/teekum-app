@@ -8,7 +8,7 @@
 import SwiftUI
 
 enum PairingProfileColor: String, CaseIterable, Identifiable, Codable {
-    case yellow, red, green, purple, pink
+    case yellow, green, blue, purple, pink, red
 
     var id: String { rawValue }
 
@@ -20,6 +20,7 @@ enum PairingProfileColor: String, CaseIterable, Identifiable, Codable {
         case .red: .reddish
         case .green: .greenishTeal
         case .yellow: .yellow
+        case .blue: .blue
         case .purple: .purple
         case .pink: .pink
         }

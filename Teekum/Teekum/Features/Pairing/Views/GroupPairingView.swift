@@ -89,7 +89,7 @@ struct GroupPairingView: View {
                 )
                     .padding(.bottom, 10)
 
-                Text("Make sure your initials are NOT the same as anyone else's")
+                Text("Keep it unique within your group.")
                     .font(.custom("Helvetica", size: 11, relativeTo: .caption2))
                     .padding(.bottom, 10)
 
