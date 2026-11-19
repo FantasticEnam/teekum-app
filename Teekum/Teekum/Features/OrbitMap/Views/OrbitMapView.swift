@@ -131,7 +131,7 @@ struct OrbitMapView: View {
         }
         .overlay(alignment: .top) {
             OrbitFeedbackView(sos: sos, notifications: notifications,
-                showsChatAlert: !isShowingChat, onOpenChat: openChat, onHelpOffered: followSOS)
+                showsChatAlert: !isShowingChat, onOpenChat: openChat, onHelpOffered: followSOS, onDeepLink: handleDeepLink)
         }
         .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         .disabled(isLeavingGroup)
@@ -163,8 +163,7 @@ struct OrbitMapView: View {
         }
         .onChange(of: viewModel.sessionStore.pendingDeepLink, initial: true) { _, url in
             guard let url else { return }
-            if url.host == "meeting" { activeModal = .mapPoint }
-            if url.host == "sos", let alert = sos?.incomingAlert { selectedTarget = .member(alert.senderInitials) }
+            handleDeepLink(url)
             viewModel.sessionStore.pendingDeepLink = nil
         }
         .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
@@ -172,7 +171,7 @@ struct OrbitMapView: View {
                 ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
                     .safeAreaInset(edge: .top) {
                         OrbitFeedbackView(sos: sos, notifications: notifications,
-                            showsChatAlert: false, onHelpOffered: followSOS)
+                            showsChatAlert: false, onHelpOffered: followSOS, onDeepLink: handleDeepLink)
                     }
                     .overlay { SOSEdgeGlowView(sos: sos) }
             }
@@ -269,7 +268,7 @@ struct OrbitMapView: View {
                 }
             } }
             .safeAreaInset(edge: .top) {
-                OrbitFeedbackView(sos: sos, notifications: notifications, onOpenChat: openChat, onHelpOffered: followSOS)
+                OrbitFeedbackView(sos: sos, notifications: notifications, onOpenChat: openChat, onHelpOffered: followSOS, onDeepLink: handleDeepLink)
             }
             .overlay { SOSEdgeGlowView(sos: sos) }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
@@ -391,6 +390,30 @@ struct OrbitMapView: View {
         sos?.recordUserInteraction()
         let target = OrbitSceneView.Target.meetingPoint(id)
         selectedTarget = selectedTarget == target ? nil : target
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "teekum" else { return }
+        switch url.host {
+        case "meeting":
+            activeModal = .mapPoint
+        case "sos":
+            if let member = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "member" })?.value {
+                selectedTarget = .member(member)
+            } else if let alert = sos?.incomingAlert {
+                selectedTarget = .member(alert.senderInitials)
+            }
+        case "follow":
+            if let initials = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "initials" })?.value {
+                selectedTarget = .member(initials)
+            }
+        case "chat":
+            openChat()
+        case "orbit":
+            if activeModal != nil { activeModal = nil }
+        default:
+            break
+        }
     }
 }
 

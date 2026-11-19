@@ -13,9 +13,10 @@ import UIKit
 @MainActor
 @Observable
 final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
-    private(set) var banner: (title: String, body: String, icon: String)?
+    private(set) var banner: (title: String, body: String, icon: String, deepLinkURL: URL?)?
     private(set) var chatAlert: (sender: String, body: String)?
     private(set) var groupActivity: (message: String, memberID: String)?
+    var onOpenURL: (@MainActor (URL) -> Void)?
     private var dismissTask: Task<Void, Never>?
 
     override init() {
@@ -29,9 +30,10 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     func notify(title: String, body: String, showBanner: Bool = true,
                 icon: String = "bell.fill",
-                interruptionLevel: UNNotificationInterruptionLevel = .active) {
+                interruptionLevel: UNNotificationInterruptionLevel = .active,
+                deepLinkURL: URL? = nil) {
         if showBanner {
-            showMessage(body, title: title, icon: icon)
+            showMessage(body, title: title, icon: icon, deepLinkURL: deepLinkURL)
         }
         guard UIApplication.shared.applicationState != .active else { return }
         let content = UNMutableNotificationContent()
@@ -39,6 +41,9 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         content.body = body
         content.sound = .default
         content.interruptionLevel = interruptionLevel
+        if let deepLinkURL {
+            content.userInfo["deepLinkURL"] = deepLinkURL.absoluteString
+        }
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
@@ -59,16 +64,21 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         } else {
             dismissChatAlert()
         }
-        notify(title: sender, body: body, showBanner: false)
+        notify(title: sender, body: body, showBanner: false, deepLinkURL: URL(string: "teekum://chat"))
     }
 
     func dismissChatAlert() {
         chatAlert = nil
     }
 
+    func dismissBanner() {
+        banner = nil
+    }
+
     private func showMessage(_ text: String, memberID: String? = nil, chatSender: String? = nil,
-                             title: String? = nil, icon: String = "bell.fill") {
-        banner = title.map { ($0, text, icon) }
+                             title: String? = nil, icon: String = "bell.fill",
+                             deepLinkURL: URL? = nil) {
+        banner = title.map { ($0, text, icon, deepLinkURL) }
         chatAlert = chatSender.map { ($0, text) }
         groupActivity = memberID.map { (text, $0) }
         dismissTask?.cancel()
@@ -93,5 +103,15 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
         willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound]
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse) async {
+        if let urlString = response.notification.request.content.userInfo["deepLinkURL"] as? String,
+           let url = URL(string: urlString) {
+            await MainActor.run {
+                self.onOpenURL?(url)
+            }
+        }
     }
 }

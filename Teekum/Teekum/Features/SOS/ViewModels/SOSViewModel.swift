@@ -125,9 +125,10 @@ final class SOSViewModel {
         }
     }
 
-    func acknowledgeIncomingAlert(_ alert: IncomingSOSAlert, onAcknowledged: () -> Void = {}) async {
-        guard incomingAlert?.id == alert.id, incomingAlert?.senderInitials == alert.senderInitials else { return }
-        let event = SOSResolvedPayload(senderInitials: alert.senderInitials, eventId: alert.id)
+    func acknowledgeIncomingAlert(_ alert: IncomingSOSAlert? = nil) async {
+        guard let targetAlert = alert ?? incomingAlert else { return }
+        guard incomingAlert?.id == targetAlert.id, incomingAlert?.senderInitials == targetAlert.senderInitials else { return }
+        let event = SOSResolvedPayload(senderInitials: targetAlert.senderInitials, eventId: targetAlert.id)
         incomingAlert = nil
         recordUserInteraction()
         onAcknowledged()

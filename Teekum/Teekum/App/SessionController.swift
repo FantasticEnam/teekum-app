@@ -70,11 +70,15 @@ final class SessionController {
         sos = SOSViewModel(engine: sosEngine, locationService: location, sessionProvider: { holder.session })
         meeting = MeetingPointService(sessionStore: store, cryptoService: crypto, transport: transport,
             sequenceAllocator: sequences)
+        notifications.onOpenURL = { [weak self] url in
+            self?.handleURL(url)
+        }
         sos.onIncomingAlert = { [weak self] alert in
             guard let self, holder.session != nil else { return }
             store.setEmergency(true, for: alert.senderInitials)
             notifications.notify(title: "SOS from \(alert.senderInitials)", body: alert.emergencyType.title,
-                                 showBanner: false, interruptionLevel: .timeSensitive)
+                                 showBanner: false, interruptionLevel: .timeSensitive,
+                                 deepLinkURL: URL(string: "teekum://sos?member=\(alert.senderInitials)"))
         }
         sos.onIncomingSOSResolved = { [weak store] initials in
             store?.setEmergency(false, for: initials)
@@ -317,10 +321,12 @@ final class SessionController {
                     switch update.action {
                     case .propose:
                         notifications.notify(title: "Meeting Point Set!", body: "\(update.senderInitials) set up a new meeting point!",
-                            icon: "mappin.and.ellipse")
+                            icon: "mappin.and.ellipse", interruptionLevel: .active,
+                            deepLinkURL: URL(string: "teekum://meeting"))
                     case .cancel:
                         notifications.notify(title: "Meeting Point Cancelled", body: "\(update.senderInitials) cancelled the meeting point.",
-                            icon: "mappin.and.ellipse")
+                            icon: "mappin.slash", interruptionLevel: .active,
+                            deepLinkURL: URL(string: "teekum://meeting"))
                     case .accept, .decline:
                         break
                     }
@@ -335,14 +341,33 @@ final class SessionController {
                 }
             }, onSOSResolved: { [weak self] event in
                 guard let self, generation == current else { return }
+                notifications.notify(
+                    title: "SOS Resolved",
+                    body: "\(event.senderInitials) has resolved their emergency alert.",
+                    icon: "checkmark.circle.fill",
+                    interruptionLevel: .timeSensitive,
+                    deepLinkURL: URL(string: "teekum://orbit")
+                )
                 await sos.acceptResolution(event)
             }, onFollow: { [weak self] intent in
                 guard let self, generation == current else { return }
                 if let eventId = intent.sosEventId {
                     sos.receiveHelper(intent.senderInitials, eventId: eventId)
+                    notifications.notify(
+                        title: "Helper on the way!",
+                        body: "\(intent.senderInitials) is heading to help you!",
+                        icon: "figure.walk.motion",
+                        interruptionLevel: .timeSensitive,
+                        deepLinkURL: URL(string: "teekum://sos?member=\(intent.senderInitials)")
+                    )
                 } else {
-                    notifications.notify(title: "\(intent.senderInitials) followed you",
-                        body: "Stay where you are so they can find you.", icon: "person.2.fill")
+                    notifications.notify(
+                        title: "\(intent.senderInitials) followed you",
+                        body: "Stay where you are so they can find you.",
+                        icon: "person.2.fill",
+                        interruptionLevel: .active,
+                        deepLinkURL: URL(string: "teekum://follow?initials=\(intent.senderInitials)")
+                    )
                 }
             })
     }
@@ -403,7 +428,7 @@ final class SessionController {
 
     func handleURL(_ url: URL) {
         if url.scheme == "teekum", url.host == "session" { leave(); return }
-        if url.scheme == "teekum", ["meeting", "sos"].contains(url.host ?? ""), store.hasActiveSession {
+        if url.scheme == "teekum", ["meeting", "sos", "follow", "chat", "orbit"].contains(url.host ?? ""), store.hasActiveSession {
             store.pendingDeepLink = url
             return
         }
