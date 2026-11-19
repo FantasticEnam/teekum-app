@@ -7,44 +7,6 @@
 
 import Foundation
 
-public struct ChatACKPayload: Equatable, Sendable {
-    public var ackedSeqNumber: UInt32
-    public var ackedSenderInitials: String
-    public var ackStatus: ACKStatus
-    public var receivedRssi: Int8
-
-    public init(
-        ackedSeqNumber: UInt32,
-        ackedSenderInitials: String,
-        ackStatus: ACKStatus,
-        receivedRssi: Int8
-    ) {
-        self.ackedSeqNumber = ackedSeqNumber
-        self.ackedSenderInitials = InitialsCodec.sanitize(ackedSenderInitials)
-        self.ackStatus = ackStatus
-        self.receivedRssi = receivedRssi
-    }
-}
-
-public struct SOSACKPayload: Equatable, Sendable {
-    public var sosEventId: UInt32
-    public var distressedSenderInitials: String
-    public var ackStatus: ACKStatus
-    public var receivedRssi: Int8
-
-    public init(
-        sosEventId: UInt32,
-        distressedSenderInitials: String,
-        ackStatus: ACKStatus,
-        receivedRssi: Int8
-    ) {
-        self.sosEventId = sosEventId
-        self.distressedSenderInitials = InitialsCodec.sanitize(distressedSenderInitials)
-        self.ackStatus = ackStatus
-        self.receivedRssi = receivedRssi
-    }
-}
-
 public enum ACKPayload: Equatable, Sendable {
     case chat(ChatACKPayload, timestamp: Date, responderInitials: String)
     case sos(SOSACKPayload, timestamp: Date, responderInitials: String)
