@@ -21,6 +21,8 @@ struct MapboxMapCanvasView: View {
     )
     @State private var hasInitialCentered: Bool = false
     @State private var mapBearing: Double = 0
+    @State private var currentCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
+    @State private var currentZoom: CGFloat = 15
     
     // Follow Alerts
     @State private var memberToFollow: Member? = nil
@@ -102,14 +104,22 @@ struct MapboxMapCanvasView: View {
             .ornamentOptions(
                 OrnamentOptions(
                     compass: CompassViewOptions(
+                        visibility: .hidden
+                    ),
+                    logo: LogoViewOptions(
                         position: .bottomLeading,
-                        margins: CGPoint(x: 20, y: 70),
-                        visibility: .visible
+                        margins: CGPoint(x: 24, y: 16)
+                    ),
+                    attributionButton: AttributionButtonOptions(
+                        position: .bottomTrailing,
+                        margins: CGPoint(x: -1000, y: -1000)
                     )
                 )
             )
             .onCameraChanged { cameraChanged in
                 mapBearing = cameraChanged.cameraState.bearing
+                currentCenter = cameraChanged.cameraState.center
+                currentZoom = cameraChanged.cameraState.zoom
             }
             
             .safeAreaPadding(.top, 56)
@@ -138,6 +148,7 @@ struct MapboxMapCanvasView: View {
         .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
             guard !hasInitialCentered, let newCoord else { return }
             hasInitialCentered = true
+            currentCenter = newCoord
             viewport = .camera(center: newCoord, zoom: 15)
         }
         .onChange(of: location?.currentHeading) { _, _ in }
@@ -145,6 +156,7 @@ struct MapboxMapCanvasView: View {
             location?.setTacticalRadarActive(true)
             if let userCoord = location?.currentLocation?.coordinate {
                 viewport = .camera(center: userCoord, zoom: 15)
+                currentCenter = userCoord
                 hasInitialCentered = true
             }
         }
@@ -211,6 +223,69 @@ struct MapboxMapCanvasView: View {
     @ViewBuilder
     private var floatingControls: some View {
         HStack(alignment: .bottom) {
+            // Tombol Kompas (Pojok Kiri Bawah, Style & Ukuran Sama Persis dengan Floating Controls)
+            Button {
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    viewport = .camera(
+                        center: currentCenter,
+                        zoom: currentZoom,
+                        bearing: 0
+                    )
+                }
+            } label: {
+                ZStack {
+                    // Cincin dial kompas halus
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8)
+                        .frame(width: 26, height: 26)
+                    
+                    // Jarum kompas berotasi mengarah ke Utara
+                    VStack(spacing: 2) {
+                        Text("N")
+                            .font(.system(size: 7, weight: .black, design: .rounded))
+                            .foregroundStyle(Color(red: 0.95, green: 0.22, blue: 0.22))
+                        
+                        VStack(spacing: 0) {
+                            // Jarum Utara (Merah)
+                            Image(systemName: "triangle.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 6, height: 9)
+                                .foregroundStyle(Color(red: 0.95, green: 0.22, blue: 0.22))
+                            
+                            // Jarum Selatan (Putih)
+                            Image(systemName: "triangle.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .rotationEffect(.degrees(180))
+                                .frame(width: 6, height: 9)
+                                .foregroundStyle(Color.white.opacity(0.85))
+                        }
+                        
+                        // Penyeimbang simetris agar poros putar tepat di tengah
+                        Text("N")
+                            .font(.system(size: 7, weight: .black, design: .rounded))
+                            .opacity(0)
+                    }
+                    .rotationEffect(.degrees(-mapBearing))
+                    
+                    // Titik poros tengah putih
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 3, height: 3)
+                }
+                .frame(width: 42, height: 42)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .overlay {
+                Circle()
+                    .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
+            }
+            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+            .accessibilityLabel("Reset North Orientation")
+            .padding(.leading, 16)
+            
             Spacer()
             
             // Tombol Pusatkan Ulang ke Posisi User
@@ -233,9 +308,10 @@ struct MapboxMapCanvasView: View {
                     .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
             }
             .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+            .accessibilityLabel("Recenter to user location")
             .padding(.trailing, 16)
-            .padding(.bottom, 60)
         }
+        .padding(.bottom, 60)
     }
     
     // MARK: - Helpers
