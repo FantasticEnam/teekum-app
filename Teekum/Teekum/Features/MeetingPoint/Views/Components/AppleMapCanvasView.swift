@@ -110,6 +110,8 @@ struct AppleMapCanvasView: View {
                     mapHeading = context.camera.heading
                 }
                 .safeAreaPadding(.top, 56)
+                .safeAreaPadding(.bottom, 24)
+                .safeAreaPadding(.leading, 16)
                 .ignoresSafeArea()
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0, coordinateSpace: .local)
@@ -132,17 +134,16 @@ struct AppleMapCanvasView: View {
             HStack(alignment: .bottom) {
                 MapCompass(scope: mapScope)
                     .mapControlVisibility(.visible)
-                    .scaleEffect(1.17)
+                    .scaleEffect(1.2)
                     .frame(width: 42, height: 42)
-                    .offset(y: -10)
-                    .padding(.leading, 20)
+                    .padding(.leading, 24)
                 
                 Spacer()
                 
                 mapFloatingButtons
                     .padding(.trailing, 16)
             }
-            .padding(.bottom, 60)
+            .padding(.bottom, 40)
         }
         .overlay(alignment: .topLeading) {
             MapScaleView(scope: mapScope)
