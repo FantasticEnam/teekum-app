@@ -227,7 +227,11 @@ final class ChatSOSMigrationTests: XCTestCase {
         let result = await XCTWaiter.fulfillment(of: [received], timeout: 2)
         XCTAssertEqual(result, .completed)
         XCTAssertTrue(model.showsEdgeGlow)
-        await model.acknowledgeIncomingAlert()
+        let alert = try XCTUnwrap(model.incomingAlert)
+        await model.acknowledgeIncomingAlert(alert)
+        var helpOffers = 0
+        await model.acknowledgeIncomingAlert(alert) { helpOffers += 1 }
+        XCTAssertEqual(helpOffers, 0)
         XCTAssertNil(model.incomingAlert)
         XCTAssertTrue(model.showsEdgeGlow)
         XCTAssertEqual(audio.reminderCount, 1)
@@ -243,6 +247,22 @@ final class ChatSOSMigrationTests: XCTestCase {
         XCTAssertEqual(audio.stopCount, 1)
         try await engine.handleInboundSOSPacket(rawPacket: packet, fromPeerId: "ALX")
         XCTAssertNil(model.incomingAlert)
+
+        model.onIncomingAlert = nil
+        var nextSOS = payload
+        nextSOS.sosEventId = 78
+        let nextWire = try await crypto.sealToWireBytes(payload: nextSOS.serialize(), envelope:
+            CleartextEnvelope(type: .sos, sessionId: session.sessionId, sequenceNumber: 0x01000003),
+            using: SymmetricKey(data: session.symmetricKeyData))
+        try await engine.handleInboundSOSPacket(rawPacket: RawWirePacket.fromWireData(nextWire), fromPeerId: "ALX")
+        let nextAlert = try XCTUnwrap(model.incomingAlert)
+        await model.acknowledgeIncomingAlert(nextAlert) { helpOffers += 1 }
+        XCTAssertEqual(helpOffers, 1)
+        XCTAssertNil(model.incomingAlert)
+        XCTAssertTrue(model.showsEdgeGlow)
+        XCTAssertEqual(audio.reminderCount, 2)
+        await model.acceptResolution(.init(senderInitials: "ALX", eventId: 78))
+        XCTAssertFalse(model.showsEdgeGlow)
 
         model.triggerSOS()
         XCTAssertTrue(model.showsEdgeGlow)
