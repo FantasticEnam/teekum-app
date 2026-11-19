@@ -16,6 +16,10 @@ struct OrbitUserMarkerView: View {
     var batteryLevel: Float?
     @ScaledMetric(relativeTo: .caption) private var size: CGFloat = 36
 
+    static func arrowTopOffset(isTargetSelected: Bool) -> CGFloat {
+        isTargetSelected ? 60 : 45
+    }
+
     var body: some View {
         Circle()
             .fill(isEmergency ? Color.alertRed : color)
@@ -46,14 +50,11 @@ struct OrbitUserMarkerView: View {
     @ViewBuilder
     private var directionArrow: some View {
         if let heading {
+            let frameSize = Self.arrowTopOffset(isTargetSelected: isTargetSelected) * 2
             Image(systemName: "location.north.fill")
                 .font(.system(size: isTargetSelected ? 30 : 20, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(
-                    width: isTargetSelected ? 120 : 90,
-                    height: isTargetSelected ? 120 : 90,
-                    alignment: .top
-                )
+                .frame(width: frameSize, height: frameSize, alignment: .top)
                 .rotationEffect(heading)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)

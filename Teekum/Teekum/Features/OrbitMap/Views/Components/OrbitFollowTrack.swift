@@ -51,7 +51,7 @@ struct OrbitFollowTrack: View {
                     Text("Waiting for location")
                 }
             }
-            .font(.caption)
+            .font(.footnote)
             .monospacedDigit()
             .foregroundStyle(.white)
             .lineLimit(1)
@@ -64,4 +64,21 @@ struct OrbitFollowTrack: View {
         }
         .accessibilityHidden(true)
     }
+}
+
+#Preview("Distance progress and waiting for location") {
+    @Previewable @State var distance = 12.0
+
+    VStack(spacing: 16) {
+        OrbitFollowTrack(nickname: "NIC", distance: distance)
+            .frame(height: 44)
+        Slider(value: $distance, in: 0...12)
+            .accessibilityLabel("Distance in meters")
+        OrbitFollowTrack(nickname: "NIC", distance: nil)
+            .frame(height: 44)
+    }
+    .frame(width: 240)
+    .padding(24)
+    .background(Color.blackCard)
+    .preferredColorScheme(.dark)
 }

@@ -31,3 +31,20 @@ nonisolated struct OrbitFollowTrackReveal: ViewModifier, Animatable {
         }
     }
 }
+
+#Preview("Follow Track Reveal") {
+    @Previewable @State var isRevealed = true
+
+    VStack(spacing: 16) {
+        OrbitFollowTrack(nickname: "NIC", distance: 12)
+            .frame(height: 44)
+            .modifier(OrbitFollowTrackReveal(progress: isRevealed ? 1 : 0))
+        Button(isRevealed ? "Hide track" : "Reveal track") {
+            withAnimation(.smooth(duration: 0.35)) { isRevealed.toggle() }
+        }
+    }
+    .frame(width: 240)
+    .padding(24)
+    .background(Color.blackCard)
+    .preferredColorScheme(.dark)
+}
