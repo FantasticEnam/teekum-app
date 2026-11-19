@@ -23,6 +23,7 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
     case yellow           = 0x09
     case purple           = 0x0A
     case pink             = 0x0B
+    case blue             = 0x0C
     
     public var id: UInt8 { rawValue }
     
@@ -40,6 +41,7 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
         case .yellow:         return "Yellow"
         case .purple:         return "Purple"
         case .pink:           return "Pink"
+        case .blue:           return "Blue"
         }
     }
         
@@ -54,12 +56,13 @@ public enum MemberColor: UInt8, CaseIterable, Identifiable, Sendable {
         case .artyClickOrange, .apricot, .yellow: return .yellowProfile
         case .sandrift, .paleBlueLily, .darkSkyBlue, .purple: return .purpleProfile
         case .greenishTeal: return .greenProfile
+        case .blue: return .blueProfile
         }
     }
     
     /// Explicit profile colors available to select.
     public static var selectableColors: [MemberColor] {
-        [.yellow, .reddish, .greenishTeal, .purple, .pink]
+        [.yellow, .greenishTeal, .blue, .purple, .pink, .reddish]
     }
     
     /// Resolves the color code into a specific `MemberColor`.

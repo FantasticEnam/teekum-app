@@ -55,29 +55,29 @@ final class ChatSOSMigrationTests: XCTestCase {
     }
 
     @MainActor
-    func testChatNameColorsDistinguishYellowFromCreamAcrossV3Payloads() throws {
-        let cream = PairingProfileColor.cream
-        let yellow = PairingProfileColor.yellow
-        XCTAssertEqual(cream.wireColorCode, 0x04)
-        XCTAssertEqual(yellow.wireColorCode, 0x09)
+    func testProfileColorsRoundTripAcrossV3Payloads() throws {
+        let codes = PairingProfileColor.allCases.map(\.wireColorCode)
+        XCTAssertEqual(codes, [0x09, 0x08, 0x0C, 0x0A, 0x0B, 0x01])
+        XCTAssertEqual(codes, MemberColor.selectableColors.map(\.rawValue))
+        XCTAssertEqual(MemberColor.resolve(code: 0x04, initials: "ALX"), .apricot)
 
         let session = GroupSession(localInitials: "ALX", localColorCode: PairingProfileColor.purple.wireColorCode)
         let store = SessionStore(activeSession: session)
         XCTAssertEqual(store.profileColor(for: "ALX"), .purple)
         XCTAssertEqual(store.profileColor(for: "BOB"), .deterministicColor(for: "BOB"))
 
-        let yellow = PairingProfileColor.yellow
+        let blue = PairingProfileColor.blue
         let pink = PairingProfileColor.pink
         let coordinate = CLLocationCoordinate2D(latitude: 1, longitude: 2)
         let ping = LocationPingPayload(coordinate: coordinate, accuracy: 5, senderInitials: "BOB",
-            batteryLevel: 84, colorCode: yellow.wireColorCode).serialize()
+            batteryLevel: 84, colorCode: blue.wireColorCode).serialize()
         XCTAssertEqual(ping.count, 30)
-        XCTAssertEqual(ping[17], 0x09)
+        XCTAssertEqual(ping[17], 0x0C)
         let packet = RawWirePacket(envelope: .init(type: .locationPing, sessionId: session.sessionId, sequenceNumber: 1),
             ciphertext: Data(), authTag: Data())
         store.applyLocationPing(try LocationPingPayload.deserialize(from: ping),
             inbound: InboundPacket(rawPacket: packet, sourcePeerId: "BOB"))
-        XCTAssertEqual(store.profileColor(for: "BOB"), .yellow)
+        XCTAssertEqual(store.profileColor(for: "BOB"), .blue)
         XCTAssertNotEqual(store.profileColor(for: "BOB").swiftUIColor, store.profileColor(for: "ALX").swiftUIColor)
 
         let sos = SOSPayload(coordinate: coordinate, accuracy: 5, sosEventId: 1, senderInitials: "BOB",
