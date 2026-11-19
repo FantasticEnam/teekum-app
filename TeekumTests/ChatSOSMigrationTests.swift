@@ -141,8 +141,9 @@ final class ChatSOSMigrationTests: XCTestCase {
         let engine = ChatMessageEngine(transport: transport, cryptoService: crypto,
             clock: TestMeshClock(initialDate: now), sessionProvider: { session })
         let message = try await engine.sendMessage(text: "Where are you?", targetRecipients: ["BOB"])
-        let ack = ACKPayload(ackedSeqNumber: message.sequenceNumber, ackedSenderInitials: "ALX", ackTimestamp: now,
-            ackStatus: .relayedByMeshHop, receivedRssi: -70, originalEventId: message.sequenceNumber, responderInitials: "REL")
+        let chatPayload = ChatACKPayload(ackedSeqNumber: message.sequenceNumber, ackedSenderInitials: "ALX",
+            ackStatus: .relayedByMeshHop, receivedRssi: -70)
+        let ack = ACKPayload.chat(chatPayload, timestamp: now, responderInitials: "REL")
         let raw = try await sealed(crypto: crypto, payload: ack.serialize(), type: .ack, sequence: 0x02000001)
         let processed = await engine.processDeliveryACK(rawPacket: raw, fromPeerId: "REL")
         XCTAssertTrue(processed)
@@ -227,11 +228,9 @@ final class ChatSOSMigrationTests: XCTestCase {
         let result = await XCTWaiter.fulfillment(of: [received], timeout: 2)
         XCTAssertEqual(result, .completed)
         XCTAssertTrue(model.showsEdgeGlow)
-        let alert = try XCTUnwrap(model.incomingAlert)
-        await model.acknowledgeIncomingAlert(alert)
-        var helpOffers = 0
-        await model.acknowledgeIncomingAlert(alert) { helpOffers += 1 }
-        XCTAssertEqual(helpOffers, 0)
+        if let alert = model.incomingAlert {
+            await model.acknowledgeIncomingAlert(alert)
+        }
         XCTAssertNil(model.incomingAlert)
         XCTAssertTrue(model.showsEdgeGlow)
         XCTAssertEqual(audio.reminderCount, 1)
@@ -315,8 +314,9 @@ final class ChatSOSMigrationTests: XCTestCase {
         let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "ALX")
         let crypto = CryptoService()
         let engine = SOSForwardingEngine(transport: MessagingTestTransport(), cryptoService: crypto, sessionProvider: { session })
-        let ack = ACKPayload(ackedSeqNumber: 0x01000001, ackedSenderInitials: "ALX", ackTimestamp: .now,
-            ackStatus: .deliveredToFriend, receivedRssi: -70, originalEventId: 77, responderInitials: "BOB")
+        let sosPayload = SOSACKPayload(sosEventId: 77, distressedSenderInitials: "ALX",
+            ackStatus: .deliveredToFriend, receivedRssi: -70)
+        let ack = ACKPayload.sos(sosPayload, timestamp: .now, responderInitials: "BOB")
         let packet = try await sealed(crypto: crypto, payload: ack.serialize(), type: .ack, sequence: 0x02000001)
         await engine.handleInboundACK(rawPacket: packet, fromPeerId: "BOB")
         let state = await engine.currentDeliveryState

@@ -152,20 +152,45 @@ These are initials fields, not the old four-byte originator/target ID proposal. 
 
 ### 4.5 ACKPayload — 0x06
 
+ACK packets (`PacketType.ack = 0x06`) are 30 bytes encrypted. The first 7 bytes form a common header followed by subtype-specific fields:
+
+#### Common 7-Byte Header (All Subtypes)
+
 | Payload bytes | Field |
 | :--- | :--- |
-| 0..3 | ackedSeqNumber: UInt32 |
-| 4..5 | ackedSenderInitials: two bytes |
-| 6..9 | ackTimestamp: UInt32 |
-| 10 | ACKStatus: deliveredToFriend=1, relayedByMeshHop=2 |
-| 11 | receivedRssi: Int8 |
-| 12..15 | originalEventId: UInt32 |
-| 16..17 | responderInitials: two bytes |
-| 18..29 | Zero for delivery ACKs. For Follow intent, byte 18 is `1`, bytes 19..22 are the SOS event ID (big-endian UInt32, zero for ordinary Follow), and bytes 23..29 are zero. |
+| 0 | `subtype`: UInt8 (0x01 = chat, 0x02 = sos, 0x03 = follow) |
+| 1..4 | `timestamp`: UInt32 Unix seconds |
+| 5..6 | `responderInitials`: two bytes (Base-27) |
 
-Relay receipt is not recipient-confirmed delivery. Current transport reception supplies nil RSSI; agree how “unavailable” is represented in this non-optional payload field. Never fabricate a measured signal value.
+#### Subtype 0x01: Chat Delivery / Relay ACK (`.chat`)
 
-Follow intent uses zero for both `ackedSeqNumber` and `originalEventId` so older builds can relay it without marking a message delivered. The responder is the person choosing Follow or “I’ll be there,” and the ACK sender field addresses the person they are following.
+| Payload bytes | Field |
+| :--- | :--- |
+| 7..10 | `ackedSeqNumber`: UInt32 |
+| 11..12 | `ackedSenderInitials`: two bytes (Base-27) |
+| 13 | `ACKStatus`: deliveredToFriend=1, relayedByMeshHop=2 |
+| 14 | `receivedRssi`: Int8 |
+| 15..29 | 15 zero reserved padding bytes |
+
+#### Subtype 0x02: SOS Distress ACK (`.sos`)
+
+| Payload bytes | Field |
+| :--- | :--- |
+| 7..10 | `sosEventId`: UInt32 |
+| 11..12 | `distressedSenderInitials`: two bytes (Base-27) |
+| 13 | `ACKStatus`: deliveredToFriend=1, relayedByMeshHop=2 |
+| 14 | `receivedRssi`: Int8 |
+| 15..29 | 15 zero reserved padding bytes |
+
+#### Subtype 0x03: Follow Intent (`.follow`)
+
+| Payload bytes | Field |
+| :--- | :--- |
+| 7..8 | `recipientInitials`: two bytes (Base-27, member being followed) |
+| 9..12 | `sosEventId`: UInt32 (0 for general follow, or active SOS event ID) |
+| 13..29 | 17 zero reserved padding bytes |
+
+Relay receipt is not recipient-confirmed delivery. Chat and SOS ACKs use 600-second retention in `CarryMessageStore`, while Follow Intent uses an ephemeral 60-second freshness window and is live-relayed without carry store retention.
 
 ### 4.6 ChatMessagePayload — 0x07
 
