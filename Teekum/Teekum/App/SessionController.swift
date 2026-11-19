@@ -6,6 +6,7 @@
 //
 
 import CoreLocation
+import CryptoKit
 import Foundation
 import Observation
 
@@ -312,9 +313,11 @@ final class SessionController {
                 if update.senderInitials != store.activeSession?.localInitials {
                     switch update.action {
                     case .propose:
-                        notifications.notify(title: "Meeting point", body: "\(update.senderInitials) updated the group rendezvous.")
+                        notifications.notify(title: "Meeting Point Set!", body: "\(update.senderInitials) set up a new meeting point!",
+                            icon: "mappin.and.ellipse")
                     case .cancel:
-                        notifications.notify(title: "Meeting point", body: "\(update.senderInitials) cancelled the group rendezvous.")
+                        notifications.notify(title: "Meeting Point Cancelled", body: "\(update.senderInitials) cancelled the meeting point.",
+                            icon: "mappin.and.ellipse")
                     case .accept, .decline:
                         break
                     }
@@ -330,7 +333,31 @@ final class SessionController {
             }, onSOSResolved: { [weak self] event in
                 guard let self, generation == current else { return }
                 await sos.acceptResolution(event)
+            }, onFollow: { [weak self] intent in
+                guard let self, generation == current else { return }
+                if let eventId = intent.sosEventId {
+                    sos.receiveHelper(intent.senderInitials, eventId: eventId)
+                } else {
+                    notifications.notify(title: "\(intent.senderInitials) followed you",
+                        body: "Stay where you are so they can find you.", icon: "person.2.fill")
+                }
             })
+    }
+
+    func sendFollowIntent(to recipient: String, sosEventId: UInt32?) {
+        guard let session = holder.session, session.localInitials != recipient else { return }
+        let current = generation
+        let intent = FollowIntentPayload(senderInitials: session.localInitials, recipientInitials: recipient,
+            sosEventId: sosEventId)
+        Task { [weak self] in
+            guard let self, generation == current else { return }
+            guard let sequence = try? await sequences.next(for: session), generation == current else { return }
+            let envelope = CleartextEnvelope(type: .ack, hopLimit: PacketConstants.sosHopLimit,
+                sessionId: session.sessionId, sequenceNumber: sequence)
+            guard let wire = try? await crypto.sealToWireBytes(payload: intent.serialize(), envelope: envelope,
+                using: SymmetricKey(data: session.symmetricKeyData)), generation == current else { return }
+            try? await transport.broadcastPacket(wire)
+        }
     }
 
     private func acceptPeerUpdate(_ peers: [PeerInfo]) async {

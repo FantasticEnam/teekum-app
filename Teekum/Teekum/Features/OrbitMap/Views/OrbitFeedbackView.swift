@@ -12,6 +12,7 @@ struct OrbitFeedbackView: View {
     var notifications: NotificationService?
     var showsChatAlert = true
     var onOpenChat: () -> Void = {}
+    var onHelpOffered: (IncomingSOSAlert) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -20,13 +21,15 @@ struct OrbitFeedbackView: View {
             if let sos {
                 if let alert = sos.incomingAlert {
                     IncomingSOSAlertBannerView(alert: alert) {
-                        Task { await sos.acknowledgeIncomingAlert() }
+                        onHelpOffered(alert)
+                        Task { await sos.acknowledgeIncomingAlert(alert) }
                     }
                 }
                 InactivityWarningView(guardService: sos.inactivityGuard)
                 if sos.outgoingEventId != nil {
                     ActiveSOSBannerView(deliveryState: sos.deliveryState, isEnding: sos.isResolving,
-                        error: sos.resolutionError, onEnd: sos.endSOS)
+                        error: sos.resolutionError, helperOnTheWay: sos.helperOnTheWay,
+                        onEnd: sos.endSOS, onDismissHelper: sos.dismissHelperOnTheWay)
                 } else {
                     SOSDeliveryStatusView(state: sos.deliveryState, onRetry: sos.retrySOS, onDismiss: sos.dismissDeliveryStatus)
                 }
@@ -35,17 +38,14 @@ struct OrbitFeedbackView: View {
                 ChatNotificationBannerView(sender: alert.sender, message: alert.body,
                     onOpen: onOpenChat, onDismiss: dismissChatAlert)
                     .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
-            } else if let message = notifications?.message {
-                Text(message)
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color.blackCard, in: .rect(cornerRadius: 16))
-                    .accessibilityAddTraits(.updatesFrequently)
+            } else if let banner = notifications?.banner {
+                NotificationBannerView(title: banner.title, message: banner.body, icon: banner.icon)
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
         }
         .padding(.horizontal)
         .animation(.easeOut(duration: 0.2), value: notifications?.chatAlert != nil)
+        .animation(.easeOut(duration: 0.2), value: notifications?.banner != nil)
     }
 
     private func dismissChatAlert() {

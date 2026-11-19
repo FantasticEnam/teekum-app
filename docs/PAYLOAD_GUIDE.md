@@ -161,9 +161,11 @@ These are initials fields, not the old four-byte originator/target ID proposal. 
 | 11 | receivedRssi: Int8 |
 | 12..15 | originalEventId: UInt32 |
 | 16..17 | responderInitials: two bytes |
-| 18..29 | 12 zero reserved bytes |
+| 18..29 | Zero for delivery ACKs. For Follow intent, byte 18 is `1`, bytes 19..22 are the SOS event ID (big-endian UInt32, zero for ordinary Follow), and bytes 23..29 are zero. |
 
 Relay receipt is not recipient-confirmed delivery. Current transport reception supplies nil RSSI; agree how “unavailable” is represented in this non-optional payload field. Never fabricate a measured signal value.
+
+Follow intent uses zero for both `ackedSeqNumber` and `originalEventId` so older builds can relay it without marking a message delivered. The responder is the person choosing Follow or “I’ll be there,” and the ACK sender field addresses the person they are following.
 
 ### 4.6 ChatMessagePayload — 0x07
 

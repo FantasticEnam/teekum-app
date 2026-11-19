@@ -20,6 +20,7 @@ public final class PacketRouter {
     private let onSOS: (SOSPayload, InboundPacket) async -> Void
     private let onSOSResolved: (SOSResolvedPayload) async -> Void
     private let onACK: (InboundPacket) async -> Void
+    private let onFollow: (FollowIntentPayload) -> Void
     private let onMeetingUpdate: (MeetingUpdatePayload) -> Void
     private let onChat: (InboundPacket) async -> Void
     private var isActive = true
@@ -35,7 +36,8 @@ public final class PacketRouter {
         onACK: @escaping (InboundPacket) async -> Void,
         onMeetingUpdate: @escaping (MeetingUpdatePayload) -> Void,
         onChat: @escaping (InboundPacket) async -> Void,
-        onSOSResolved: @escaping (SOSResolvedPayload) async -> Void = { _ in }
+        onSOSResolved: @escaping (SOSResolvedPayload) async -> Void = { _ in },
+        onFollow: @escaping (FollowIntentPayload) -> Void = { _ in }
     ) {
         self.cryptoService = cryptoService
         self.peerTransport = peerTransport
@@ -46,6 +48,7 @@ public final class PacketRouter {
         self.onSOS = onSOS
         self.onSOSResolved = onSOSResolved
         self.onACK = onACK
+        self.onFollow = onFollow
         self.onMeetingUpdate = onMeetingUpdate
         self.onChat = onChat
     }
@@ -81,6 +84,15 @@ public final class PacketRouter {
             guard let ack = try? ACKPayload.deserialize(from: decrypted),
                   abs(Date().timeIntervalSince(ack.ackTimestamp)) <= CarryMessageStore.retention,
                   ack.responderInitials != session.localInitials else { return }
+            if let follow = FollowIntentPayload.decode(decrypted, ack: ack) {
+                guard abs(Date().timeIntervalSince(ack.ackTimestamp)) <= 60,
+                      envelope.memberSlot == MemberID.fromInitials(follow.senderInitials).memberSlot else { return }
+                let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: raw))
+                guard !duplicate, isActive else { return }
+                if follow.recipientInitials == session.localInitials { onFollow(follow) }
+                await relayMeshPacketIfNeeded(inbound, for: session, skipSeenCheck: true)
+                return
+            }
             await onACK(inbound)
             guard isActive else { return }
             await peerTransport.retainReceivedForCarry(raw, excludingPeerId: inbound.sourcePeerId)
