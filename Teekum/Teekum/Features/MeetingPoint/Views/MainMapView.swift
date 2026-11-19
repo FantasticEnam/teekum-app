@@ -56,6 +56,10 @@ struct MainMapView: View {
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .onAppear {
             viewModel.requestLocationPermission()
+            location?.setTacticalRadarActive(true)
+        }
+        .onDisappear {
+            location?.setTacticalRadarActive(false)
         }
         .preferredColorScheme(.dark)
         

@@ -34,7 +34,17 @@ struct AppleMapCanvasView: View {
         ZStack(alignment: .bottomTrailing) {
             MapReader { proxy in
                 Map(position: $cameraPosition, scope: mapScope) {
-                    UserAnnotation()
+                    if let userCoord = location?.currentLocation?.coordinate {
+                        Annotation("User", coordinate: userCoord) {
+                            UserMarkerView(
+                                location: location,
+                                color: viewModel.localProfileColor,
+                                nickname: viewModel.localNickname,
+                                mapHeading: mapHeading
+                            )
+                        }
+                        .annotationTitles(.hidden)
+                    }
                     
                     if let userCoord = location?.currentLocation?.coordinate,
                        let targetCoord = followedCoordinate {
@@ -58,7 +68,7 @@ struct AppleMapCanvasView: View {
                                         color: member.color.swiftUIColor,
                                         isSelected: isSelected,
                                         isEmergency: member.isEmergency,
-                                        size: 22, batteryLevel: member.batteryLevel,
+                                        batteryLevel: member.batteryLevel,
                                         heading: member.heading.map { .degrees($0 - mapHeading) }
                                     )
                                     .overlay(alignment: .bottom) {
@@ -69,7 +79,7 @@ struct AppleMapCanvasView: View {
                                                 .foregroundStyle(.white)
                                                 .fixedSize()
                                                 .shadow(color: .black.opacity(0.8), radius: 2)
-                                                .offset(y: showsBattery ? 34 : 18)
+                                                .offset(y: showsBattery ? 38 : 24)
                                         }
                                     }
                                 }
@@ -149,11 +159,16 @@ struct AppleMapCanvasView: View {
                 cameraPosition = .camera(MapCamera(centerCoordinate: newCoord, distance: 400))
             }
         }
+        .onChange(of: location?.currentHeading) { _, _ in }
         .onAppear {
+            location?.setTacticalRadarActive(true)
             if let userCoord = location?.currentLocation?.coordinate {
                 cameraPosition = .camera(MapCamera(centerCoordinate: userCoord, distance: 400))
                 hasInitialCentered = true
             }
+        }
+        .onDisappear {
+            location?.setTacticalRadarActive(false)
         }
         .alert(
             "Follow \(memberToFollow?.initials ?? "Friend")?",
@@ -240,7 +255,7 @@ struct AppleMapCanvasView: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.4)) {
                     let targetCoord = location?.currentLocation?.coordinate
-                        ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
+                    ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
                     
                     cameraPosition = .camera(
                         MapCamera(
@@ -264,6 +279,24 @@ struct AppleMapCanvasView: View {
             .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
             .accessibilityLabel("Recenter to user location")
         }
+    }
+}
+
+// MARK: - Live User Marker View
+private struct UserMarkerView: View {
+    var location: LocationService?
+    let color: Color
+    let nickname: String
+    let mapHeading: Double
+    
+    var body: some View {
+        let heading = (location?.currentHeading ?? 0) - mapHeading
+        OrbitUserMarkerView(
+            color: color,
+            nickname: nickname,
+            heading: .degrees(heading),
+            batteryLevel: location?.currentBatteryLevel
+        )
     }
 }
 

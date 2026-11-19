@@ -20,6 +20,7 @@ struct MapboxMapCanvasView: View {
         zoom: 15
     )
     @State private var hasInitialCentered: Bool = false
+    @State private var mapBearing: Double = 0
     
     // Follow Alerts
     @State private var memberToFollow: Member? = nil
@@ -43,9 +44,18 @@ struct MapboxMapCanvasView: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Map(viewport: $viewport) {
-                // 1. User Location Puck dengan arah kompas
-                Puck2D(bearing: .heading)
-                    .showsAccuracyRing(true)
+                // 1. User Marker (Warna profil, inisial, dan panah arah)
+                if let userCoord = location?.currentLocation?.coordinate {
+                    MapViewAnnotation(coordinate: userCoord) {
+                        UserMarkerView(
+                            location: location,
+                            color: viewModel.localProfileColor,
+                            nickname: viewModel.localNickname,
+                            mapHeading: mapBearing
+                        )
+                    }
+                    .allowOverlap(true)
+                }
                 
                 // 2. Garis Navigasi ke Member/Target yang diikuti
                 if let userCoord = location?.currentLocation?.coordinate,
@@ -90,14 +100,17 @@ struct MapboxMapCanvasView: View {
                 viewModel.handleMapHold(at: context.coordinate)
             }
             .ornamentOptions(
-                            OrnamentOptions(
-                                compass: CompassViewOptions(
-                                    position: .bottomLeading,
-                                    margins: CGPoint(x: 20, y: 70),
-                                    visibility: .visible
-                                )
-                            )
-                        )
+                OrnamentOptions(
+                    compass: CompassViewOptions(
+                        position: .bottomLeading,
+                        margins: CGPoint(x: 20, y: 70),
+                        visibility: .visible
+                    )
+                )
+            )
+            .onCameraChanged { cameraChanged in
+                mapBearing = cameraChanged.cameraState.bearing
+            }
             
             .safeAreaPadding(.top, 56)
             .ignoresSafeArea()
@@ -127,11 +140,16 @@ struct MapboxMapCanvasView: View {
             hasInitialCentered = true
             viewport = .camera(center: newCoord, zoom: 15)
         }
+        .onChange(of: location?.currentHeading) { _, _ in }
         .onAppear {
+            location?.setTacticalRadarActive(true)
             if let userCoord = location?.currentLocation?.coordinate {
                 viewport = .camera(center: userCoord, zoom: 15)
                 hasInitialCentered = true
             }
+        }
+        .onDisappear {
+            location?.setTacticalRadarActive(false)
         }
         .alert(
             "Follow \(memberToFollow?.initials ?? "Friend")?",
@@ -172,9 +190,8 @@ struct MapboxMapCanvasView: View {
                 color: member.color.swiftUIColor,
                 isSelected: selectedTarget == .member(member.id),
                 isEmergency: member.isEmergency,
-                size: 22,
                 batteryLevel: member.batteryLevel,
-                heading: member.heading.map { .degrees($0) }
+                heading: member.heading.map { .degrees($0 - mapBearing) }
             )
             .overlay(alignment: .bottom) {
                 if let distance = memberDistance(for: member) {
@@ -184,7 +201,7 @@ struct MapboxMapCanvasView: View {
                         .foregroundStyle(.white)
                         .fixedSize()
                         .shadow(color: .black.opacity(0.8), radius: 2)
-                        .offset(y: showsBattery ? 34 : 18)
+                        .offset(y: showsBattery ? 38 : 24)
                 }
             }
         }
@@ -247,6 +264,24 @@ struct MapboxMapCanvasView: View {
             memberToFollow = member
             isShowingFollowAlert = true
         }
+    }
+}
+
+// MARK: - Live User Marker View
+private struct UserMarkerView: View {
+    var location: LocationService?
+    let color: Color
+    let nickname: String
+    let mapHeading: Double
+    
+    var body: some View {
+        let heading = (location?.currentHeading ?? 0) - mapHeading
+        OrbitUserMarkerView(
+            color: color,
+            nickname: nickname,
+            heading: .degrees(heading),
+            batteryLevel: location?.currentBatteryLevel
+        )
     }
 }
 
