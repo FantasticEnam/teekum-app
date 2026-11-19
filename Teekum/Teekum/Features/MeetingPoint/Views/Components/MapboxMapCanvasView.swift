@@ -233,3 +233,18 @@ struct MapboxMapCanvasView: View {
         }
     }
 }
+
+#Preview("Mapbox Map Canvas") {
+    @Previewable @State var viewModel = {
+        let store = SessionStore.preview
+        return MeetingPointViewModel(sessionStore: store)
+    }()
+    @Previewable @State var selectedTarget: OrbitSceneView.Target? = nil
+    
+    MapboxMapCanvasView(
+        viewModel: viewModel,
+        location: nil,
+        selectedTarget: $selectedTarget
+    )
+    .preferredColorScheme(.dark)
+}

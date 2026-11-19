@@ -124,7 +124,6 @@ struct AppleMapCanvasView: View {
                     .mapControlVisibility(.visible)
                     .scaleEffect(1.17)
                     .frame(width: 42, height: 42)
-                    .offset(y: -4)
                     .padding(.leading, 20)
                 
                 Spacer()
@@ -265,4 +264,19 @@ struct AppleMapCanvasView: View {
             .accessibilityLabel("Recenter to user location")
         }
     }
+}
+
+#Preview("Apple Map Canvas") {
+    @Previewable @State var viewModel = {
+        let store = SessionStore.preview
+        return MeetingPointViewModel(sessionStore: store)
+    }()
+    @Previewable @State var selectedTarget: OrbitSceneView.Target? = nil
+    
+    AppleMapCanvasView(
+        viewModel: viewModel,
+        location: nil,
+        selectedTarget: $selectedTarget
+    )
+    .preferredColorScheme(.dark)
 }
