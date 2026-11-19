@@ -140,6 +140,10 @@ struct OrbitMapView: View {
         .onAppear {
             isOrbitVisible = true
             location?.setTacticalRadarActive(scenePhase == .active)
+            checkRelocationAndNotify(at: location?.currentLocation?.coordinate)
+        }
+        .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
+            checkRelocationAndNotify(at: newCoord)
         }
         .onChange(of: scenePhase) { _, phase in
             location?.setTacticalRadarActive(isOrbitVisible && phase == .active)
@@ -294,12 +298,6 @@ struct OrbitMapView: View {
             }
             .overlay { SOSEdgeGlowView(sos: sos) }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
-            .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
-                checkRelocationAndNotify(at: newCoord)
-            }
-            .onAppear {
-                checkRelocationAndNotify(at: location?.currentLocation?.coordinate)
-            }
         }
     }
     
@@ -412,6 +410,7 @@ struct OrbitMapView: View {
     
     // Relocation Notification
     private func checkRelocationAndNotify(at coord: CLLocationCoordinate2D?) {
+        guard activeModal == nil else { return }
         guard let coord,
               let offlineMaps,
               offlineMaps.cachedCity != nil,
