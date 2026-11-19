@@ -83,7 +83,8 @@ struct OrbitMapView: View {
             orbitScene
             
             VStack(alignment: .leading) {
-                OrbitHeaderView(groupName: viewModel.groupName, onSettings: { activeModal = .settings })
+                OrbitHeaderView(groupName: viewModel.groupName, roomCount: viewModel.roomCount,
+                    onSettings: { activeModal = .settings })
                 
                 if let activity = notifications?.groupActivity {
                     groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
@@ -416,6 +417,7 @@ struct OrbitMapView: View {
     }
 }
 
-#Preview {
+#Preview("Orbit with room count") {
     OrbitMapView(sessionStore: .preview)
+        .preferredColorScheme(.dark)
 }

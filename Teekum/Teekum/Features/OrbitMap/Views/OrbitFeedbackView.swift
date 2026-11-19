@@ -21,10 +21,13 @@ struct OrbitFeedbackView: View {
         VStack(spacing: 8) {
             if let sos {
                 if let alert = sos.incomingAlert {
-                    IncomingSOSAlertBannerView(alert: alert) {
-                        onHelpOffered(alert)
+                    IncomingSOSAlertBannerView(alert: alert, onDismiss: {
                         Task { await sos.acknowledgeIncomingAlert(alert) }
-                    }
+                    }, onOfferHelp: {
+                        Task {
+                            await sos.acknowledgeIncomingAlert(alert) { onHelpOffered(alert) }
+                        }
+                    })
                 }
                 InactivityWarningView(guardService: sos.inactivityGuard)
                 if sos.outgoingEventId != nil {
@@ -63,12 +66,14 @@ struct OrbitFeedbackView: View {
 }
 
 #if DEBUG
-#Preview("Incoming SOS feedback") {
+#Preview("Dismiss SOS banner and keep the glow") {
     @Previewable @State var sos = SOSViewModel.preview
 
     OrbitFeedbackView(sos: sos, notifications: nil)
         .padding(.vertical)
+        .frame(maxHeight: .infinity, alignment: .top)
         .background(.black)
+        .overlay { SOSEdgeGlowView(sos: sos) }
         .preferredColorScheme(.dark)
 }
 

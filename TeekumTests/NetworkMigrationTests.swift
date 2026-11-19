@@ -494,9 +494,13 @@ final class NetworkMigrationTests: XCTestCase {
         }
 
         let helper = FollowIntentPayload(senderInitials: "ALX", recipientInitials: "BOB", sosEventId: 77).serialize()
-        let legacy = try ACKPayload.deserialize(from: helper)
-        XCTAssertEqual(legacy.ackedSeqNumber, 0)
-        XCTAssertEqual(legacy.originalEventId, 0)
+        let decodedHelper = try ACKPayload.deserialize(from: helper)
+        XCTAssertEqual(decodedHelper.subtype, .follow)
+        if case .follow(let f, _, _) = decodedHelper {
+            XCTAssertEqual(f.sosEventId, 77)
+            XCTAssertEqual(f.senderInitials, "ALX")
+            XCTAssertEqual(f.recipientInitials, "BOB")
+        }
 
         let valid = try await packet(helper, counter: 1, slot: senderSlot)
         var tampered = valid
@@ -504,14 +508,14 @@ final class NetworkMigrationTests: XCTestCase {
         let wrongSlot = try await packet(helper, counter: 2, slot: senderSlot ^ 1)
         let elsewhere = FollowIntentPayload(senderInitials: "ALX", recipientInitials: "NIC", sosEventId: 77).serialize()
         let otherRecipient = try await packet(elsewhere, counter: 3, slot: senderSlot)
-        var stale = helper
-        var timestamp = UInt32(Date().addingTimeInterval(-90).timeIntervalSince1970).bigEndian
-        withUnsafeBytes(of: &timestamp) { stale.replaceSubrange(6..<10, with: $0) }
+        let stale = FollowIntentPayload(senderInitials: "ALX", recipientInitials: "BOB", sosEventId: 77)
+            .serialize(timestamp: Date().addingTimeInterval(-90))
         let expired = try await packet(stale, counter: 4, slot: senderSlot)
         let regular = FollowIntentPayload(senderInitials: "ALX", recipientInitials: "BOB", sosEventId: nil).serialize()
         let regularFollow = try await packet(regular, counter: 5, slot: senderSlot)
-        let delivery = ACKPayload(ackedSeqNumber: 1, ackedSenderInitials: "BOB", ackStatus: .deliveredToFriend,
-            receivedRssi: 0, originalEventId: 1, responderInitials: "ALX").serialize()
+        let chat = ChatACKPayload(ackedSeqNumber: 1, ackedSenderInitials: "BOB", ackStatus: .deliveredToFriend,
+            receivedRssi: 0)
+        let delivery = ACKPayload.chat(chat, timestamp: Date(), responderInitials: "ALX").serialize()
         let deliveryACK = try await packet(delivery, counter: 6, slot: senderSlot)
 
         for frame in [tampered, valid, valid, wrongSlot, otherRecipient, expired, regularFollow, deliveryACK] {

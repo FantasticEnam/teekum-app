@@ -141,8 +141,9 @@ final class ChatSOSMigrationTests: XCTestCase {
         let engine = ChatMessageEngine(transport: transport, cryptoService: crypto,
             clock: TestMeshClock(initialDate: now), sessionProvider: { session })
         let message = try await engine.sendMessage(text: "Where are you?", targetRecipients: ["BOB"])
-        let ack = ACKPayload(ackedSeqNumber: message.sequenceNumber, ackedSenderInitials: "ALX", ackTimestamp: now,
-            ackStatus: .relayedByMeshHop, receivedRssi: -70, originalEventId: message.sequenceNumber, responderInitials: "REL")
+        let chatPayload = ChatACKPayload(ackedSeqNumber: message.sequenceNumber, ackedSenderInitials: "ALX",
+            ackStatus: .relayedByMeshHop, receivedRssi: -70)
+        let ack = ACKPayload.chat(chatPayload, timestamp: now, responderInitials: "REL")
         let raw = try await sealed(crypto: crypto, payload: ack.serialize(), type: .ack, sequence: 0x02000001)
         let processed = await engine.processDeliveryACK(rawPacket: raw, fromPeerId: "REL")
         XCTAssertTrue(processed)
@@ -227,7 +228,9 @@ final class ChatSOSMigrationTests: XCTestCase {
         let result = await XCTWaiter.fulfillment(of: [received], timeout: 2)
         XCTAssertEqual(result, .completed)
         XCTAssertTrue(model.showsEdgeGlow)
-        await model.acknowledgeIncomingAlert()
+        if let alert = model.incomingAlert {
+            await model.acknowledgeIncomingAlert(alert)
+        }
         XCTAssertNil(model.incomingAlert)
         XCTAssertTrue(model.showsEdgeGlow)
         XCTAssertEqual(audio.reminderCount, 1)
@@ -243,6 +246,22 @@ final class ChatSOSMigrationTests: XCTestCase {
         XCTAssertEqual(audio.stopCount, 1)
         try await engine.handleInboundSOSPacket(rawPacket: packet, fromPeerId: "ALX")
         XCTAssertNil(model.incomingAlert)
+
+        model.onIncomingAlert = nil
+        var nextSOS = payload
+        nextSOS.sosEventId = 78
+        let nextWire = try await crypto.sealToWireBytes(payload: nextSOS.serialize(), envelope:
+            CleartextEnvelope(type: .sos, sessionId: session.sessionId, sequenceNumber: 0x01000003),
+            using: SymmetricKey(data: session.symmetricKeyData))
+        try await engine.handleInboundSOSPacket(rawPacket: RawWirePacket.fromWireData(nextWire), fromPeerId: "ALX")
+        let nextAlert = try XCTUnwrap(model.incomingAlert)
+        await model.acknowledgeIncomingAlert(nextAlert) { helpOffers += 1 }
+        XCTAssertEqual(helpOffers, 1)
+        XCTAssertNil(model.incomingAlert)
+        XCTAssertTrue(model.showsEdgeGlow)
+        XCTAssertEqual(audio.reminderCount, 2)
+        await model.acceptResolution(.init(senderInitials: "ALX", eventId: 78))
+        XCTAssertFalse(model.showsEdgeGlow)
 
         model.triggerSOS()
         XCTAssertTrue(model.showsEdgeGlow)
@@ -295,8 +314,9 @@ final class ChatSOSMigrationTests: XCTestCase {
         let session = GroupSession(sessionId: 0x1234, symmetricKeyData: keyData, localInitials: "ALX")
         let crypto = CryptoService()
         let engine = SOSForwardingEngine(transport: MessagingTestTransport(), cryptoService: crypto, sessionProvider: { session })
-        let ack = ACKPayload(ackedSeqNumber: 0x01000001, ackedSenderInitials: "ALX", ackTimestamp: .now,
-            ackStatus: .deliveredToFriend, receivedRssi: -70, originalEventId: 77, responderInitials: "BOB")
+        let sosPayload = SOSACKPayload(sosEventId: 77, distressedSenderInitials: "ALX",
+            ackStatus: .deliveredToFriend, receivedRssi: -70)
+        let ack = ACKPayload.sos(sosPayload, timestamp: .now, responderInitials: "BOB")
         let packet = try await sealed(crypto: crypto, payload: ack.serialize(), type: .ack, sequence: 0x02000001)
         await engine.handleInboundACK(rawPacket: packet, fromPeerId: "BOB")
         let state = await engine.currentDeliveryState

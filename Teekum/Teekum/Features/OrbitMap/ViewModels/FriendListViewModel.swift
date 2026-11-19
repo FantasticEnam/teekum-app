@@ -19,10 +19,6 @@ final class FriendListViewModel {
         return Member(id: session.localInitials, color: sessionStore.profileColor(for: session.localInitials))
     }
 
-    var roomCount: Int {
-        sessionStore.visibleMembers.count + (sessionStore.hasActiveSession ? 1 : 0)
-    }
-
     var filteredMembers: [Member] {
         let search = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let members = sessionStore.visibleMembers

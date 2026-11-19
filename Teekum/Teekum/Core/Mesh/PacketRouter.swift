@@ -19,7 +19,8 @@ public final class PacketRouter {
     private let onLocationPing: (LocationPingPayload, InboundPacket) -> Void
     private let onSOS: (SOSPayload, InboundPacket) async -> Void
     private let onSOSResolved: (SOSResolvedPayload) async -> Void
-    private let onACK: (InboundPacket) async -> Void
+    private let onChatACK: (ChatACKPayload, String, Date, InboundPacket) async -> Void
+    private let onSOSACK: (SOSACKPayload, String, Date, InboundPacket) async -> Void
     private let onFollow: (FollowIntentPayload) -> Void
     private let onMeetingUpdate: (MeetingUpdatePayload) -> Void
     private let onChat: (InboundPacket) async -> Void
@@ -33,7 +34,8 @@ public final class PacketRouter {
         seenPacketCache: SeenPacketCache,
         onLocationPing: @escaping (LocationPingPayload, InboundPacket) -> Void,
         onSOS: @escaping (SOSPayload, InboundPacket) async -> Void,
-        onACK: @escaping (InboundPacket) async -> Void,
+        onChatACK: @escaping (ChatACKPayload, String, Date, InboundPacket) async -> Void = { _, _, _, _ in },
+        onSOSACK: @escaping (SOSACKPayload, String, Date, InboundPacket) async -> Void = { _, _, _, _ in },
         onMeetingUpdate: @escaping (MeetingUpdatePayload) -> Void,
         onChat: @escaping (InboundPacket) async -> Void,
         onSOSResolved: @escaping (SOSResolvedPayload) async -> Void = { _ in },
@@ -47,10 +49,42 @@ public final class PacketRouter {
         self.onLocationPing = onLocationPing
         self.onSOS = onSOS
         self.onSOSResolved = onSOSResolved
-        self.onACK = onACK
+        self.onChatACK = onChatACK
+        self.onSOSACK = onSOSACK
         self.onFollow = onFollow
         self.onMeetingUpdate = onMeetingUpdate
         self.onChat = onChat
+    }
+
+    public convenience init(
+        cryptoService: any CryptoServiceProtocol,
+        peerTransport: any PeerTransport & MeshTransport,
+        relayPolicyManager: RelayPolicyManager,
+        routeDiscoveryService: RouteDiscoveryService,
+        seenPacketCache: SeenPacketCache,
+        onLocationPing: @escaping (LocationPingPayload, InboundPacket) -> Void,
+        onSOS: @escaping (SOSPayload, InboundPacket) async -> Void,
+        onACK: @escaping (InboundPacket) async -> Void,
+        onMeetingUpdate: @escaping (MeetingUpdatePayload) -> Void,
+        onChat: @escaping (InboundPacket) async -> Void,
+        onSOSResolved: @escaping (SOSResolvedPayload) async -> Void = { _ in },
+        onFollow: @escaping (FollowIntentPayload) -> Void = { _ in }
+    ) {
+        self.init(
+            cryptoService: cryptoService,
+            peerTransport: peerTransport,
+            relayPolicyManager: relayPolicyManager,
+            routeDiscoveryService: routeDiscoveryService,
+            seenPacketCache: seenPacketCache,
+            onLocationPing: onLocationPing,
+            onSOS: onSOS,
+            onChatACK: { _, _, _, inbound in await onACK(inbound) },
+            onSOSACK: { _, _, _, inbound in await onACK(inbound) },
+            onMeetingUpdate: onMeetingUpdate,
+            onChat: onChat,
+            onSOSResolved: onSOSResolved,
+            onFollow: onFollow
+        )
     }
 
     public func stop() {
@@ -82,21 +116,31 @@ public final class PacketRouter {
         switch envelope.type {
         case .ack:
             guard let ack = try? ACKPayload.deserialize(from: decrypted),
-                  abs(Date().timeIntervalSince(ack.ackTimestamp)) <= CarryMessageStore.retention,
-                  ack.responderInitials != session.localInitials else { return }
-            if let follow = FollowIntentPayload.decode(decrypted, ack: ack) {
-                guard abs(Date().timeIntervalSince(ack.ackTimestamp)) <= 60,
-                      envelope.memberSlot == MemberID.fromInitials(follow.senderInitials).memberSlot else { return }
+                  ack.responderInitials != session.localInitials,
+                  envelope.memberSlot == MemberID.fromInitials(ack.responderInitials).memberSlot else { return }
+
+            switch ack {
+            case .follow(let follow, let timestamp, _):
+                guard abs(Date().timeIntervalSince(timestamp)) <= 60 else { return }
                 let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: raw))
                 guard !duplicate, isActive else { return }
                 if follow.recipientInitials == session.localInitials { onFollow(follow) }
                 await relayMeshPacketIfNeeded(inbound, for: session, skipSeenCheck: true)
-                return
+
+            case .chat(let chatAck, let timestamp, let responder):
+                guard abs(Date().timeIntervalSince(timestamp)) <= CarryMessageStore.retention else { return }
+                await onChatACK(chatAck, responder, timestamp, inbound)
+                guard isActive else { return }
+                await peerTransport.retainReceivedForCarry(raw, excludingPeerId: inbound.sourcePeerId)
+                await relayMeshPacketIfNeeded(inbound, for: session)
+
+            case .sos(let sosAck, let timestamp, let responder):
+                guard abs(Date().timeIntervalSince(timestamp)) <= CarryMessageStore.retention else { return }
+                await onSOSACK(sosAck, responder, timestamp, inbound)
+                guard isActive else { return }
+                await peerTransport.retainReceivedForCarry(raw, excludingPeerId: inbound.sourcePeerId)
+                await relayMeshPacketIfNeeded(inbound, for: session)
             }
-            await onACK(inbound)
-            guard isActive else { return }
-            await peerTransport.retainReceivedForCarry(raw, excludingPeerId: inbound.sourcePeerId)
-            await relayMeshPacketIfNeeded(inbound, for: session)
 
         case .sos:
             guard let payload = try? SOSPayload.deserialize(from: decrypted),

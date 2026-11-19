@@ -307,11 +307,14 @@ final class SessionController {
                 store.applySOSLocation(payload, inbound: inbound)
                 if isNew { notifications.notifyGroupActivity([payload.senderInitials], joined: true) }
                 try? await sosEngine.handleInboundSOSPacket(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
-            }, onACK: { [weak self] inbound in
+            }, onChatACK: { [weak self] chatAck, responder, timestamp, inbound in
                 guard let self, generation == current else { return }
-                await sosEngine.handleInboundACK(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
-                guard generation == current else { return }
-                _ = await chatEngine.processDeliveryACK(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
+                _ = await chatEngine.processChatACK(payload: chatAck, responder: responder, timestamp: timestamp,
+                    hopCount: inbound.rawPacket.envelope.hopCount, fromPeerId: inbound.sourcePeerId)
+            }, onSOSACK: { [weak self] sosAck, responder, timestamp, inbound in
+                guard let self, generation == current else { return }
+                await sosEngine.handleSOSACK(payload: sosAck, responder: responder, timestamp: timestamp,
+                    hopCount: inbound.rawPacket.envelope.hopCount)
             }, onMeetingUpdate: { [weak self] update in
                 guard let self, generation == current, meeting.applyInboundUpdate(update) else { return }
                 if update.senderInitials != store.activeSession?.localInitials {

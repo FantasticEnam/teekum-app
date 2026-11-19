@@ -131,6 +131,7 @@ final class SOSViewModel {
         let event = SOSResolvedPayload(senderInitials: targetAlert.senderInitials, eventId: targetAlert.id)
         incomingAlert = nil
         recordUserInteraction()
+        onAcknowledged()
         await engine.acknowledgeIncomingAlert(matching: event)
     }
 
@@ -218,7 +219,9 @@ extension SOSViewModel {
             locationService: LocationService(isLiveSharingEnabled: false),
             sessionProvider: { nil }
         )
-        viewModel.incomingAlert = .preview
+        let alert = IncomingSOSAlert.preview
+        viewModel.incomingAlert = alert
+        viewModel.incomingEvents = [SOSResolvedPayload(senderInitials: alert.senderInitials, eventId: alert.id)]
         return viewModel
     }
 }
