@@ -7,87 +7,208 @@
 
 import Foundation
 
-public struct ACKPayload: Equatable, Sendable {
+public struct ChatACKPayload: Equatable, Sendable {
     public var ackedSeqNumber: UInt32
-    public var ackedSenderInitials: String // 3 uppercase characters
-    public var ackTimestamp: Date
+    public var ackedSenderInitials: String
     public var ackStatus: ACKStatus
     public var receivedRssi: Int8
-    public var originalEventId: UInt32
-    public var responderInitials: String   // 3 uppercase characters
-    
+
     public init(
         ackedSeqNumber: UInt32,
         ackedSenderInitials: String,
-        ackTimestamp: Date = Date(),
         ackStatus: ACKStatus,
-        receivedRssi: Int8,
-        originalEventId: UInt32,
-        responderInitials: String
+        receivedRssi: Int8
     ) {
         self.ackedSeqNumber = ackedSeqNumber
         self.ackedSenderInitials = InitialsCodec.sanitize(ackedSenderInitials)
-        self.ackTimestamp = ackTimestamp
         self.ackStatus = ackStatus
         self.receivedRssi = receivedRssi
-        self.originalEventId = originalEventId
-        self.responderInitials = InitialsCodec.sanitize(responderInitials)
     }
-    
+}
+
+public struct SOSACKPayload: Equatable, Sendable {
+    public var sosEventId: UInt32
+    public var distressedSenderInitials: String
+    public var ackStatus: ACKStatus
+    public var receivedRssi: Int8
+
+    public init(
+        sosEventId: UInt32,
+        distressedSenderInitials: String,
+        ackStatus: ACKStatus,
+        receivedRssi: Int8
+    ) {
+        self.sosEventId = sosEventId
+        self.distressedSenderInitials = InitialsCodec.sanitize(distressedSenderInitials)
+        self.ackStatus = ackStatus
+        self.receivedRssi = receivedRssi
+    }
+}
+
+public enum ACKPayload: Equatable, Sendable {
+    case chat(ChatACKPayload, timestamp: Date, responderInitials: String)
+    case sos(SOSACKPayload, timestamp: Date, responderInitials: String)
+    case follow(FollowIntentPayload, timestamp: Date, responderInitials: String)
+
+    public var subtype: ACKSubtype {
+        switch self {
+        case .chat: return .chat
+        case .sos: return .sos
+        case .follow: return .follow
+        }
+    }
+
+    public var timestamp: Date {
+        switch self {
+        case .chat(_, let ts, _): return ts
+        case .sos(_, let ts, _): return ts
+        case .follow(_, let ts, _): return ts
+        }
+    }
+
+    public var responderInitials: String {
+        switch self {
+        case .chat(_, _, let resp): return resp
+        case .sos(_, _, let resp): return resp
+        case .follow(_, _, let resp): return resp
+        }
+    }
+
     public func serialize() -> Data {
         var data = Data(capacity: PacketConstants.encryptedPayloadSize)
-        var seq = ackedSeqNumber.bigEndian
-        data.append(Data(bytes: &seq, count: 4))
-        
-        let ackedBytes = InitialsCodec.encode(ackedSenderInitials) ?? [0, 0]
-        data.append(contentsOf: ackedBytes)
-        
-        var ts = UInt32(ackTimestamp.timeIntervalSince1970).bigEndian
+        // Byte 0: subtype
+        data.append(subtype.rawValue)
+
+        // Bytes 1..4: timestamp (UInt32 Unix seconds)
+        var ts = UInt32(timestamp.timeIntervalSince1970).bigEndian
         data.append(Data(bytes: &ts, count: 4))
-        
-        data.append(ackStatus.rawValue)
-        
-        var rssi = receivedRssi
-        data.append(Data(bytes: &rssi, count: 1))
-        
-        var eventId = originalEventId.bigEndian
-        data.append(Data(bytes: &eventId, count: 4))
-        
+
+        // Bytes 5..6: responderInitials (2 bytes)
         let respBytes = InitialsCodec.encode(responderInitials) ?? [0, 0]
         data.append(contentsOf: respBytes)
-        
-        // 12 bytes reserved padding (30 - 18 = 12)
-        data.append(Data(repeating: 0, count: 12))
+
+        switch self {
+        case .chat(let chatPayload, _, _):
+            // Bytes 7..10: ackedSeqNumber (UInt32)
+            var seq = chatPayload.ackedSeqNumber.bigEndian
+            data.append(Data(bytes: &seq, count: 4))
+
+            // Bytes 11..12: ackedSenderInitials (2 bytes)
+            let ackedBytes = InitialsCodec.encode(chatPayload.ackedSenderInitials) ?? [0, 0]
+            data.append(contentsOf: ackedBytes)
+
+            // Byte 13: ackStatus (UInt8)
+            data.append(chatPayload.ackStatus.rawValue)
+
+            // Byte 14: receivedRssi (Int8)
+            var rssi = chatPayload.receivedRssi
+            data.append(Data(bytes: &rssi, count: 1))
+
+            // Bytes 15..29: 15 zero reserved padding bytes
+            data.append(Data(repeating: 0, count: 15))
+
+        case .sos(let sosPayload, _, _):
+            // Bytes 7..10: sosEventId (UInt32)
+            var eventId = sosPayload.sosEventId.bigEndian
+            data.append(Data(bytes: &eventId, count: 4))
+
+            // Bytes 11..12: distressedSenderInitials (2 bytes)
+            let distressedBytes = InitialsCodec.encode(sosPayload.distressedSenderInitials) ?? [0, 0]
+            data.append(contentsOf: distressedBytes)
+
+            // Byte 13: ackStatus (UInt8)
+            data.append(sosPayload.ackStatus.rawValue)
+
+            // Byte 14: receivedRssi (Int8)
+            var rssi = sosPayload.receivedRssi
+            data.append(Data(bytes: &rssi, count: 1))
+
+            // Bytes 15..29: 15 zero reserved padding bytes
+            data.append(Data(repeating: 0, count: 15))
+
+        case .follow(let followPayload, _, _):
+            // Bytes 7..8: recipientInitials (2 bytes)
+            let recipientBytes = InitialsCodec.encode(followPayload.recipientInitials) ?? [0, 0]
+            data.append(contentsOf: recipientBytes)
+
+            // Bytes 9..12: sosEventId (UInt32)
+            var eventId = (followPayload.sosEventId ?? 0).bigEndian
+            data.append(Data(bytes: &eventId, count: 4))
+
+            // Bytes 13..29: 17 zero reserved padding bytes
+            data.append(Data(repeating: 0, count: 17))
+        }
+
         return data
     }
-    
+
     public static func deserialize(from data: Data) throws -> ACKPayload {
         guard data.count >= PacketConstants.encryptedPayloadSize else {
             throw PacketCodecError.bufferUnderflow
         }
-        let seq = data.subdata(in: 0..<4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
-        let ackedBytes = [data[4], data[5]]
-        let ackedInitials = InitialsCodec.decode(ackedBytes) ?? "UNK"
-        
-        let tsRaw = data.subdata(in: 6..<10).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
-        let statusByte = data[10]
-        let rssi = Int8(bitPattern: data[11])
-        let eventId = data.subdata(in: 12..<16).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian }
-        
-        let respBytes = [data[16], data[17]]
-        let respInitials = InitialsCodec.decode(respBytes) ?? "UNK"
-        
+
+        let subtypeRaw = data[data.startIndex]
+        guard let subtype = ACKSubtype(rawValue: subtypeRaw) else {
+            throw PacketCodecError.payloadDeserializationFailed
+        }
+
+        let tsRaw = data.subdata(in: (data.startIndex + 1)..<(data.startIndex + 5)).withUnsafeBytes {
+            $0.loadUnaligned(as: UInt32.self).bigEndian
+        }
         let date = Date(timeIntervalSince1970: TimeInterval(tsRaw))
-        let status = ACKStatus(rawValue: statusByte) ?? .deliveredToFriend
-        
-        return ACKPayload(
-            ackedSeqNumber: seq,
-            ackedSenderInitials: ackedInitials,
-            ackTimestamp: date,
-            ackStatus: status,
-            receivedRssi: rssi,
-            originalEventId: eventId,
-            responderInitials: respInitials
-        )
+
+        let respBytes = [data[data.startIndex + 5], data[data.startIndex + 6]]
+        let respInitials = InitialsCodec.decode(respBytes) ?? "UNK"
+
+        switch subtype {
+        case .chat:
+            let seq = data.subdata(in: (data.startIndex + 7)..<(data.startIndex + 11)).withUnsafeBytes {
+                $0.loadUnaligned(as: UInt32.self).bigEndian
+            }
+            let ackedBytes = [data[data.startIndex + 11], data[data.startIndex + 12]]
+            let ackedInitials = InitialsCodec.decode(ackedBytes) ?? "UNK"
+            let statusByte = data[data.startIndex + 13]
+            let rssi = Int8(bitPattern: data[data.startIndex + 14])
+            let status = ACKStatus(rawValue: statusByte) ?? .deliveredToFriend
+
+            let chat = ChatACKPayload(
+                ackedSeqNumber: seq,
+                ackedSenderInitials: ackedInitials,
+                ackStatus: status,
+                receivedRssi: rssi
+            )
+            return .chat(chat, timestamp: date, responderInitials: respInitials)
+
+        case .sos:
+            let eventId = data.subdata(in: (data.startIndex + 7)..<(data.startIndex + 11)).withUnsafeBytes {
+                $0.loadUnaligned(as: UInt32.self).bigEndian
+            }
+            let distressedBytes = [data[data.startIndex + 11], data[data.startIndex + 12]]
+            let distressedInitials = InitialsCodec.decode(distressedBytes) ?? "UNK"
+            let statusByte = data[data.startIndex + 13]
+            let rssi = Int8(bitPattern: data[data.startIndex + 14])
+            let status = ACKStatus(rawValue: statusByte) ?? .deliveredToFriend
+
+            let sos = SOSACKPayload(
+                sosEventId: eventId,
+                distressedSenderInitials: distressedInitials,
+                ackStatus: status,
+                receivedRssi: rssi
+            )
+            return .sos(sos, timestamp: date, responderInitials: respInitials)
+
+        case .follow:
+            let recipientBytes = [data[data.startIndex + 7], data[data.startIndex + 8]]
+            let recipientInitials = InitialsCodec.decode(recipientBytes) ?? "UNK"
+            let eventId = data.subdata(in: (data.startIndex + 9)..<(data.startIndex + 13)).withUnsafeBytes {
+                $0.loadUnaligned(as: UInt32.self).bigEndian
+            }
+            let follow = FollowIntentPayload(
+                senderInitials: respInitials,
+                recipientInitials: recipientInitials,
+                sosEventId: eventId == 0 ? nil : eventId
+            )
+            return .follow(follow, timestamp: date, responderInitials: respInitials)
+        }
     }
 }
