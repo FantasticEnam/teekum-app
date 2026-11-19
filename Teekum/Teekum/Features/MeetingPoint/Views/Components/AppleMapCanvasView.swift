@@ -124,6 +124,7 @@ struct AppleMapCanvasView: View {
                     .mapControlVisibility(.visible)
                     .scaleEffect(1.17)
                     .frame(width: 42, height: 42)
+                    .offset(y: -10)
                     .padding(.leading, 20)
                 
                 Spacer()
@@ -133,10 +134,10 @@ struct AppleMapCanvasView: View {
             }
             .padding(.bottom, 60)
         }
-        .overlay(alignment: .top) {
+        .overlay(alignment: .topLeading) {
             MapScaleView(scope: mapScope)
-                .fixedSize(horizontal: true, vertical: false)
-                .offset(x: 26)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 16)
                 .padding(.top, 12)
                 .allowsHitTesting(false)
         }

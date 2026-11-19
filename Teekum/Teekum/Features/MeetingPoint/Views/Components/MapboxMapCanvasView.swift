@@ -89,8 +89,35 @@ struct MapboxMapCanvasView: View {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 viewModel.handleMapHold(at: context.coordinate)
             }
+            .ornamentOptions(
+                            OrnamentOptions(
+                                compass: CompassViewOptions(
+                                    position: .bottomLeading,
+                                    margins: CGPoint(x: 20, y: 70),
+                                    visibility: .visible
+                                )
+                            )
+                        )
+            
             .safeAreaPadding(.top, 56)
             .ignoresSafeArea()
+            
+            VStack {
+                HStack {
+                    Spacer()
+                    Label("Offline Map", systemImage: "mappin.and.ellipse")
+                        .font(.caption.bold())
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.buttonPrimary, in: .capsule)
+                        .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                        .padding(.trailing, 16)
+                        .padding(.top, 8)
+                }
+                Spacer()
+            }
+            .allowsHitTesting(false)
             
             // Floating Controls: Offline Badge & Recenter Button
             floatingControls
@@ -167,17 +194,6 @@ struct MapboxMapCanvasView: View {
     @ViewBuilder
     private var floatingControls: some View {
         HStack(alignment: .bottom) {
-            // Badge Indikator Mode Offline Mapbox
-            Label("Offline Mapbox", systemImage: "bolt.horizontal.circle.fill")
-                .font(.caption.bold())
-                .foregroundStyle(.black)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.buttonPrimary, in: .capsule)
-                .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
-                .padding(.leading, 16)
-                .padding(.bottom, 60)
-            
             Spacer()
             
             // Tombol Pusatkan Ulang ke Posisi User
