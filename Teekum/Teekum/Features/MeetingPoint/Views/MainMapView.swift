@@ -31,35 +31,17 @@ struct MainMapView: View {
     }
     
     var body: some View {
-        ZStack(alignment: .bottom){
-            // MAP Section
-            MapLayerView(
-                viewModel: viewModel,
-                location: location,
-                selectedTarget: $selectedTarget,
-                connectivity: connectivity,
-                offlineMaps: offlineMaps
-            )
-            
-            VStack {
-                HStack {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                    }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
-                    .controlSize(.large)
-                    .accessibilityLabel("Back to Orbit")
-                    .padding(.leading, 16)
-                    
-                    Spacer()
-                }
-                Spacer()
+        NavigationStack {
+            ZStack(alignment: .bottom){
+                // MAP Section
+                MapLayerView(
+                    viewModel: viewModel,
+                    location: location,
+                    selectedTarget: $selectedTarget,
+                    connectivity: connectivity,
+                    offlineMaps: offlineMaps
+                )
+                
                 if let error = viewModel.errorMessage {
                     Text(error)
                         .font(.footnote)
@@ -68,7 +50,17 @@ struct MainMapView: View {
                         .padding()
                 }
             }
-            
+            .navigationTitle("Set Meeting Point")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", systemImage: "xmark") {
+                        dismiss()
+                    }
+                }
+            }
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .onAppear {
             viewModel.requestLocationPermission()
