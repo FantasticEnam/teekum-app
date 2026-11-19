@@ -98,10 +98,10 @@ public enum OfflineMapError: Error, LocalizedError, Equatable, Sendable {
 }
 // Matematika murni untuk kotak 20 km, pengaman batas 750 tile Mapbox, dan cek pindah >25 km.
 public enum OfflineMapBounds {
-    public static let defaultRadiusMeters: Double = 20_000
+    public static let defaultRadiusMeters: Double = 15_000
     public static let relocationThresholdMeters: Double = 25_000
-    public static let defaultMinZoom: UInt8 = 0
-    public static let defaultMaxZoom: UInt8 = 14
+    public static let defaultMinZoom: UInt8 = 10
+    public static let defaultMaxZoom: UInt8 = 13
     public static let mapboxHardTileCap: Int = 750
     public static let safeTileCap: Int = 700
     public static let minimumRequiredFreeBytes: Int64 = 60 * 1_024 * 1_024

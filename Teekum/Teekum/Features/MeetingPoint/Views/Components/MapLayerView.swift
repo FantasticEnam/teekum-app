@@ -38,7 +38,8 @@ struct MapLayerView: View {
                     viewModel: viewModel,
                     location: location,
                     selectedTarget: $selectedTarget,
-                    styleURI: offlineMaps?.activeStyleURIString ?? OfflineMapManager.fallbackDarkStyleURI
+                    styleURI: offlineMaps?.activeStyleURIString ?? OfflineMapManager.fallbackDarkStyleURI,
+                    cachedCity: offlineMaps?.cachedCity
                 )
             } else {
                 AppleMapCanvasView(

@@ -75,10 +75,10 @@ final class OfflineMapTests: XCTestCase {
             zoomRange: OfflineMapBounds.defaultMinZoom...OfflineMapBounds.defaultMaxZoom
         )
         
-        // Kotak 20 km (z0-z14) harus berada di bawah batas keras 750 tiles
+        // Kotak 15 km (z10-z13) harus berada di bawah batas keras 750 tiles
         XCTAssertLessThanOrEqual(safe.estimatedTiles, OfflineMapBounds.mapboxHardTileCap)
         XCTAssertGreaterThan(safe.estimatedTiles, 0)
-        XCTAssertEqual(safe.radiusMeters, 20_000)
+        XCTAssertEqual(safe.radiusMeters, 15_000)
     }
     
     func testRelocationThresholdDistance() {

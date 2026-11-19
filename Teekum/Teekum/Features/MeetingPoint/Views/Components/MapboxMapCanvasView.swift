@@ -14,6 +14,7 @@ struct MapboxMapCanvasView: View {
     var location: LocationService? = nil
     @Binding var selectedTarget: OrbitSceneView.Target?
     var styleURI: String = OfflineMapManager.fallbackDarkStyleURI
+    var cachedCity: CachedCityMetadata? = nil
     
     @State private var viewport: Viewport = .camera(
         center: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
@@ -40,6 +41,27 @@ struct MapboxMapCanvasView: View {
         viewModel.members.compactMap { member in
             guard let coordinate = member.coordinate else { return nil }
             return MemberPinItem(member: member, coordinate: coordinate)
+        }
+    }
+    
+    private var cameraBounds: CameraBoundsOptions {
+        if let cachedCity {
+            let box = OfflineMapBounds.boundingBox(
+                center: cachedCity.centerCoordinate,
+                radiusMeters: cachedCity.radiusMeters
+            )
+            let bounds = CoordinateBounds(
+                southwest: CLLocationCoordinate2D(latitude: box.minLatitude, longitude: box.minLongitude),
+                northeast: CLLocationCoordinate2D(latitude: box.maxLatitude, longitude: box.maxLongitude)
+            )
+            return CameraBoundsOptions(
+                bounds: bounds,
+                minZoom: CGFloat(OfflineMapBounds.defaultMinZoom)
+            )
+        } else {
+            return CameraBoundsOptions(
+                minZoom: CGFloat(OfflineMapBounds.defaultMinZoom)
+            )
         }
     }
     
@@ -97,6 +119,7 @@ struct MapboxMapCanvasView: View {
                 }
             }
             .mapStyle(MapStyle(uri: StyleURI(rawValue: styleURI) ?? .dark))
+            .cameraBounds(cameraBounds)
             .onMapLongPressGesture { context in
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 viewModel.handleMapHold(at: context.coordinate)
@@ -157,6 +180,10 @@ struct MapboxMapCanvasView: View {
             if let userCoord = location?.currentLocation?.coordinate {
                 viewport = .camera(center: userCoord, zoom: 15)
                 currentCenter = userCoord
+                hasInitialCentered = true
+            } else if let cachedCity {
+                viewport = .camera(center: cachedCity.centerCoordinate, zoom: 13)
+                currentCenter = cachedCity.centerCoordinate
                 hasInitialCentered = true
             }
         }

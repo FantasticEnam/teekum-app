@@ -112,7 +112,7 @@ public final class OfflineMapManager {
             throw OfflineMapError.cityResolutionFailed
         }
     }
-    // Unduh kotak 20 km (z0-z14) untuk `city`. Kota lama baru dihapus SETELAH kota baru sukses.
+    // Unduh kotak 15 km (z10-z13) untuk `city`. Kota lama baru dihapus SETELAH kota baru sukses.
     public func downloadCity(
         _ city: DetectedCity,
         isOnline: Bool,

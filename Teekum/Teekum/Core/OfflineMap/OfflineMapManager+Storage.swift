@@ -93,6 +93,12 @@ public final class MapboxOfflineTileStoreClient: OfflineTileStoreClient, @unchec
             }
         )
         onProgress(1.0)
+        #if DEBUG
+        let styleStr = ByteCountFormatter.string(fromByteCount: Int64(styleSize), countStyle: .file)
+        let tileStr = ByteCountFormatter.string(fromByteCount: Int64(tileSize), countStyle: .file)
+        let totalStr = ByteCountFormatter.string(fromByteCount: Int64(styleSize + tileSize), countStyle: .file)
+        print("[OfflineMap] Downloaded styleSize: \(styleStr), tileSize: \(tileStr), total: \(totalStr)")
+        #endif
         return styleSize + tileSize
     }
     
