@@ -68,7 +68,7 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 - Accuracy is a one-byte meter value. Battery is capped at 100 by several constructors/serializers. Do not invent an unknown-value encoding without reviewing both sides.
 - Heading helpers map degrees into a one-byte representation. Quantization/dequantization is not a live compass provider.
 - InitialsCodec encodes 1–3 uppercase letters with base 27: a × 729 + b × 27 + c, A=1...Z=26, missing positions=0. Two bytes hold the result. Initials are display data; they do not prove unique membership or non-colliding sender slots.
-- The one-byte `MemberColor` field uses `0x00` for automatic color. The selectable palette is yellow (`0x09`), red (`0x01`), green (`0x08`), purple (`0x0A`), and pink (`0x0B`). Retired codes `0x02...0x07` are still decoded and rendered using the current palette. Location and SOS carry this field. Chat uses the local session or the latest roster color, with an initials-based fallback until a profile color is received. Older builds use their automatic color for unknown codes.
+- The one-byte `MemberColor` field uses `0x00` for automatic color. The selectable palette is yellow (`0x09`), green (`0x08`), blue (`0x0C`), purple (`0x0A`), pink (`0x0B`), and red (`0x01`). Retired codes `0x02...0x07` are still decoded and rendered using the current palette. Location and SOS carry this field. Chat uses the local session or the latest roster color, with an initials-based fallback until a profile color is received. Older builds use their automatic color for unknown codes.
 
 ## 4. Current 30-Byte Payloads
 
