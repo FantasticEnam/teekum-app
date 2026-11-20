@@ -6,13 +6,14 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct OrbitMapView: View {
     private enum FriendSelection {
         case follow(Member.ID)
         case stopFollowing
     }
-
+    
     @Environment(\.scenePhase) private var scenePhase
     @State private var isOrbitVisible = false
     @State private var viewModel: OrbitMapViewModel
@@ -25,6 +26,7 @@ struct OrbitMapView: View {
     @State private var memberToFollow: Member? = nil
     @State private var isShowingFollowAlert = false
     @State private var isShowingStopFollowAlert = false
+    @State private var isShowingRelocationAlert = false
     
     private let location: LocationService?
     private let chat: ChatViewModel?
@@ -32,6 +34,8 @@ struct OrbitMapView: View {
     private let meetingService: MeetingPointService?
     private let diagnostics: @MainActor () -> TransportDiagnostics?
     private let notifications: NotificationService?
+    private let offlineMaps: OfflineMapManager?
+    private let connectivity: ConnectivityMonitor?
     private let onFollowMember: (String, UInt32?) -> Void
     
     private var meetingPoint: MeetingPoint? { viewModel.sessionStore.activeMeetingPoint }
@@ -61,6 +65,7 @@ struct OrbitMapView: View {
     
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
          sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
+         offlineMaps: OfflineMapManager? = nil, connectivity: ConnectivityMonitor? = nil,
          diagnostics: @escaping @MainActor () -> TransportDiagnostics? = { nil }, notifications: NotificationService? = nil,
          onFollowMember: @escaping (String, UInt32?) -> Void = { _, _ in },
          onLeaveGroup: (() -> Void)? = nil) {
@@ -69,6 +74,8 @@ struct OrbitMapView: View {
         self.chat = chat
         self.sos = sos
         self.meetingService = meetingService
+        self.offlineMaps = offlineMaps
+        self.connectivity = connectivity
         self.diagnostics = diagnostics
         self.notifications = notifications
         self.onFollowMember = onFollowMember
@@ -130,14 +137,24 @@ struct OrbitMapView: View {
             if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
         }
         .overlay(alignment: .top) {
-            OrbitFeedbackView(sos: sos, notifications: notifications,
-                showsChatAlert: !isShowingChat, onOpenChat: openChat, onHelpOffered: followSOS, onDeepLink: handleDeepLink)
+            OrbitFeedbackView(
+                sos: sos,
+                notifications: notifications,
+                showsChatAlert: !isShowingChat,
+                onOpenChat: openChat,
+                onHelpOffered: followSOS,
+                onDeepLink: handleDeepLink
+            )
         }
         .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         .disabled(isLeavingGroup)
         .onAppear {
             isOrbitVisible = true
             location?.setTacticalRadarActive(scenePhase == .active)
+            checkRelocationAndNotify(at: location?.currentLocation?.coordinate)
+        }
+        .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
+            checkRelocationAndNotify(at: newCoord)
         }
         .onChange(of: scenePhase) { _, phase in
             location?.setTacticalRadarActive(isOrbitVisible && phase == .active)
@@ -207,6 +224,19 @@ struct OrbitMapView: View {
             }
         }
         
+        // 3. Alert New Location (>25km)
+        .alert(
+            "New Area Map Available",
+            isPresented: $isShowingRelocationAlert
+        ) {
+            Button("Open Settings") {
+                activeModal = .settings
+            }
+            Button("Not Now", role: .cancel) { }
+        } message: {
+            Text("You are outside your saved offline map coverage. Download the map for your current city in Group Settings to stay prepared.")
+        }
+        
         .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
             Group { switch modal {
             case .mapPoint:
@@ -214,7 +244,9 @@ struct OrbitMapView: View {
                     sessionStore: viewModel.sessionStore,
                     meetingService: meetingService,
                     location: location,
-                    selectedTarget: $selectedTarget
+                    selectedTarget: $selectedTarget,
+                    connectivity: connectivity,
+                    offlineMaps: offlineMaps
                 )
             case .friends:
                 GeometryReader { geometry in
@@ -241,7 +273,7 @@ struct OrbitMapView: View {
                             onLeaveGroup: requestLeaveGroup,
                             isUserSOSActive: { isSOSActive },
                             selectedMemberId: selectedMember?.id,
-                            onStopFollow: {       
+                            onStopFollow: {
                                 sos?.recordUserInteraction()
                                 pendingFriendSelection = .stopFollowing
                                 activeModal = nil
@@ -256,9 +288,14 @@ struct OrbitMapView: View {
                 }
                 .presentationBackground(.clear)
             case .settings:
-                OrbitSettingsView(location: location, sos: sos,
-                                  memberContactLog: { viewModel.sessionStore.memberContactLog },
-                                  diagnostics: diagnostics)
+                OrbitSettingsView(
+                    location: location,
+                    sos: sos,
+                    offlineMaps: offlineMaps,
+                    connectivity: connectivity,
+                    memberContactLog: { viewModel.sessionStore.memberContactLog },
+                    diagnostics: diagnostics
+                )
             case .invite:
                 if let session = viewModel.sessionStore.activeSession {
                     ShareInviteView(session: session) {
@@ -347,7 +384,7 @@ struct OrbitMapView: View {
             openChat()
         }
     }
-
+    
     private func distance(to member: Member?) -> Double? {
         guard let origin = location?.currentLocation, let coordinate = member?.coordinate else { return nil }
         let distance = origin.distance(to: coordinate)
@@ -390,6 +427,23 @@ struct OrbitMapView: View {
         sos?.recordUserInteraction()
         let target = OrbitSceneView.Target.meetingPoint(id)
         selectedTarget = selectedTarget == target ? nil : target
+    }
+    
+    // Relocation Notification
+    private func checkRelocationAndNotify(at coord: CLLocationCoordinate2D?) {
+        guard activeModal == nil else { return }
+        guard let coord,
+              let offlineMaps,
+              offlineMaps.cachedCity != nil,
+              !offlineMaps.isNudgeDismissedThisLaunch,
+              !offlineMaps.downloadState.isBusy else {
+            return
+        }
+        let isOnline = !(connectivity?.isForcedOfflineMode ?? false) && ((connectivity?.isPathSatisfied ?? false) || (connectivity?.isVerifiedOnline ?? false))
+        if isOnline && offlineMaps.isRelocatedFarFromCache(currentCoordinate: coord) {
+            offlineMaps.dismissNudgeForThisLaunch()
+            isShowingRelocationAlert = true
+        }
     }
 
     private func handleDeepLink(_ url: URL) {

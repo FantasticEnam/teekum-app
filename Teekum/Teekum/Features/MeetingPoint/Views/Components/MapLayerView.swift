@@ -6,288 +6,136 @@
 //
 
 import SwiftUI
-import MapKit
+import CoreLocation
 
 struct MapLayerView: View {
     @Bindable var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
     @Binding var selectedTarget: OrbitSceneView.Target?
-    @Namespace private var mapScope
-    @State private var mapHeading: CLLocationDirection = 0
+    var connectivity: ConnectivityMonitor? = nil
+    var offlineMaps: OfflineMapManager? = nil
+    var onMapReady: (() -> Void)? = nil
+    @Environment(\.dismiss) private var dismiss
     
-    // State untuk mode Satelit
-    @State private var isSatellite: Bool = false
-    // Location based on user pos
-    @State private var cameraPosition: MapCameraPosition = .camera(
-        MapCamera(
-            centerCoordinate: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
-            distance: 400
-        )
-    )
-    @State private var hasInitialCentered: Bool = false
-    // Simpan posisi finger touch sementara
-    @State private var lastTouchPoint: CGPoint? = nil
-    private let holdDuration: Double = 0.7
-    
-    // State Follow Alert
-    @State private var memberToFollow: Member? = nil
-    @State private var isShowingFollowAlert: Bool = false
-    @State private var isShowingStopFollowAlert: Bool = false
+    @State private var isShowingNoOfflineMapAlert: Bool = false
     
     init(
         viewModel: MeetingPointViewModel,
         location: LocationService? = nil,
-        selectedTarget: Binding<OrbitSceneView.Target?> = .constant(nil)
+        selectedTarget: Binding<OrbitSceneView.Target?> = .constant(nil),
+        connectivity: ConnectivityMonitor? = nil,
+        offlineMaps: OfflineMapManager? = nil,
+        onMapReady: (() -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self.location = location
         self._selectedTarget = selectedTarget
+        self.connectivity = connectivity
+        self.offlineMaps = offlineMaps
+        self.onMapReady = onMapReady
     }
     
-    public var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            MapReader { proxy in
-                Map(position: $cameraPosition, scope: mapScope) {
-                    // Current user point
-                    UserAnnotation()
-                    
-                    if let userCoord = location?.currentLocation?.coordinate,
-                       let targetCoord = followedCoordinate {
-                        MapPolyline(coordinates: [userCoord, targetCoord])
-                            .stroke(
-                                Color.buttonPrimary,
-                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round, dash: [6, 4])
-                            )
-                    }
-                    
-                    // Member Points (Teman)
-                    ForEach(viewModel.members) { member in
-                        if let coordinate = member.coordinate {
-                            Annotation("", coordinate: coordinate) {
-                                let isSelected = selectedTarget == .member(member.id)
-                                
-                                Button {
-                                    selectMember(member)
-                                } label: {
-                                    OrbitMemberMarkerView(
-                                        initials: member.initials,
-                                        color: member.color.swiftUIColor,
-                                        isSelected: isSelected,
-                                        isEmergency: member.isEmergency,
-                                        size: 22, batteryLevel: member.batteryLevel,
-                                        heading: member.heading.map { .degrees($0 - mapHeading) }
-                                    )
-                                    .overlay(alignment: .bottom) {
-                                        if let distance = memberDistance(for: member) {
-                                            let showsBattery = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel) != nil
-                                            Text(distance)
-                                                .font(.caption2)
-                                                .foregroundStyle(.white)
-                                                .fixedSize()
-                                                .shadow(color: .black.opacity(0.8), radius: 2)
-                                                .offset(y: showsBattery ? 34 : 18)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .annotationTitles(.hidden)
-                        }
-                    }
-                    
-                    // Pin Aktif
-                    if let active = viewModel.activeMapPoint {
-                        Annotation(active.name, coordinate: active.coordinate) {
-                            MapPointPinView(title: active.name)
-                                .onTapGesture {
-                                    viewModel.handlePinTapped()
-                                }
-                        }
-                    }
-                    
-                    // Pin Kandidat
-                    if let candidate = viewModel.candidateCoordinate {
-                        Annotation("Meeting Point", coordinate: candidate) {
-                            MapPointPinView(title: "Meeting Point")
-                        }
-                    }
+    var body: some View {
+        Group {
+            if connectivity?.activeMapEngine == .mapboxOffline {
+                if offlineMaps?.cachedCity != nil {
+                    MapboxMapCanvasView(
+                        viewModel: viewModel,
+                        location: location,
+                        selectedTarget: $selectedTarget,
+                        styleURI: offlineMaps?.activeStyleURIString ?? OfflineMapManager.fallbackDarkStyleURI,
+                        cachedCity: offlineMaps?.cachedCity,
+                        onMapReady: onMapReady
+                    )
+                } else {
+                    noOfflineMapPlaceholder
                 }
-                .mapStyle(isSatellite ? .hybrid(elevation: .flat) : .standard(elevation: .flat))
-                .mapControlVisibility(.hidden)
-                .onMapCameraChange(frequency: .continuous) { context in
-                    mapHeading = context.camera.heading
-                }
-                .safeAreaPadding(.top, 56)
-                .ignoresSafeArea()
-                // Posisi sentuhan jari
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                        .onChanged { value in
-                            lastTouchPoint = value.location
-                        }
+            } else {
+                AppleMapCanvasView(
+                    viewModel: viewModel,
+                    location: location,
+                    selectedTarget: $selectedTarget,
+                    onMapReady: onMapReady
                 )
-                // Deteksi jari yg di hold
-                .simultaneousGesture(
-                    LongPressGesture(minimumDuration: holdDuration)
-                        .onEnded { _ in
-                            guard let touch = lastTouchPoint,
-                                  let coord = proxy.convert(touch, from: .local) else { return }
-                            
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            viewModel.handleMapHold(at: coord)
-                        }
-                )
-            }
-            
-            HStack(alignment: .bottom) {
-                MapCompass(scope: mapScope)
-                    .mapControlVisibility(.visible)
-                    .scaleEffect(1.17)
-                    .frame(width: 42, height: 42)
-                    .offset(y: -4)
-                    .padding(.leading, 20)
-                
-                Spacer()
-                
-                mapFloatingButtons
-                    .padding(.trailing, 16)
-            }
-            .padding(.bottom, 60)
-        }
-        .overlay(alignment: .top) {
-            MapScaleView(scope: mapScope)
-                .fixedSize(horizontal: true, vertical: false)
-                .offset(x: 26)
-                .padding(.top, 12)
-                .allowsHitTesting(false)
-        }
-        .mapScope(mapScope)
-        .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
-            guard !hasInitialCentered, let newCoord else { return }
-            hasInitialCentered = true
-            withAnimation {
-                cameraPosition = .camera(MapCamera(centerCoordinate: newCoord, distance: 400))
             }
         }
         .onAppear {
-            if let userCoord = location?.currentLocation?.coordinate {
-                cameraPosition = .camera(MapCamera(centerCoordinate: userCoord, distance: 400))
-                hasInitialCentered = true
-            }
+            checkOfflineMapAvailability()
         }
-        // 1. Alert Mulai Follow
-        .alert(
-            "Follow \(memberToFollow?.initials ?? "Friend")?",
-            isPresented: $isShowingFollowAlert
-        ) {
-            Button("Cancel", role: .cancel) { }
-            Button("Follow") {
-                if let member = memberToFollow {
-                    selectedTarget = .member(member.id)
-                }
-            }
-        } message: {
-            Text("You will be guided towards \(memberToFollow?.initials ?? "this friend").")
+        .onChange(of: connectivity?.activeMapEngine) { _, _ in
+            checkOfflineMapAvailability()
         }
-        
-        // 2. Alert Berhenti Follow
-        .alert("Stop Following?", isPresented: $isShowingStopFollowAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Stop", role: .destructive) {
-                selectedTarget = nil
+        .alert("Offline Map Unavailable", isPresented: $isShowingNoOfflineMapAlert) {
+            Button("Use Orbit Radar") {
+                dismiss()
             }
+            Button("Dismiss", role: .cancel) { }
         } message: {
-            if let name = memberToFollow?.initials {
-                Text("Are you sure you want to stop following \(name)?")
+            if offlineMaps?.cachedCity != nil {
+                Text("You are outside the coverage of your downloaded offline map. Use the Orbit radar view to navigate to friends, or update your map in Group Settings when connected to the internet.")
             } else {
-                Text("Are you sure you want to stop following this target?")
+                Text("No offline map has been downloaded yet. Use the Orbit radar view to navigate to friends, or download a map in Group Settings when connected to the internet.")
             }
         }
     }
     
-    private func memberDistance(for member: Member) -> String? {
-        guard let userLocation = location?.currentLocation,
-              let memberCoord = member.coordinate else { return nil }
-        return userLocation.distance(to: memberCoord).formattedDistance()
-    }
-    
-    private var followedCoordinate: CLLocationCoordinate2D? {
-        guard let selectedTarget else { return nil }
-        switch selectedTarget {
-        case .member(let id):
-            return viewModel.members.first(where: { $0.id == id })?.coordinate
-        case .meetingPoint(let id):
-            return viewModel.activeMapPoint?.id == id ? viewModel.activeMapPoint?.coordinate : nil
+    private func checkOfflineMapAvailability() {
+        guard connectivity?.activeMapEngine == .mapboxOffline else { return }
+        
+        let hasNoCache = offlineMaps?.cachedCity == nil
+        let isRelocated = offlineMaps?.isRelocatedFarFromCache(currentCoordinate: location?.currentLocation?.coordinate) ?? false
+        
+        if hasNoCache || isRelocated {
+            isShowingNoOfflineMapAlert = true
         }
     }
     
-    private func selectMember(_ member: Member) {
-        if selectedTarget == .member(member.id) {
-            memberToFollow = member
-            isShowingStopFollowAlert = true
-        } else {
-            memberToFollow = member
-            isShowingFollowAlert = true
-        }
-    }
-    
-    private var mapFloatingButtons: some View {
-        VStack(spacing: 12) {
-            // 1. Tombol Satelit
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    isSatellite.toggle()
-                }
-            } label: {
-                Image(systemName: "map.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(isSatellite ? Color.buttonPrimary : .white)
-                    .frame(width: 42, height: 42)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .overlay {
-                Circle()
-                    .stroke(
-                        isSatellite ? Color.buttonPrimary : Color.white.opacity(0.25),
-                        lineWidth: isSatellite ? 1.5 : 0.8
-                    )
-            }
-            .shadow(
-                color: isSatellite ? Color.buttonPrimary.opacity(0.35) : .black.opacity(0.2),
-                radius: 4,
-                x: 0,
-                y: 2
-            )
-            .accessibilityLabel("Toggle Satellite Map")
+    private var noOfflineMapPlaceholder: some View {
+        ZStack {
+            Color(red: 0.08, green: 0.08, blue: 0.09)
+                .ignoresSafeArea()
             
-            // 2. Tombol Lokasi User
-            Button {
-                withAnimation(.easeInOut(duration: 0.4)) {
-                    let targetCoord = location?.currentLocation?.coordinate
-                        ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.06))
+                        .frame(width: 88, height: 88)
                     
-                    cameraPosition = .camera(
-                        MapCamera(
-                            centerCoordinate: targetCoord,
-                            distance: 400
-                        )
-                    )
+                    Image(systemName: "map.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(Color.buttonPrimary)
                 }
-            } label: {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
+                
+                VStack(spacing: 8) {
+                    Text("No Offline Map Available")
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+                    
+                    Text("No offline map has been downloaded yet.\nUse the Orbit radar to navigate to friends, or download a map in Group Settings when connected to the internet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                
+                Button {
+                    dismiss()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "dot.radiowaves.left.and.right")
+                        Text("Use Orbit Radar")
+                            .fontWeight(.bold)
+                    }
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(Color.buttonPrimary, in: Capsule())
+                }
+                .padding(.top, 8)
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .overlay {
-                Circle()
-                    .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
-            }
-            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-            .accessibilityLabel("Recenter to user location")
+        }
+        .onAppear {
+            onMapReady?()
         }
     }
 }
@@ -306,5 +154,3 @@ struct MapLayerView: View {
     MapLayerView(viewModel: viewModel)
         .preferredColorScheme(.dark)
 }
-
-

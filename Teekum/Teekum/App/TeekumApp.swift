@@ -40,6 +40,7 @@ struct TeekumApp: App {
                     if phase == .active {
                         controller.sos.recordUserInteraction()
                         Task { await controller.updatePower() }
+                        controller.connectivityMonitor.refreshReachability()
                     }
                 }
         }
