@@ -15,6 +15,7 @@ struct AppleMapCanvasView: View {
     
     @Namespace private var mapScope
     @State private var mapHeading: CLLocationDirection = 0
+    @State private var userHeading: Double = 0
     @State private var isSatellite: Bool = false
     @State private var cameraPosition: MapCameraPosition = .camera(
         MapCamera(
@@ -37,11 +38,12 @@ struct AppleMapCanvasView: View {
                     if let userCoord = location?.currentLocation?.coordinate {
                         Annotation("User", coordinate: userCoord) {
                             UserMarkerView(
-                                location: location,
                                 color: viewModel.localProfileColor,
                                 nickname: viewModel.localNickname,
-                                mapHeading: mapHeading
+                                heading: userHeading - mapHeading + 180,
+                                batteryLevel: location?.currentBatteryLevel
                             )
+                            .id("user-marker-\(userHeading)")
                         }
                         .annotationTitles(.hidden)
                     }
@@ -132,11 +134,72 @@ struct AppleMapCanvasView: View {
             }
             
             HStack(alignment: .bottom) {
-                MapCompass(scope: mapScope)
-                    .mapControlVisibility(.visible)
-                    .scaleEffect(1.2)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        let targetCoord = location?.currentLocation?.coordinate
+                        ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
+                        cameraPosition = .camera(
+                            MapCamera(
+                                centerCoordinate: targetCoord,
+                                distance: 400,
+                                heading: 0,
+                                pitch: 0
+                            )
+                        )
+                    }
+                } label: {
+                    ZStack {
+                        // Cincin dial kompas halus
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8)
+                            .frame(width: 26, height: 26)
+                        
+                        // Jarum kompas berotasi mengarah ke Utara
+                        VStack(spacing: 2) {
+                            Text("N")
+                                .font(.system(size: 7, weight: .black, design: .rounded))
+                                .foregroundStyle(Color(red: 0.95, green: 0.22, blue: 0.22))
+                            
+                            VStack(spacing: 0) {
+                                // Jarum Utara (Merah)
+                                Image(systemName: "triangle.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 6, height: 9)
+                                    .foregroundStyle(Color(red: 0.95, green: 0.22, blue: 0.22))
+                                
+                                // Jarum Selatan (Putih)
+                                Image(systemName: "triangle.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .rotationEffect(.degrees(180))
+                                    .frame(width: 6, height: 9)
+                                    .foregroundStyle(Color.white.opacity(0.85))
+                            }
+                            
+                            // Penyeimbang simetris agar poros putar tepat di tengah
+                            Text("N")
+                                .font(.system(size: 7, weight: .black, design: .rounded))
+                                .opacity(0)
+                        }
+                        .rotationEffect(.degrees(-userHeading))
+                        
+                        // Titik poros tengah putih
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 3, height: 3)
+                    }
                     .frame(width: 42, height: 42)
-                    .padding(.leading, 24)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .overlay {
+                    Circle()
+                        .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
+                }
+                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                .accessibilityLabel("Reset North Orientation")
+                .padding(.leading, 16)
                 
                 Spacer()
                 
@@ -160,9 +223,22 @@ struct AppleMapCanvasView: View {
                 cameraPosition = .camera(MapCamera(centerCoordinate: newCoord, distance: 400))
             }
         }
-        .onChange(of: location?.currentHeading) { _, _ in }
+        .onChange(of: location?.currentHeading) { _, newHeading in
+            if let newHeading {
+                userHeading = newHeading
+            }
+        }
         .onAppear {
-            location?.setTacticalRadarActive(true)
+            if let location {
+                if !location.isTracking {
+                    try? location.startTracking()
+                }
+                location.setTacticalRadarActive(true)
+                location.onHeadingUpdate = { newHeading in
+                    userHeading = newHeading
+                }
+                userHeading = location.currentHeading ?? 0
+            }
             if let userCoord = location?.currentLocation?.coordinate {
                 cameraPosition = .camera(MapCamera(centerCoordinate: userCoord, distance: 400))
                 hasInitialCentered = true
@@ -170,6 +246,7 @@ struct AppleMapCanvasView: View {
         }
         .onDisappear {
             location?.setTacticalRadarActive(false)
+            location?.onHeadingUpdate = nil
         }
         .alert(
             "Follow \(memberToFollow?.initials ?? "Friend")?",
@@ -257,7 +334,6 @@ struct AppleMapCanvasView: View {
                 withAnimation(.easeInOut(duration: 0.4)) {
                     let targetCoord = location?.currentLocation?.coordinate
                     ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
-                    
                     cameraPosition = .camera(
                         MapCamera(
                             centerCoordinate: targetCoord,
@@ -285,18 +361,17 @@ struct AppleMapCanvasView: View {
 
 // MARK: - Live User Marker View
 private struct UserMarkerView: View {
-    var location: LocationService?
     let color: Color
     let nickname: String
-    let mapHeading: Double
+    var heading: Double = 0
+    var batteryLevel: Float? = nil
     
     var body: some View {
-        let heading = (location?.currentHeading ?? 0) - mapHeading
         OrbitUserMarkerView(
             color: color,
             nickname: nickname,
             heading: .degrees(heading),
-            batteryLevel: location?.currentBatteryLevel
+            batteryLevel: batteryLevel
         )
     }
 }

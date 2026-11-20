@@ -96,7 +96,7 @@ public enum OfflineMapError: Error, LocalizedError, Equatable, Sendable {
         }
     }
 }
-// Matematika murni untuk kotak 20 km, pengaman batas 750 tile Mapbox, dan cek pindah >25 km.
+// Matematika murni untuk kotak 15 km, pengaman batas 750 tile Mapbox, dan cek pindah >25 km.
 public enum OfflineMapBounds {
     public static let defaultRadiusMeters: Double = 15_000
     public static let relocationThresholdMeters: Double = 25_000
@@ -105,7 +105,7 @@ public enum OfflineMapBounds {
     public static let mapboxHardTileCap: Int = 750
     public static let safeTileCap: Int = 700
     public static let minimumRequiredFreeBytes: Int64 = 60 * 1_024 * 1_024
-    public static let estimatedDownloadLabel: String = "~15–25 MB"
+    public static let estimatedDownloadLabel: String = "~50–120 MB"
     private static let earthRadiusMeters: Double = 6_371_000
     private static let metersPerDegreeLatitude: Double = 111_320
     private static let maxMercatorLatitude: Double = 85.0511

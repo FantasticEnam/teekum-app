@@ -61,6 +61,11 @@ extension LocationService {
         guard isTacticalRadarActive != active else { return }
         self.isTacticalRadarActive = active
         applyDynamicAccuracy()
+        #if os(iOS)
+        if active && CLLocationManager.headingAvailable() {
+            locationManager.startUpdatingHeading()
+        }
+        #endif
     }
     
     /// Dynamically tunes Core Location desiredAccuracy, distanceFilter, and headingFilter:

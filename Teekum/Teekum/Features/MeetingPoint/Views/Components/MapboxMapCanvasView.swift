@@ -22,6 +22,7 @@ struct MapboxMapCanvasView: View {
     )
     @State private var hasInitialCentered: Bool = false
     @State private var mapBearing: Double = 0
+    @State private var userHeading: Double = 0
     @State private var currentCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
     @State private var currentZoom: CGFloat = 15
     
@@ -72,11 +73,12 @@ struct MapboxMapCanvasView: View {
                 if let userCoord = location?.currentLocation?.coordinate {
                     MapViewAnnotation(coordinate: userCoord) {
                         UserMarkerView(
-                            location: location,
                             color: viewModel.localProfileColor,
                             nickname: viewModel.localNickname,
-                            mapHeading: mapBearing
+                            heading: userHeading - mapBearing + 180,
+                            batteryLevel: location?.currentBatteryLevel
                         )
+                        .id("user-marker-\(userHeading)")
                     }
                     .allowOverlap(true)
                 }
@@ -144,7 +146,6 @@ struct MapboxMapCanvasView: View {
                 currentCenter = cameraChanged.cameraState.center
                 currentZoom = cameraChanged.cameraState.zoom
             }
-            
             .safeAreaPadding(.top, 56)
             .ignoresSafeArea()
             
@@ -174,9 +175,22 @@ struct MapboxMapCanvasView: View {
             currentCenter = newCoord
             viewport = .camera(center: newCoord, zoom: 15)
         }
-        .onChange(of: location?.currentHeading) { _, _ in }
+        .onChange(of: location?.currentHeading) { _, newHeading in
+            if let newHeading {
+                userHeading = newHeading
+            }
+        }
         .onAppear {
-            location?.setTacticalRadarActive(true)
+            if let location {
+                if !location.isTracking {
+                    try? location.startTracking()
+                }
+                location.setTacticalRadarActive(true)
+                location.onHeadingUpdate = { newHeading in
+                    userHeading = newHeading
+                }
+                userHeading = location.currentHeading ?? 0
+            }
             if let userCoord = location?.currentLocation?.coordinate {
                 viewport = .camera(center: userCoord, zoom: 15)
                 currentCenter = userCoord
@@ -189,6 +203,7 @@ struct MapboxMapCanvasView: View {
         }
         .onDisappear {
             location?.setTacticalRadarActive(false)
+            location?.onHeadingUpdate = nil
         }
         .alert(
             "Follow \(memberToFollow?.initials ?? "Friend")?",
@@ -294,7 +309,7 @@ struct MapboxMapCanvasView: View {
                             .font(.system(size: 7, weight: .black, design: .rounded))
                             .opacity(0)
                     }
-                    .rotationEffect(.degrees(-mapBearing))
+                    .rotationEffect(.degrees(-userHeading))
                     
                     // Titik poros tengah putih
                     Circle()
@@ -372,18 +387,17 @@ struct MapboxMapCanvasView: View {
 
 // MARK: - Live User Marker View
 private struct UserMarkerView: View {
-    var location: LocationService?
     let color: Color
     let nickname: String
-    let mapHeading: Double
+    var heading: Double = 0
+    var batteryLevel: Float? = nil
     
     var body: some View {
-        let heading = (location?.currentHeading ?? 0) - mapHeading
         OrbitUserMarkerView(
             color: color,
             nickname: nickname,
             heading: .degrees(heading),
-            batteryLevel: location?.currentBatteryLevel
+            batteryLevel: batteryLevel
         )
     }
 }

@@ -32,7 +32,7 @@ struct PreparednessSetupView: View {
                         .font(.title.bold())
                         .foregroundStyle(.white)
                     
-                    Text("Unduh peta area 20 km di sekitar Anda sekarang selagi ada internet. Peta ini akan otomatis aktif saat jaringan seluler terputus pasca-bencana.")
+                    Text("Unduh peta area 15 km di sekitar Anda sekarang selagi ada internet. Peta ini akan otomatis aktif saat jaringan seluler terputus pasca-bencana.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -85,7 +85,7 @@ struct PreparednessSetupView: View {
                     
                     // Info Badge: Radius & Estimasi Ukuran
                     HStack {
-                        Label("Radius 20 km", systemImage: "circle.circle")
+                        Label("Radius 15 km", systemImage: "circle.circle")
                         Spacer()
                         Label("Peta Vektor Lengkap", systemImage: "arrow.down.circle")
                     }

@@ -37,7 +37,7 @@ extension LocationService {
         guard newHeading.headingAccuracy >= 0 else { return }
         let heading = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
         Task { @MainActor [weak self] in
-            guard let self, self.isTracking else { return }
+            guard let self else { return }
             self.currentHeading = heading
             self.onHeadingUpdate?(heading)
         }
