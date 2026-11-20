@@ -35,131 +35,6 @@ struct MapLayerView: View {
         self.onMapReady = onMapReady
     }
     
-<<<<<<< HEAD
-    public var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            MapReader { proxy in
-                Map(position: $cameraPosition, scope: mapScope) {
-                    // Current user point
-                    UserAnnotation {
-                        MapUserAnnotationView(
-                            initials: "YOU",
-                            color: viewModel.localProfileColor.swiftUIColor,
-                            location: location,
-                            mapHeading: $mapHeading
-                        )
-                    }
-                    
-                    if let userCoord = location?.currentLocation?.coordinate,
-                       let targetCoord = followedCoordinate {
-                        MapPolyline(coordinates: [userCoord, targetCoord])
-                            .stroke(
-                                Color.buttonPrimary,
-                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round, dash: [6, 4])
-                            )
-                    }
-                    
-                    // Member Points (Teman)
-                    ForEach(viewModel.members) { member in
-                        if let coordinate = member.coordinate {
-                            Annotation("", coordinate: coordinate) {
-                                MapMemberAnnotationView(
-                                    member: member,
-                                    isSelected: selectedTarget == .member(member.id),
-                                    distance: memberDistance(for: member),
-                                    mapHeading: $mapHeading,
-                                    onTap: { selectMember(member) }
-                                )
-                            }
-                            .annotationTitles(.hidden)
-                        }
-                    }
-                    
-                    // Pin Aktif
-                    if let active = viewModel.activeMapPoint {
-                        Annotation(active.name, coordinate: active.coordinate) {
-                            MapPointPinView(title: active.name)
-                                .onTapGesture {
-                                    viewModel.handlePinTapped()
-                                }
-                        }
-                    }
-                    
-                    // Pin Kandidat
-                    if let candidate = viewModel.candidateCoordinate {
-                        Annotation("Meeting Point", coordinate: candidate) {
-                            MapPointPinView(title: "Meeting Point")
-                        }
-                    }
-||||||| 221cd75
-    public var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            MapReader { proxy in
-                Map(position: $cameraPosition, scope: mapScope) {
-                    // Current user point
-                    UserAnnotation()
-                    
-                    if let userCoord = location?.currentLocation?.coordinate,
-                       let targetCoord = followedCoordinate {
-                        MapPolyline(coordinates: [userCoord, targetCoord])
-                            .stroke(
-                                Color.buttonPrimary,
-                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round, dash: [6, 4])
-                            )
-                    }
-                    
-                    // Member Points (Teman)
-                    ForEach(viewModel.members) { member in
-                        if let coordinate = member.coordinate {
-                            Annotation("", coordinate: coordinate) {
-                                let isSelected = selectedTarget == .member(member.id)
-                                
-                                Button {
-                                    selectMember(member)
-                                } label: {
-                                    OrbitMemberMarkerView(
-                                        initials: member.initials,
-                                        color: member.color.swiftUIColor,
-                                        isSelected: isSelected,
-                                        isEmergency: member.isEmergency,
-                                        size: 22, batteryLevel: member.batteryLevel,
-                                        heading: member.heading.map { .degrees($0 - mapHeading) }
-                                    )
-                                    .overlay(alignment: .bottom) {
-                                        if let distance = memberDistance(for: member) {
-                                            let showsBattery = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel) != nil
-                                            Text(distance)
-                                                .font(.caption2)
-                                                .foregroundStyle(.white)
-                                                .fixedSize()
-                                                .shadow(color: .black.opacity(0.8), radius: 2)
-                                                .offset(y: showsBattery ? 34 : 18)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .annotationTitles(.hidden)
-                        }
-                    }
-                    
-                    // Pin Aktif
-                    if let active = viewModel.activeMapPoint {
-                        Annotation(active.name, coordinate: active.coordinate) {
-                            MapPointPinView(title: active.name)
-                                .onTapGesture {
-                                    viewModel.handlePinTapped()
-                                }
-                        }
-                    }
-                    
-                    // Pin Kandidat
-                    if let candidate = viewModel.candidateCoordinate {
-                        Annotation("Meeting Point", coordinate: candidate) {
-                            MapPointPinView(title: "Meeting Point")
-                        }
-                    }
-=======
     var body: some View {
         Group {
             if connectivity?.activeMapEngine == .mapboxOffline {
@@ -174,7 +49,6 @@ struct MapLayerView: View {
                     )
                 } else {
                     noOfflineMapPlaceholder
->>>>>>> 2519352c65bac58ab06d0c0b61e3a495e5b0f418
                 }
             } else {
                 AppleMapCanvasView(
@@ -221,25 +95,11 @@ struct MapLayerView: View {
             Color(red: 0.08, green: 0.08, blue: 0.09)
                 .ignoresSafeArea()
             
-<<<<<<< HEAD
-            // 2. Tombol Lokasi User
-            Button {
-                withAnimation(.easeInOut(duration: 0.4)) {
-                    let targetCoord = location?.currentLocation?.coordinate
-                    ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
-||||||| 221cd75
-            // 2. Tombol Lokasi User
-            Button {
-                withAnimation(.easeInOut(duration: 0.4)) {
-                    let targetCoord = location?.currentLocation?.coordinate
-                        ?? CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026)
-=======
             VStack(spacing: 20) {
                 ZStack {
                     Circle()
                         .fill(Color.white.opacity(0.06))
                         .frame(width: 88, height: 88)
->>>>>>> 2519352c65bac58ab06d0c0b61e3a495e5b0f418
                     
                     Image(systemName: "map.circle.fill")
                         .font(.system(size: 48))
@@ -278,55 +138,6 @@ struct MapLayerView: View {
             onMapReady?()
         }
     }
-    
-    private struct MapMemberAnnotationView: View {
-        let member: Member
-        let isSelected: Bool
-        let distance: String?
-        @Binding var mapHeading: CLLocationDirection
-        let onTap: () -> Void
-        
-        var body: some View {
-            Button(action: onTap) {
-                OrbitMemberMarkerView(
-                    initials: member.initials,
-                    color: member.color.swiftUIColor,
-                    isSelected: isSelected,
-                    isEmergency: member.isEmergency,
-                    batteryLevel: member.batteryLevel,
-                    heading: member.heading.map { .degrees($0 - mapHeading) }
-                )
-                .overlay(alignment: .bottom) {
-                    if let distance {
-                        let showsBattery = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel) != nil
-                        Text(distance)
-                            .font(.caption2)
-                            .foregroundStyle(.white)
-                            .fixedSize()
-                            .shadow(color: .black.opacity(0.8), radius: 2)
-                            .offset(y: showsBattery ? 34 : 18)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-        }
-    }
-    
-    private struct MapUserAnnotationView: View {
-            let initials: String
-            let color: Color
-            let location: LocationService?
-            @Binding var mapHeading: CLLocationDirection
-            
-            var body: some View {
-                OrbitMemberMarkerView(
-                    initials: initials,
-                    color: color,
-                    batteryLevel: location?.currentBatteryLevel,
-                    heading: location?.currentHeading.map { .degrees($0 - mapHeading) }
-                )
-            }
-        }
 }
 
 #Preview("Active meeting point") {

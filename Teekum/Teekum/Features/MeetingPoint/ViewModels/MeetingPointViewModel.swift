@@ -35,11 +35,6 @@ public final class MeetingPointViewModel {
         sessionStore.activeSession?.localInitials ?? "YOU"
     }
     
-    public var localProfileColor: MemberColor {
-        guard let session = sessionStore.activeSession else { return .sandrift }
-        return sessionStore.profileColor(for: session.localInitials)
-    }
-    
     public var myAttendance: MeetingAttendance? {
         guard let memberID = sessionStore.activeSession?.localMemberId else { return nil }
         return activeMapPoint?.attendance[memberID]
@@ -53,6 +48,25 @@ public final class MeetingPointViewModel {
         guard let active = activeMapPoint,
               let memberID = sessionStore.activeSession?.localMemberId else { return false }
         return active.proposerId == memberID
+    }
+    
+    public var confirmedMembers: [String] {
+        guard let point = activeMapPoint else { return [] }
+        var result = point.attendance
+            .filter { $0.value == .accepted || $0.value == .arrived }
+            .map { $0.key.rawValue }
+        if !point.proposerInitials.isEmpty && !result.contains(point.proposerInitials) {
+            result.append(point.proposerInitials)
+        }
+        return result.sorted()
+    }
+    
+    public var rejectedMembers: [String] {
+        guard let point = activeMapPoint else { return [] }
+        return point.attendance
+            .filter { $0.value == .declined }
+            .map { $0.key.rawValue }
+            .sorted()
     }
     
     public var members: [Member] {

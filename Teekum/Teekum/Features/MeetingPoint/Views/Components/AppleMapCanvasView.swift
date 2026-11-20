@@ -94,10 +94,15 @@ struct AppleMapCanvasView: View {
                     
                     if let active = viewModel.activeMapPoint {
                         Annotation(active.name, coordinate: active.coordinate) {
-                            MapPointPinView(title: active.name)
-                                .onTapGesture {
+                            MapPointPinView(
+                                title: active.name,
+                                confirmedMembers: viewModel.confirmedMembers,
+                                rejectedMembers: viewModel.rejectedMembers,
+                                showsInfo: true,
+                                onTapPin: {
                                     viewModel.handlePinTapped()
                                 }
+                            )
                         }
                     }
                     
