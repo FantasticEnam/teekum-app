@@ -283,7 +283,7 @@ struct PreparednessSetupView: View {
             HStack(spacing: 6) {
                 Image(systemName: "square.stack.3d.up")
                     .font(.system(size: 12))
-                Text("Estimated size: 30 - 116 MB")
+                Text("Estimated size: ~100 MB")
                     .font(.system(size: 12))
             }
             .foregroundStyle(Color.white.opacity(0.65))

@@ -70,7 +70,12 @@ struct OrbitSettingsView: View {
     private func offlineMapSection(_ maps: OfflineMapManager) -> some View {
         Section("Offline map") {
             HStack {
-                Label("Engine", systemImage: "map")
+                Label {
+                    Text("Engine")
+                } icon: {
+                    Image(systemName: "map")
+                        .foregroundStyle(Color.buttonPrimary)
+                }
                 Spacer()
                 Text(engineStatusText)
                     .foregroundStyle(engineStatusColor)
@@ -143,38 +148,38 @@ struct OrbitSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 6)
-                }
-                
-                // B. BLOK STORAGE: Tombol Hapus khusus untuk mengosongkan memori
-                VStack(alignment: .leading, spacing: 4) {
-                    Button(role: .destructive) {
-                        showingDeleteAlert = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "trash")
-                            Text("Remove Map from Storage")
-                                .fontWeight(.medium)
+                } else {
+                    // B. BLOK STORAGE: Tombol Hapus muncul HANYA jika berada di lokasi sekarang
+                    VStack(alignment: .leading, spacing: 4) {
+                        Button(role: .destructive) {
+                            showingDeleteAlert = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "trash")
+                                Text("Remove Map from Storage")
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
-                        .foregroundStyle(.red)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        
+                        Text("Frees up \(maps.formattedCachedSize) of device storage.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
-                    
-                    Text("Frees up \(maps.formattedCachedSize) of device storage.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 4)
-                .alert("Delete Offline Map?", isPresented: $showingDeleteAlert) {
-                    Button("Delete", role: .destructive) {
-                        Task {
-                            await maps.deleteCachedCity()
+                    .padding(.top, 4)
+                    .alert("Delete Offline Map?", isPresented: $showingDeleteAlert) {
+                        Button("Delete", role: .destructive) {
+                            Task {
+                                await maps.deleteCachedCity()
+                            }
                         }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("The cached map for \(cached.cityName) will be removed from your device storage.")
                     }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("The cached map for \(cached.cityName) will be removed from your device storage.")
                 }
             }
             // 3. Jika Belum Ada Peta Offline Sama Sekali
