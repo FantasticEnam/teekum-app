@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct MainMapView: View {
     @State private var viewModel: MeetingPointViewModel
@@ -17,6 +18,7 @@ struct MainMapView: View {
     
     @State private var isMapReady: Bool = false
     @State private var showLoadingIndicator: Bool = true
+    @State private var isShowingLocationDeniedAlert: Bool = false
     
     init(
         sessionStore: SessionStore,
@@ -112,6 +114,12 @@ struct MainMapView: View {
         .onAppear {
             viewModel.requestLocationPermission()
             location?.setTacticalRadarActive(true)
+            checkLocationAuthorization()
+        }
+        .onChange(of: location?.authorizationStatus) { _, newStatus in
+            if newStatus == .denied || newStatus == .restricted {
+                isShowingLocationDeniedAlert = true
+            }
         }
         .onDisappear {
             location?.setTacticalRadarActive(false)
@@ -153,6 +161,25 @@ struct MainMapView: View {
             Text("There's a meeting point selected by \(proposer). Would you like to join?")
         }
         
+        // 4. Alert Izin Lokasi Ditolak
+        .alert("Location Access Needed", isPresented: $isShowingLocationDeniedAlert) {
+            Button("Not Now", role: .cancel) { }
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString),
+                   UIApplication.shared.canOpenURL(url) {
+                    UIApplication.shared.open(url)
+                }
+            }
+        } message: {
+            Text("Teekum needs location access to pinpoint your position and guide you to the meeting point. Please enable it in Settings.")
+        }
+    }
+    
+    private func checkLocationAuthorization() {
+        let status = location?.authorizationStatus ?? CLLocationManager().authorizationStatus
+        if status == .denied || status == .restricted {
+            isShowingLocationDeniedAlert = true
+        }
     }
 }
 

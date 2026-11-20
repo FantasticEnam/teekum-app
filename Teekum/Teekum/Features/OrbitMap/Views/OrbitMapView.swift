@@ -215,15 +215,15 @@ struct OrbitMapView: View {
             
             // 3. Alert New Location (>25km)
             .alert(
-                "Peta Wilayah Baru Tersedia",
+                "New Area Map Available",
                 isPresented: $isShowingRelocationAlert
             ) {
-                Button("Buka Pengaturan") {
+                Button("Open Settings") {
                     activeModal = .settings
                 }
-                Button("Nanti Saja", role: .cancel) { }
+                Button("Not Now", role: .cancel) { }
             } message: {
-                Text("Anda berada di luar jangkauan peta offline yang tersimpan. Unduh peta kota baru di Pengaturan Grup agar tetap siap siaga saat bencana.")
+                Text("You are outside your saved offline map coverage. Download the map for your current city in Group Settings to stay prepared.")
             }
             
             .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in

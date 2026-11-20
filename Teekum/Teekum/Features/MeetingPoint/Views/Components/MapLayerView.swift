@@ -15,6 +15,7 @@ struct MapLayerView: View {
     var connectivity: ConnectivityMonitor? = nil
     var offlineMaps: OfflineMapManager? = nil
     var onMapReady: (() -> Void)? = nil
+    @Environment(\.dismiss) private var dismiss
     
     @State private var isShowingNoOfflineMapAlert: Bool = false
     
@@ -37,14 +38,18 @@ struct MapLayerView: View {
     var body: some View {
         Group {
             if connectivity?.activeMapEngine == .mapboxOffline {
-                MapboxMapCanvasView(
-                    viewModel: viewModel,
-                    location: location,
-                    selectedTarget: $selectedTarget,
-                    styleURI: offlineMaps?.activeStyleURIString ?? OfflineMapManager.fallbackDarkStyleURI,
-                    cachedCity: offlineMaps?.cachedCity,
-                    onMapReady: onMapReady
-                )
+                if offlineMaps?.cachedCity != nil {
+                    MapboxMapCanvasView(
+                        viewModel: viewModel,
+                        location: location,
+                        selectedTarget: $selectedTarget,
+                        styleURI: offlineMaps?.activeStyleURIString ?? OfflineMapManager.fallbackDarkStyleURI,
+                        cachedCity: offlineMaps?.cachedCity,
+                        onMapReady: onMapReady
+                    )
+                } else {
+                    noOfflineMapPlaceholder
+                }
             } else {
                 AppleMapCanvasView(
                     viewModel: viewModel,
@@ -60,10 +65,17 @@ struct MapLayerView: View {
         .onChange(of: connectivity?.activeMapEngine) { _, _ in
             checkOfflineMapAvailability()
         }
-        .alert("Peta Offline Belum Tersedia", isPresented: $isShowingNoOfflineMapAlert) {
-            Button("Mengerti", role: .cancel) { }
+        .alert("Offline Map Unavailable", isPresented: $isShowingNoOfflineMapAlert) {
+            Button("Use Orbit Radar") {
+                dismiss()
+            }
+            Button("Dismiss", role: .cancel) { }
         } message: {
-            Text("Peta untuk wilayah ini belum diunduh. Hubungkan perangkat ke internet dan buka Pengaturan Grup untuk mengunduh peta wilayah saat ini.")
+            if offlineMaps?.cachedCity != nil {
+                Text("You are outside the coverage of your downloaded offline map. Use the Orbit radar view to navigate to friends, or update your map in Group Settings when connected to the internet.")
+            } else {
+                Text("No offline map has been downloaded yet. Use the Orbit radar view to navigate to friends, or download a map in Group Settings when connected to the internet.")
+            }
         }
     }
     
@@ -75,6 +87,55 @@ struct MapLayerView: View {
         
         if hasNoCache || isRelocated {
             isShowingNoOfflineMapAlert = true
+        }
+    }
+    
+    private var noOfflineMapPlaceholder: some View {
+        ZStack {
+            Color(red: 0.08, green: 0.08, blue: 0.09)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.06))
+                        .frame(width: 88, height: 88)
+                    
+                    Image(systemName: "map.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(Color.buttonPrimary)
+                }
+                
+                VStack(spacing: 8) {
+                    Text("No Offline Map Available")
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+                    
+                    Text("No offline map has been downloaded yet.\nUse the Orbit radar to navigate to friends, or download a map in Group Settings when connected to the internet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                
+                Button {
+                    dismiss()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "dot.radiowaves.left.and.right")
+                        Text("Use Orbit Radar")
+                            .fontWeight(.bold)
+                    }
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(Color.buttonPrimary, in: Capsule())
+                }
+                .padding(.top, 8)
+            }
+        }
+        .onAppear {
+            onMapReady?()
         }
     }
 }
