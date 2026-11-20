@@ -35,6 +35,10 @@ Created by DIMAS DAFFA ERNANDA on 11/11/26.
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>MBXAccessToken</key>
+	<string>$(MBX_ACCESS_TOKEN)</string>
+	<key>MeepoMapboxStyleURI</key>
+	<string>$(MEEPO_MAPBOX_STYLE_URI)</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_teekum._tcp</string>
