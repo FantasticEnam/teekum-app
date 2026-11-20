@@ -94,7 +94,7 @@ struct PreparednessSetupView: View {
                             
                             Image(systemName: "map.fill")
                                 .font(.system(size: 38))
-                                .foregroundStyle(.black)
+                                .foregroundStyle(.white)
                         }
                         .padding(.top, 24)
                         .padding(.bottom, 20)
@@ -256,7 +256,7 @@ struct PreparednessSetupView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "circle.circle")
                         .font(.system(size: 12))
-                    Text("20 km coverage")
+                    Text("15 km coverage")
                         .font(.system(size: 12))
                 }
                 
