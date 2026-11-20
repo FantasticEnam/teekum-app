@@ -45,6 +45,7 @@ targets:
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Show your location on the map when choosing a group meeting point."
         INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "Share your location with your group during an active session."
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Discover nearby phones and exchange encrypted group messages without internet."
+        INFOPLIST_KEY_NSNearbyInteractionUsageDescription: "Measure distance and direction to nearby members of your Meepo group when GPS is less useful."
         INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "Exchange encrypted messages with nearby phones without internet."
         INFOPLIST_KEY_NSMotionUsageDescription: "Adjust location updates to your movement and monitor inactivity when you choose to enable it."
         INFOPLIST_KEY_CFBundleDisplayName: Meepo

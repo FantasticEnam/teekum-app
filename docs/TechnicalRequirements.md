@@ -97,6 +97,8 @@ Session restore reads metadata from UserDefaults and the group key from the devi
 
 Orbit shows gray in-app banners for incoming chat, a new meeting point, and a friend choosing Follow. Tap a chat banner to open the conversation or swipe it up to dismiss it. The incoming SOS banner offers “Dismiss” and “I’ll be there!” Both close the banner and switch to 90-second reminders while the red glow stays visible until the SOS resolves. “I’ll be there!” starts Follow. If a friend follows a member with an active SOS, the sender sees a red banner naming the helper. “Okay” dismisses that notice and returns to the active SOS banner. Only “End SOS” sends a resolution.
 
+With Nearby Interaction permission, foreground Meepo automatically measures compatible members over UWB. A fresh distance and direction drive the member marker on Orbit, including with no GPS fix. A distance-only sample can update Follow and the Map distance label, while position still uses the available geographic measurement. Samples older than two seconds revert to the existing location fallback. Group Settings shows the current Nearby status and measurements.
+
 ### 3.5 Four-Developer Collaboration Baseline
 
 | Role | Scope | Review boundary |

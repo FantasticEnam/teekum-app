@@ -139,6 +139,18 @@ public final class SessionStore {
         }
     }
 
+    /// Announces a direct member without updating their GPS measurement.
+    func applyNearbyPresence(from id: Member.ID, color: UInt8, at date: Date) -> Bool {
+        if let index = members.firstIndex(where: { $0.id == id }) {
+            members[index].lastSeen = max(members[index].lastSeen, date)
+            members[index].isDirectPeer = true
+            return false
+        }
+        members.append(Member(id: id, lastSeen: date, isDirectPeer: true,
+            color: .resolve(code: color, initials: id)))
+        return true
+    }
+
     /// Resets all in-memory session state on leave or expiry.
     public func resetSessionState() {
         activeSession = nil

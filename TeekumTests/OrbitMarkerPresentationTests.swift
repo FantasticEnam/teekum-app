@@ -95,4 +95,24 @@ final class OrbitMarkerPresentationTests: XCTestCase {
         XCTAssertEqual(groups.map { $0.markers.count }, [3, 1])
         XCTAssertTrue(groups.last?.markers.first?.projection.isClamped == true)
     }
+
+    func testOrbitUsesFreshNearbyDirectionWithoutGPSAndFallsBackWhenItExpires() throws {
+        let now = ContinuousClock.now
+        let member = Member(id: "AYU", coordinate: .init(latitude: 0, longitude: 0.0001))
+        let pin = LocationPin(coordinate: .init(latitude: 0, longitude: 0), horizontalAccuracy: 12)
+        let close = NearbyOrbitPosition(distance: 0.6, bearing: 90, measuredAt: now)
+        let rangeOnly = NearbyOrbitPosition(distance: 0.6, bearing: nil, measuredAt: now)
+        let direct = try XCTUnwrap(OrbitProjection(member: member, nearby: close, from: nil,
+            heading: 180, radius: 150, range: 15, at: now))
+        XCTAssertTrue(direct.isNearby)
+        XCTAssertEqual(direct.distance, 0.6, accuracy: 0.000001)
+        XCTAssertEqual(direct.x, 6, accuracy: 0.000001)
+        XCTAssertNil(OrbitProjection(member: member, nearby: rangeOnly, from: nil,
+            heading: 180, radius: 150, range: 15, at: now))
+        let expired = try XCTUnwrap(OrbitProjection(member: member, nearby: close, from: pin,
+            heading: 180, radius: 150, range: 15, at: now.advanced(by: .seconds(3))))
+        XCTAssertFalse(expired.isNearby)
+        XCTAssertGreaterThan(expired.distance, 10)
+        XCTAssertLessThan(expired.x, 0)
+    }
 }

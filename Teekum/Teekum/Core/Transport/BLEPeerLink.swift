@@ -14,6 +14,7 @@ final class BLEPeerLink: NSObject, @preconcurrency CBCentralManagerDelegate, @pr
     private struct QueuedFragment {
         let bytes: Data
         let completedPacket: CleartextEnvelope?
+        let isNearby: Bool
     }
 
     private let serviceID = CBUUID(string: "A974CB10-7752-4F44-81A8-03047F278201")
@@ -214,6 +215,7 @@ final class BLEPeerLink: NSObject, @preconcurrency CBCentralManagerDelegate, @pr
     func send(_ frame: Data, to target: String?) {
         guard active, frame.count == 56 else { return }
         let envelope = try? CleartextEnvelope.deserialize(from: frame)
+        let isNearby = envelope?.type == .nearbyToken
         let ids = target.map { [$0] } ?? peerIDs()
         for id in ids {
             guard (queues[id]?.count ?? 0) < 256 else { report("BLE queue full: \(id)"); continue }
@@ -224,12 +226,22 @@ final class BLEPeerLink: NSObject, @preconcurrency CBCentralManagerDelegate, @pr
                 limit = subscriber.maximumUpdateValueLength
             } else { continue }
             let fragments = BLEFrameCodec.fragments(frame, maximumValueLength: limit)
+            if isNearby, (queues[id]?.count ?? 0) + fragments.count > 192 { continue }
             guard (queues[id]?.count ?? 0) + fragments.count <= 256 else {
                 report("BLE queue full: \(id)"); continue
             }
-            queues[id, default: []].append(contentsOf: fragments.enumerated().map { index, bytes in
-                QueuedFragment(bytes: bytes, completedPacket: index == fragments.count - 1 ? envelope : nil)
-            })
+            let items = fragments.enumerated().map { index, bytes in
+                QueuedFragment(bytes: bytes, completedPacket: index == fragments.count - 1 ? envelope : nil,
+                    isNearby: isNearby)
+            }
+            if !isNearby, let pending = queues[id],
+               let firstFrameEnd = pending.firstIndex(where: { $0.completedPacket != nil }),
+               let nextNearby = pending.dropFirst(firstFrameEnd + 1).firstIndex(where: \.isNearby) {
+                // Keep the frame already being written intact.
+                queues[id]?.insert(contentsOf: items, at: nextNearby)
+            } else {
+                queues[id, default: []].append(contentsOf: items)
+            }
         }
         flush()
     }

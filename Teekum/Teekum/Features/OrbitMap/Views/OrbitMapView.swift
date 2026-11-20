@@ -30,6 +30,7 @@ struct OrbitMapView: View {
     private let chat: ChatViewModel?
     private let sos: SOSViewModel?
     private let meetingService: MeetingPointService?
+    private let nearby: NearbyRangingService?
     private let diagnostics: @MainActor () -> TransportDiagnostics?
     private let notifications: NotificationService?
     private let onFollowMember: (String, UInt32?) -> Void
@@ -46,6 +47,7 @@ struct OrbitMapView: View {
             members: visibleMembers,
             meetingPoint: meetingPoint,
             location: location?.currentLocation,
+            nearbyPositions: nearby?.positions ?? [:],
             heading: location?.currentHeading ?? 0,
             selectedTarget: selectedTarget,
             isUserSOSActive: isSOSActive,
@@ -60,7 +62,7 @@ struct OrbitMapView: View {
     }
     
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
-         sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
+         sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil, nearby: NearbyRangingService? = nil,
          diagnostics: @escaping @MainActor () -> TransportDiagnostics? = { nil }, notifications: NotificationService? = nil,
          onFollowMember: @escaping (String, UInt32?) -> Void = { _, _ in },
          onLeaveGroup: (() -> Void)? = nil) {
@@ -69,6 +71,7 @@ struct OrbitMapView: View {
         self.chat = chat
         self.sos = sos
         self.meetingService = meetingService
+        self.nearby = nearby
         self.diagnostics = diagnostics
         self.notifications = notifications
         self.onFollowMember = onFollowMember
@@ -215,6 +218,7 @@ struct OrbitMapView: View {
                     sessionStore: viewModel.sessionStore,
                     meetingService: meetingService,
                     location: location,
+                    nearbyDistance: { nearby?.distance(to: $0) },
                     selectedTarget: $selectedTarget
                 )
             case .friends:
@@ -259,7 +263,7 @@ struct OrbitMapView: View {
             case .settings:
                 OrbitSettingsView(location: location, sos: sos,
                                   memberContactLog: { viewModel.sessionStore.memberContactLog },
-                                  diagnostics: diagnostics)
+                                  diagnostics: diagnostics, nearbyStatus: { nearby?.status })
             case .invite:
                 if let session = viewModel.sessionStore.activeSession {
                     ShareInviteView(session: session) {
@@ -350,6 +354,9 @@ struct OrbitMapView: View {
     }
 
     private func distance(to member: Member?) -> Double? {
+        if let id = member?.id, let measured = nearby?.distance(to: id) {
+            return measured
+        }
         guard let origin = location?.currentLocation, let coordinate = member?.coordinate else { return nil }
         let distance = origin.distance(to: coordinate)
         return distance.isFinite && distance >= 0 ? distance : nil

@@ -556,6 +556,100 @@ final class NetworkMigrationTests: XCTestCase {
         await model.stop()
     }
 
+    @MainActor
+    func testNearbySetupAuthenticatesDirectGroupTrafficWithoutRelayingOrChangingGPS() async throws {
+        let transport = NetworkTestTransport()
+        let crypto = CryptoService()
+        let discovery = RouteDiscoveryService(routingTable: RoutingTable(), neighborTable: NeighborTable(),
+            transport: transport, cryptoService: crypto)
+        let policy = RelayPolicyManager(storageKeyPrefix: "network-nearby-\(UUID())", transport: transport, defaultMode: .disabled)
+        let key = SymmetricKey(size: .bits256)
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: key.withUnsafeBytes { Data($0) }, localInitials: "BOB")
+        let store = SessionStore(activeSession: session)
+        var advertisementLinks: [String] = []
+        var assembly = NearbyTokenFragment.Assembly()
+        var receivedToken: Data?
+        let router = PacketRouter(cryptoService: crypto, peerTransport: transport,
+            relayPolicyManager: policy, routeDiscoveryService: discovery, seenPacketCache: SeenPacketCache(),
+            onLocationPing: { _, _ in }, onSOS: { _, _ in }, onACK: { _ in },
+            onMeetingUpdate: { _ in }, onChat: { _ in }, onNearbyToken: { fragment, inbound in
+                if let color = fragment.advertisedColor {
+                    advertisementLinks.append(inbound.sourcePeerId)
+                    _ = store.applyNearbyPresence(from: fragment.sender, color: color, at: inbound.receivedAt)
+                } else if let token = assembly.receive(fragment) {
+                    receivedToken = token
+                }
+            })
+        let advertisement = try XCTUnwrap(NearbyTokenFragment.advertisement(from: "ALX", color: MemberColor.yellow.rawValue))
+        let slot = MemberID.fromInitials("ALX").memberSlot
+        let envelope = CleartextEnvelope(type: .nearbyToken, hopLimit: 1, sessionId: session.sessionId,
+            sequenceNumber: CleartextEnvelope.makeSequenceNumber(memberSlot: slot, counter: 1))
+        let sealed = try await crypto.sealToWireBytes(payload: advertisement, envelope: envelope, using: key)
+        let valid = try RawWirePacket.fromWireData(sealed)
+        var relayed = valid
+        relayed.envelope.hopCount = 1
+        var foreign = valid
+        foreign.envelope.sessionId = 0x4321
+        var tampered = valid
+        tampered.authTag[tampered.authTag.startIndex] ^= 1
+        for raw in [relayed, foreign, tampered, valid, valid] {
+            await router.routeInboundPacket(.init(rawPacket: raw, sourcePeerId: "direct-link"), for: session)
+        }
+        await router.routeInboundPacket(.init(rawPacket: valid, sourcePeerId: "ble-p:alternate"), for: session)
+        XCTAssertEqual(advertisementLinks, ["direct-link", "ble-p:alternate"])
+
+        let token = Data((0..<(NearbyTokenFragment.chunkSize * NearbyTokenFragment.maxFragments)).map { UInt8(truncatingIfNeeded: $0) })
+        let payloads = NearbyTokenFragment.payloads(for: token, from: "ALX", to: "BOB", transfer: 1)
+        XCTAssertEqual(payloads.count, NearbyTokenFragment.maxFragments)
+        for (index, payload) in payloads.reversed().enumerated() {
+            let header = CleartextEnvelope(type: .nearbyToken, hopLimit: 1, sessionId: session.sessionId,
+                sequenceNumber: CleartextEnvelope.makeSequenceNumber(memberSlot: slot, counter: UInt32(index + 2)))
+            let data = try await crypto.sealToWireBytes(payload: payload, envelope: header, using: key)
+            let raw = try RawWirePacket.fromWireData(data)
+            await router.routeInboundPacket(.init(rawPacket: raw, sourcePeerId: "ble-p:alternate"), for: session)
+        }
+        XCTAssertEqual(receivedToken, token)
+        let member = try XCTUnwrap(store.visibleMembers.first)
+        XCTAssertEqual(member.id, "ALX")
+        XCTAssertEqual(member.color, .yellow)
+        XCTAssertNil(member.coordinate)
+        XCTAssertNil(member.measurementTimestamp)
+        let broadcasts = await transport.broadcastCount
+        let carries = await transport.carriedCount
+        XCTAssertEqual(broadcasts, 0)
+        XCTAssertEqual(carries, 0)
+    }
+
+    func testNearbyTransferReassemblesAndQueuesBehindLocationChatAndSOS() throws {
+        let data = Data(0..<124)
+        let payloads = NearbyTokenFragment.payloads(for: data, from: "ALX", to: "BOB", transfer: 1)
+        var assembly = NearbyTokenFragment.Assembly()
+        let fragments = try payloads.reversed().map { try XCTUnwrap(NearbyTokenFragment(payload: $0)) }
+        for fragment in fragments.dropLast() {
+            XCTAssertNil(assembly.receive(fragment))
+        }
+        XCTAssertEqual(assembly.receive(try XCTUnwrap(fragments.last)), data)
+        let queue = PriorityOutboxQueue()
+        let control = try wire(type: .nearbyToken, sequence: 1)
+        queue.enqueueNearbyFrames([control, control], to: "direct-link")
+        XCTAssertFalse(queue.isEmpty)
+        queue.clearRelayQueue()
+        XCTAssertEqual(queue.totalQueuedCount, 2)
+        XCTAssertThrowsError(try queue.enqueue(data: control))
+        try queue.enqueue(data: wire(type: .locationPing, sequence: 2))
+        try queue.enqueue(data: wire(type: .chatMessage, sequence: 3))
+        try queue.enqueue(data: wire(type: .sos, sequence: 4))
+        XCTAssertEqual(queue.dequeue()?.packetType, .sos)
+        XCTAssertEqual(queue.dequeue()?.packetType, .chatMessage)
+        XCTAssertEqual(queue.dequeue()?.packetType, .locationPing)
+        XCTAssertEqual(queue.dequeue()?.destinationPeerId, "direct-link")
+        XCTAssertEqual(queue.dequeue()?.packetType, .nearbyToken)
+        XCTAssertTrue(queue.isEmpty)
+        queue.enqueueNearbyFrames([control], to: "direct-link")
+        queue.clear()
+        XCTAssertTrue(queue.isEmpty)
+    }
+
     private func wire(type: PacketType, sequence: UInt32, hopCount: UInt8 = 0) throws -> Data {
         try RawWirePacket(envelope: CleartextEnvelope(type: type, hopCount: hopCount, sessionId: 0x1234, sequenceNumber: sequence),
             ciphertext: Data(repeating: 0, count: 30), authTag: Data(repeating: 0, count: 16)).toWireData()

@@ -21,6 +21,7 @@ public final class PacketRouter {
     private let onSOSResolved: (SOSResolvedPayload) async -> Void
     private let onACK: (InboundPacket) async -> Void
     private let onFollow: (FollowIntentPayload) -> Void
+    private let onNearbyToken: (NearbyTokenFragment, InboundPacket) -> Void
     private let onMeetingUpdate: (MeetingUpdatePayload) -> Void
     private let onChat: (InboundPacket) async -> Void
     private var isActive = true
@@ -37,7 +38,8 @@ public final class PacketRouter {
         onMeetingUpdate: @escaping (MeetingUpdatePayload) -> Void,
         onChat: @escaping (InboundPacket) async -> Void,
         onSOSResolved: @escaping (SOSResolvedPayload) async -> Void = { _ in },
-        onFollow: @escaping (FollowIntentPayload) -> Void = { _ in }
+        onFollow: @escaping (FollowIntentPayload) -> Void = { _ in },
+        onNearbyToken: @escaping (NearbyTokenFragment, InboundPacket) -> Void = { _, _ in }
     ) {
         self.cryptoService = cryptoService
         self.peerTransport = peerTransport
@@ -49,6 +51,7 @@ public final class PacketRouter {
         self.onSOSResolved = onSOSResolved
         self.onACK = onACK
         self.onFollow = onFollow
+        self.onNearbyToken = onNearbyToken
         self.onMeetingUpdate = onMeetingUpdate
         self.onChat = onChat
     }
@@ -62,6 +65,9 @@ public final class PacketRouter {
         let raw = inbound.rawPacket
         let envelope = raw.envelope
         guard envelope.version == PacketConstants.protocolVersion, envelope.hopCount <= envelope.hopLimit else { return }
+        if envelope.type == .nearbyToken {
+            guard envelope.sessionId == session.sessionId, envelope.hopCount == 0, envelope.hopLimit == 1 else { return }
+        }
         guard envelope.sessionId == session.sessionId else {
             await handleStrangerRelayPacket(inbound)
             return
@@ -120,6 +126,17 @@ public final class PacketRouter {
                   ping.senderInitials != session.localInitials else { return }
             onLocationPing(ping, inbound)
             await relayMeshPacketIfNeeded(inbound, for: session)
+
+        case .nearbyToken:
+            guard let fragment = NearbyTokenFragment(payload: decrypted),
+                  fragment.sender != session.localInitials,
+                  fragment.recipient == nil || fragment.recipient == session.localInitials,
+                  MemberID.fromInitials(fragment.sender).memberSlot == envelope.memberSlot else { return }
+            // A broadcast can identify more than one direct link to the same member.
+            let directLinkId = fragment.recipient == nil ? inbound.sourcePeerId : nil
+            let duplicate = await seenPacketCache.isDuplicateAndRecord(PacketKey(wirePacket: raw, directLinkId: directLinkId))
+            guard !duplicate, isActive else { return }
+            onNearbyToken(fragment, inbound)
 
         case .meetingUpdate:
             guard let update = try? MeetingUpdatePayload.deserialize(from: decrypted) else { return }

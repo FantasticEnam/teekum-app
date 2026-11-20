@@ -11,6 +11,7 @@ import MapKit
 struct MainMapView: View {
     @State private var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
+    private let nearbyDistance: (Member.ID) -> Double?
     @Binding var selectedTarget: OrbitSceneView.Target?
     @Environment(\.dismiss) private var dismiss
     
@@ -18,17 +19,20 @@ struct MainMapView: View {
         sessionStore: SessionStore,
         meetingService: MeetingPointService? = nil,
         location: LocationService? = nil,
+        nearbyDistance: @escaping (Member.ID) -> Double? = { _ in nil },
         selectedTarget: Binding<OrbitSceneView.Target?> = .constant(nil)
     ) {
         _viewModel = State(initialValue: MeetingPointViewModel(sessionStore: sessionStore, meetingService: meetingService))
         self.location = location
+        self.nearbyDistance = nearbyDistance
         self._selectedTarget = selectedTarget
     }
     
     var body: some View {
         ZStack(alignment: .bottom){
             // MAP Section
-            MapLayerView(viewModel: viewModel, location: location, selectedTarget: $selectedTarget)
+            MapLayerView(viewModel: viewModel, location: location,
+                nearbyDistance: nearbyDistance, selectedTarget: $selectedTarget)
             
             VStack {
                 HStack {
@@ -101,6 +105,6 @@ struct MainMapView: View {
     
 }
 
-#Preview {
-    MainMapView(sessionStore: .preview)
+#Preview("Map with a nearby peer distance") {
+    MainMapView(sessionStore: .preview, nearbyDistance: { $0 == "ADI" ? 0.6 : nil })
 }

@@ -21,6 +21,7 @@ final class SessionController {
     let chat: ChatViewModel
     let sos: SOSViewModel
     let meeting: MeetingPointService
+    let nearby: NearbyRangingService
     let notifications = NotificationService()
     private(set) var relayState = RelayPolicyState(mode: .disabled)
     private(set) var diagnostics: TransportDiagnostics?
@@ -54,6 +55,7 @@ final class SessionController {
         self.location = location
         let transport = PeerTransportService()
         self.transport = transport
+        nearby = NearbyRangingService(transport: transport, crypto: crypto, sequences: sequences)
         relayPolicy = RelayPolicyManager(transport: transport)
         let routing = RoutingTable()
         routes = RouteDiscoveryService(routingTable: routing, neighborTable: transport.neighborTable,
@@ -112,6 +114,7 @@ final class SessionController {
         generation = UUID()
         let current = generation
         router?.stop()
+        nearby.configure(nil)
         holder.session = nil
         let previous = transitionTask
         previous?.cancel()
@@ -190,6 +193,7 @@ final class SessionController {
         self.publisher = publisher
         publisher.start()
         router = makeRouter(generation: current)
+        nearby.configure(session)
         await liveActivity.start(session: session)
     }
 
@@ -257,6 +261,7 @@ final class SessionController {
             let snapshot = await transport.getDiagnostics()
             guard generation == current else { break }
             diagnostics = snapshot
+            nearby.refresh(connectedLinks: Set(snapshot.activeDirectPeers.filter(\.isDirectLink).map(\.id)))
             let losses = store.refreshMemberVisibility(now: .now, peers: snapshot.activeDirectPeers)
             notifications.notifyGroupActivity(losses.map(\.initials), joined: false)
             meeting.checkExpiration()
@@ -341,6 +346,13 @@ final class SessionController {
                     notifications.notify(title: "\(intent.senderInitials) followed you",
                         body: "Stay where you are so they can find you.", icon: "person.2.fill")
                 }
+            }, onNearbyToken: { [weak self] fragment, inbound in
+                guard let self, generation == current, nearby.canRange else { return }
+                if let color = fragment.advertisedColor {
+                    let isNew = store.applyNearbyPresence(from: fragment.sender, color: color, at: inbound.receivedAt)
+                    if isNew { notifications.notifyGroupActivity([fragment.sender], joined: true) }
+                }
+                nearby.receive(fragment, from: inbound.sourcePeerId)
             })
     }
 

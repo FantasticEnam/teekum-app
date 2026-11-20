@@ -75,6 +75,7 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
     
     /// Stranger relay ring buffer queue (Decision 7: 32 packets, drop-head on overflow).
     private var strangerRelayLane: [OutboxItem] = []
+    private var nearbyLane: [OutboxItem] = []
     
     /// Counter tracking obsolete location pings coalesced and discarded before transmission.
     public private(set) var obsoletePingsCoalesced: Int = 0
@@ -101,12 +102,12 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
     
     /// Total count of items currently waiting in the outbox across all lanes.
     public var totalQueuedCount: Int {
-        urgentLane.count + localChatLane.count + normalCoalescedLane.count + strangerRelayLane.count
+        urgentLane.count + localChatLane.count + normalCoalescedLane.count + strangerRelayLane.count + nearbyLane.count
     }
     
     /// True when there are no items waiting to be sent across any lane.
     public var isEmpty: Bool {
-        urgentLane.isEmpty && localChatLane.isEmpty && normalCoalescedLane.isEmpty && strangerRelayLane.isEmpty
+        totalQueuedCount == 0
     }
     
     /// Current count of pending urgent packets.
@@ -128,7 +129,7 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
     public var queueDepth: QueueDepth {
         QueueDepth(
             urgentCount: urgentLane.count,
-            normalCount: normalCoalescedLane.count,
+            normalCount: normalCoalescedLane.count + nearbyLane.count,
             relayCount: strangerRelayLane.count,
             chatCount: localChatLane.count
         )
@@ -156,6 +157,9 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
         let typeRaw = byte0 & 0x0F
         guard let packetType = PacketType(rawValue: typeRaw) else {
             throw TransportError.sendFailed("Unrecognized packet type in Byte 0: \(typeRaw)")
+        }
+        guard packetType != .nearbyToken else {
+            throw TransportError.sendFailed("Nearby frames require the direct Nearby queue.")
         }
         
         // Reliable foreign traffic keeps its packet priority. Group membership must
@@ -273,7 +277,18 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
             return item
         }
         
-        return nil
+        nearbyLane.removeAll { Date.now.timeIntervalSince($0.createdAt) > 4 }
+        return nearbyLane.isEmpty ? nil : nearbyLane.removeFirst()
+    }
+
+    @discardableResult
+    func enqueueNearbyFrames(_ frames: [Data], to peerId: String?) -> Bool {
+        guard nearbyLane.count + frames.count <= 64 else { return false }
+        nearbyLane.append(contentsOf: frames.map {
+            OutboxItem(packetData: $0, packetType: .nearbyToken, destinationPeerId: peerId,
+                maxRetries: 0, isUrgent: false)
+        })
+        return true
     }
     
     /// Re-queues an item that encountered a transient transmission failure, if retries remain.
@@ -313,5 +328,6 @@ nonisolated public final class PriorityOutboxQueue: @unchecked Sendable {
         localChatLane.removeAll()
         normalCoalescedLane.removeAll()
         strangerRelayLane.removeAll()
+        nearbyLane.removeAll()
     }
 }

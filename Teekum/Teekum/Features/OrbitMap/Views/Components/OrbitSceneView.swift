@@ -20,6 +20,7 @@ struct OrbitSceneView: View {
     var members: [Member] = []
     var meetingPoint: MeetingPoint?
     var location: LocationPin?
+    var nearbyPositions: [Member.ID: NearbyOrbitPosition] = [:]
     var heading: Double = 0
     var selectedTarget: Target?
     var isUserSOSActive = false
@@ -148,11 +149,10 @@ struct OrbitSceneView: View {
     }
 
     private func markerGroups(radius: Double, range: Double) -> [OrbitMarkerGroup] {
-        guard let location else { return [] }
+        let now = ContinuousClock.now
         let markers: [OrbitMarkerGroup.Marker] = members.compactMap { member in
-            guard let coordinate = member.coordinate else { return nil }
-            let projection = OrbitProjection(from: location, to: coordinate, heading: heading,
-                radius: radius, range: range, overflowMargin: 20)
+            guard let projection = OrbitProjection(member: member, nearby: nearbyPositions[member.id],
+                from: location, heading: heading, radius: radius, range: range, at: now) else { return nil }
             return (member, projection)
         }
         return OrbitMarkerGroup.make(from: markers, overlapDistance: markerSize)
@@ -171,7 +171,7 @@ struct OrbitSceneView: View {
     }
     
     private func memberMarker(_ member: Member, projection: OrbitProjection, isSelected: Bool) -> some View {
-        let isStale = member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true
+        let isStale = !projection.isNearby && (member.measurementTimestamp.map { Date.now.timeIntervalSince($0) > 30 } ?? true)
         let lowBatteryPercentage = OrbitBatteryIndicatorView.percentage(for: member.batteryLevel)
         return Button {
             selectMember(member.id)
@@ -312,6 +312,16 @@ struct OrbitSceneView: View {
         selectedTarget: selectedTarget,
         onSelectMember: { selectedTarget = .member($0) }
     )
+}
+
+#Preview("Nearby markers without GPS") {
+    OrbitSceneView(userColor: .purpleProfile, userNickname: "DAF",
+        members: [Member(id: "AYU", color: .greenishTeal), Member(id: "NIC", color: .apricot)],
+        nearbyPositions: [
+            "AYU": NearbyOrbitPosition(distance: 2.4, bearing: 35, measuredAt: .now),
+            "NIC": NearbyOrbitPosition(distance: 4.8, bearing: -20, measuredAt: .now)
+        ])
+        .preferredColorScheme(.dark)
 }
 
 #Preview("Marker grouping during zoom and rotation") {

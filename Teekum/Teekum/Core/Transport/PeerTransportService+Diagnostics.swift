@@ -63,7 +63,7 @@ extension PeerTransportService {
     }
 
     func recordPacket(_ envelope: CleartextEnvelope, direction: TransportDiagnostics.PacketEvent.Direction, peerId: String) {
-        guard let session = activeSession else { return }
+        guard let session = activeSession, envelope.type != .nearbyToken else { return }
         packetEvents.append(.init(envelope: envelope, direction: direction, peerId: peerId,
             isOutsideGroup: envelope.sessionId != session.sessionId))
         if packetEvents.count > 100 {

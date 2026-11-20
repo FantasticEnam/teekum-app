@@ -36,10 +36,13 @@ struct TeekumApp: App {
                 } message: {
                     Text("This leaves your current group and clears its conversation before opening the invite.")
                 }
-                .onChange(of: scenePhase) { _, phase in
+                .onChange(of: scenePhase, initial: true) { _, phase in
                     if phase == .active {
+                        controller.nearby.setForeground(true)
                         controller.sos.recordUserInteraction()
                         Task { await controller.updatePower() }
+                    } else if phase == .background {
+                        controller.nearby.setForeground(false)
                     }
                 }
         }

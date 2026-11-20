@@ -59,6 +59,7 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 | ack | 0x06 | 0x16 | ACKPayload |
 | chatMessage | 0x07 | 0x17 | ChatMessagePayload |
 | sosResolved | 0x08 | 0x18 | SOSResolvedPayload |
+| nearbyToken | 0x09 | 0x19 | NearbyTokenFragment |
 
 ## 3. Field Encoding
 
@@ -182,6 +183,22 @@ The limit is **bytes, not characters**. serialize() rejects overlong text; seria
 Short relief-post messages such as `Water at Tent A` and the existing `I'm safe` preset fit in one chat frame. A chat request for help and a dedicated SOS have different packet types and trigger different receiver UI.
 
 The strict chat decoder additionally requires exactly 30 bytes and zero reserved/unused text padding. The ordinary decoder checks minimum size, length and UTF-8 but does not establish all strict padding rules. Most other payload decoders accept at least 30 bytes and use defaults for some unknown enums/initials; they are not uniformly strict parsers.
+
+### 4.7 NearbyTokenFragment — 0x09
+
+Nearby setup packets have hop limit 1 and hop count 0 and are handled on direct links. Presence advertisements use the sender initials in bytes 0..1, zero in 2..3, the sender’s color in byte 4, and zeros in 5..29. They carry no location.
+
+| Token fragment bytes | Field |
+| :--- | :--- |
+| 0..1 | Sender initials |
+| 2..3 | Intended recipient initials |
+| 4..7 | Transfer ID, big-endian UInt32 |
+| 8 | Zero-based fragment index |
+| 9 | Fragment count, 1..54 |
+| 10 | Fragment length in bytes, 1..19 |
+| 11..29 | Token bytes, padded with zeros |
+
+Token archives use secure coding. The receiver assembles fragments from the same sender and transfer before starting Nearby Interaction. No token bytes are logged or retained for relay.
 
 ## 5. Envelope and Nonce Example
 

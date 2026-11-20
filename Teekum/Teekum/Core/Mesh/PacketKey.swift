@@ -14,22 +14,30 @@ import Foundation
 /// - `sequenceNumber` (32-bit / 4 bytes, memberSlot + counter)
 ///
 /// Note: `hopCount` is explicitly excluded so packet identity remains identical across all hops.
+/// Nearby advertisements are scoped to the receiving link so each direct path can be discovered.
 /// With 16,777,215 session IDs, cross-group collision is virtually impossible while keeping RAM minimal.
 public struct PacketKey: Hashable, Sendable, CustomStringConvertible {
     public let sessionId: UInt32        // 24-bit value (0x000000...0xFFFFFF)
     public let sequenceNumber: UInt32   // 32-bit sequence counter
     public let type: PacketType?        // Optional packet type discriminator
+    private let directLinkId: String?
     
     public init(sessionId: UInt32, sequenceNumber: UInt32, type: PacketType? = nil) {
         self.sessionId = sessionId & PacketConstants.sessionIdMask
         self.sequenceNumber = sequenceNumber
         self.type = type
+        directLinkId = nil
     }
     
     public init(wirePacket: RawWirePacket) {
+        self.init(wirePacket: wirePacket, directLinkId: nil)
+    }
+
+    init(wirePacket: RawWirePacket, directLinkId: String?) {
         self.sessionId = wirePacket.envelope.sessionId & PacketConstants.sessionIdMask
         self.sequenceNumber = wirePacket.envelope.sequenceNumber
         self.type = wirePacket.envelope.type
+        self.directLinkId = directLinkId
     }
     
     public init?(wireData: Data) {
@@ -46,6 +54,7 @@ public struct PacketKey: Hashable, Sendable, CustomStringConvertible {
         self.sessionId = sid
         self.sequenceNumber = seq
         self.type = pType
+        directLinkId = nil
     }
     
     public var description: String {

@@ -11,6 +11,7 @@ import MapKit
 struct MapLayerView: View {
     @Bindable var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
+    private let nearbyDistance: (Member.ID) -> Double?
     @Binding var selectedTarget: OrbitSceneView.Target?
     @Namespace private var mapScope
     @State private var mapHeading: CLLocationDirection = 0
@@ -37,10 +38,12 @@ struct MapLayerView: View {
     init(
         viewModel: MeetingPointViewModel,
         location: LocationService? = nil,
+        nearbyDistance: @escaping (Member.ID) -> Double? = { _ in nil },
         selectedTarget: Binding<OrbitSceneView.Target?> = .constant(nil)
     ) {
         self.viewModel = viewModel
         self.location = location
+        self.nearbyDistance = nearbyDistance
         self._selectedTarget = selectedTarget
     }
     
@@ -206,6 +209,9 @@ struct MapLayerView: View {
     }
     
     private func memberDistance(for member: Member) -> String? {
+        if let measured = nearbyDistance(member.id) {
+            return "\(measured.formatted(.number.precision(.fractionLength(1)))) m"
+        }
         guard let userLocation = location?.currentLocation,
               let memberCoord = member.coordinate else { return nil }
         return userLocation.distance(to: memberCoord).formattedDistance()
@@ -303,7 +309,7 @@ struct MapLayerView: View {
         return MeetingPointViewModel(sessionStore: store)
     }()
     
-    MapLayerView(viewModel: viewModel)
+    MapLayerView(viewModel: viewModel, nearbyDistance: { $0 == "ADI" ? 0.6 : nil })
         .preferredColorScheme(.dark)
 }
 

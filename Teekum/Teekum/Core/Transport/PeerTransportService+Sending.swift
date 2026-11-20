@@ -11,6 +11,14 @@ import Network
 // MARK: - Frame Transmission & Priority Outbox
 
 extension PeerTransportService {
+    @discardableResult
+    func sendNearbyFrames(_ frames: [Data], to peerId: String?, session: GroupSession) -> Bool {
+        guard activeSession == session, currentState != .stopped, !frames.isEmpty else { return false }
+        if let peerId, !blePeers.contains(peerId), connections[peerId]?.isReady != true { return false }
+        guard outbox.enqueueNearbyFrames(frames, to: peerId) else { return false }
+        triggerOutboxFlush()
+        return true
+    }
     
     // MARK: - MeshTransport Sending & Forwarding
     
@@ -215,6 +223,7 @@ extension PeerTransportService {
                 } else if let peer = connections[targetId], peer.isReady {
                     sendData(item.packetData, on: peer, outboxItem: item)
                 } else {
+                    if item.packetType == .nearbyToken { continue }
                     logEvent("Target peer \(targetId) unavailable for packet \(item.packetType).", level: .warning)
                     sendErrorsCount += 1
                     let err = TransportError.peerNotFound(targetId)

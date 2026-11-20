@@ -16,6 +16,7 @@ struct OrbitSettingsView: View {
     let sos: SOSViewModel?
     let memberContactLog: @MainActor () -> [SessionStore.MemberContactLoss]
     let diagnostics: @MainActor () -> TransportDiagnostics?
+    var nearbyStatus: @MainActor () -> NearbyRangingService.Status? = { nil }
     @Environment(\.dismiss) private var dismiss
     @State private var packetFilter: PacketFilter = .all
 
@@ -31,6 +32,26 @@ struct OrbitSettingsView: View {
                         if let measured = location.currentLocation {
                             LabeledContent("Accuracy", value: "±\(Int(measured.horizontalAccuracy)) m")
                             Text("Measured \(measured.timestamp, style: .relative) ago").font(.caption)
+                        }
+                    }
+                }
+                if let nearby = nearbyStatus() {
+                    Section("Nearby Interaction") {
+                        LabeledContent("Status") { Text(nearby.description) }
+                        LabeledContent("Peer tokens received", value: "\(nearby.tokensReceived)")
+                        LabeledContent("Members measured", value: "\(nearby.measurements.count)")
+                        LabeledContent("Direction available", value: "\(nearby.measurements.values.filter { $0.bearing != nil }.count)")
+                        if let issue = nearby.lastSetupIssue {
+                            Text(issue).font(.caption).foregroundStyle(.secondary)
+                        }
+                        ForEach(nearby.measurements.keys.sorted(), id: \.self) { id in
+                            if let measurement = nearby.measurements[id] {
+                                LabeledContent {
+                                    Text("\(measurement.distance, format: .number.precision(.fractionLength(1))) m")
+                                } label: {
+                                    Text(id)
+                                }
+                            }
                         }
                     }
                 }
@@ -135,6 +156,7 @@ struct OrbitSettingsView: View {
         case .ack: "ACK"
         case .chatMessage: "Chat"
         case .sosResolved: "SOS resolved"
+        case .nearbyToken: "Nearby setup"
         }
     }
 
@@ -175,5 +197,9 @@ struct OrbitSettingsView: View {
     )
 
     OrbitSettingsView(location: nil, sos: nil,
-        memberContactLog: { activity }, diagnostics: { snapshot })
+        memberContactLog: { activity }, diagnostics: { snapshot },
+        nearbyStatus: { .init(description: "Active", tokensReceived: 2, lastSetupIssue: nil, measurements: [
+            "AYU": NearbyOrbitPosition(distance: 0.6, bearing: 35, measuredAt: .now),
+            "NIC": NearbyOrbitPosition(distance: 2.4, bearing: nil, measuredAt: .now)
+        ]) })
 }
