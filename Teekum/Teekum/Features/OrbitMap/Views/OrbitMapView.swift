@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct OrbitMapView: View {
     private enum FriendSelection {
@@ -35,6 +36,7 @@ struct OrbitMapView: View {
     private let notifications: NotificationService?
     private let offlineMaps: OfflineMapManager?
     private let connectivity: ConnectivityMonitor?
+    private let onFollowMember: (String, UInt32?) -> Void
     
     private var meetingPoint: MeetingPoint? { viewModel.sessionStore.activeMeetingPoint }
     private var visibleMembers: [Member] { viewModel.sessionStore.visibleMembers }
@@ -65,6 +67,7 @@ struct OrbitMapView: View {
          sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
          offlineMaps: OfflineMapManager? = nil, connectivity: ConnectivityMonitor? = nil,
          diagnostics: @escaping @MainActor () -> TransportDiagnostics? = { nil }, notifications: NotificationService? = nil,
+         onFollowMember: @escaping (String, UInt32?) -> Void = { _, _ in },
          onLeaveGroup: (() -> Void)? = nil) {
         _viewModel = State(initialValue: OrbitMapViewModel(sessionStore: sessionStore, onLeaveGroup: onLeaveGroup))
         self.location = location
@@ -75,6 +78,7 @@ struct OrbitMapView: View {
         self.connectivity = connectivity
         self.diagnostics = diagnostics
         self.notifications = notifications
+        self.onFollowMember = onFollowMember
     }
     
     var body: some View {
@@ -86,7 +90,8 @@ struct OrbitMapView: View {
             orbitScene
             
             VStack(alignment: .leading) {
-                OrbitHeaderView(groupName: viewModel.groupName, onSettings: { activeModal = .settings })
+                OrbitHeaderView(groupName: viewModel.groupName, roomCount: viewModel.roomCount,
+                    onSettings: { activeModal = .settings })
                 
                 if let activity = notifications?.groupActivity {
                     groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
@@ -132,173 +137,179 @@ struct OrbitMapView: View {
             if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
         }
         .overlay(alignment: .top) {
-            OrbitFeedbackView(sos: sos, notifications: notifications,
-                              showsChatAlert: !isShowingChat, onOpenChat: openChat)
+            OrbitFeedbackView(
+                sos: sos,
+                notifications: notifications,
+                showsChatAlert: !isShowingChat,
+                onOpenChat: openChat,
+                onHelpOffered: followSOS,
+                onDeepLink: handleDeepLink
+            )
         }
-            .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
-            .disabled(isLeavingGroup)
-            .onAppear {
-                isOrbitVisible = true
-                location?.setTacticalRadarActive(scenePhase == .active)
-                checkRelocationAndNotify(at: location?.currentLocation?.coordinate)
+        .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
+        .disabled(isLeavingGroup)
+        .onAppear {
+            isOrbitVisible = true
+            location?.setTacticalRadarActive(scenePhase == .active)
+            checkRelocationAndNotify(at: location?.currentLocation?.coordinate)
+        }
+        .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
+            checkRelocationAndNotify(at: newCoord)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            location?.setTacticalRadarActive(isOrbitVisible && phase == .active)
+        }
+        .onChange(of: location?.isTracking) { _, tracking in
+            if tracking == true {
+                location?.setTacticalRadarActive(isOrbitVisible && scenePhase == .active)
             }
-            .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
-                checkRelocationAndNotify(at: newCoord)
+        }
+        .onDisappear {
+            isOrbitVisible = false
+            location?.setTacticalRadarActive(false)
+        }
+        .onChange(of: meetingPoint?.id) { _, id in
+            if case .meetingPoint(let targetID) = selectedTarget, targetID != id {
+                selectedTarget = nil
             }
-            .onChange(of: scenePhase) { _, phase in
-                location?.setTacticalRadarActive(isOrbitVisible && phase == .active)
+        }
+        .onChange(of: visibleMembers.map(\.id)) { _, ids in
+            if case .member(let id) = selectedTarget, !ids.contains(id) {
+                selectedTarget = nil
             }
-            .onChange(of: location?.isTracking) { _, tracking in
-                if tracking == true {
-                    location?.setTacticalRadarActive(isOrbitVisible && scenePhase == .active)
-                }
-            }
-            .onDisappear {
-                isOrbitVisible = false
-                location?.setTacticalRadarActive(false)
-            }
-            .onChange(of: meetingPoint?.id) { _, id in
-                if case .meetingPoint(let targetID) = selectedTarget, targetID != id {
-                    selectedTarget = nil
-                }
-            }
-            .onChange(of: visibleMembers.map(\.id)) { _, ids in
-                if case .member(let id) = selectedTarget, !ids.contains(id) {
-                    selectedTarget = nil
-                }
-            }
-            .onChange(of: viewModel.sessionStore.pendingDeepLink, initial: true) { _, url in
-                guard let url else { return }
-                if url.host == "meeting" { activeModal = .mapPoint }
-                if url.host == "sos", let alert = sos?.incomingAlert { selectedTarget = .member(alert.senderInitials) }
-                viewModel.sessionStore.pendingDeepLink = nil
-            }
-            .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
-                if let chat {
-                    ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
-                        .safeAreaInset(edge: .top) {
-                            OrbitFeedbackView(sos: sos, notifications: notifications, showsChatAlert: false)
-                        }
-                        .overlay { SOSEdgeGlowView(sos: sos) }
-                }
-            }
-            .allowsHitTesting(activeModal != .invite)
-            
-            // 1. Alert Konfirmasi Mulai Follow
-            .alert(
-                "Follow \(memberToFollow?.initials ?? "Friend")?",
-                isPresented: $isShowingFollowAlert
-            ) {
-                Button("Cancel", role: .cancel) { }
-                Button("Follow") {
-                    if let member = memberToFollow {
-                        selectedTarget = .member(member.id)
+        }
+        .onChange(of: viewModel.sessionStore.pendingDeepLink, initial: true) { _, url in
+            guard let url else { return }
+            handleDeepLink(url)
+            viewModel.sessionStore.pendingDeepLink = nil
+        }
+        .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
+            if let chat {
+                ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
+                    .safeAreaInset(edge: .top) {
+                        OrbitFeedbackView(sos: sos, notifications: notifications,
+                            showsChatAlert: false, onHelpOffered: followSOS, onDeepLink: handleDeepLink)
                     }
-                }
-            } message: {
-                Text("You will be guided towards \(memberToFollow?.initials ?? "this friend").")
+                    .overlay { SOSEdgeGlowView(sos: sos) }
             }
-            
-            // 2. Alert Konfirmasi Berhenti Follow
-            .alert("Stop Following?", isPresented: $isShowingStopFollowAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Stop", role: .destructive) {
-                    selectedTarget = nil
-                }
-            } message: {
-                if let name = selectedMember?.initials {
-                    Text("Are you sure you want to stop following \(name)?")
-                } else {
-                    Text("Are you sure you want to stop following this target?")
+        }
+        .allowsHitTesting(activeModal != .invite)
+        
+        // 1. Alert Konfirmasi Mulai Follow
+        .alert(
+            "Follow \(memberToFollow?.initials ?? "Friend")?",
+            isPresented: $isShowingFollowAlert
+        ) {
+            Button("Cancel", role: .cancel) { }
+            Button("Follow") {
+                if let member = memberToFollow {
+                    followMember(member.id)
                 }
             }
-            
-            // 3. Alert New Location (>25km)
-            .alert(
-                "New Area Map Available",
-                isPresented: $isShowingRelocationAlert
-            ) {
-                Button("Open Settings") {
-                    activeModal = .settings
-                }
-                Button("Not Now", role: .cancel) { }
-            } message: {
-                Text("You are outside your saved offline map coverage. Download the map for your current city in Group Settings to stay prepared.")
+        } message: {
+            Text("You will be guided towards \(memberToFollow?.initials ?? "this friend").")
+        }
+        
+        // 2. Alert Konfirmasi Berhenti Follow
+        .alert("Stop Following?", isPresented: $isShowingStopFollowAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Stop", role: .destructive) {
+                selectedTarget = nil
             }
-            
-            .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
-                Group { switch modal {
-                case .mapPoint:
-                    MainMapView(
-                        sessionStore: viewModel.sessionStore,
-                        meetingService: meetingService,
-                        location: location,
-                        selectedTarget: $selectedTarget,
-                        connectivity: connectivity,
-                        offlineMaps: offlineMaps
-                    )
-                case .friends:
-                    GeometryReader { geometry in
-                        ZStack(alignment: .bottom) {
-                            Button {
+        } message: {
+            if let name = selectedMember?.initials {
+                Text("Are you sure you want to stop following \(name)?")
+            } else {
+                Text("Are you sure you want to stop following this target?")
+            }
+        }
+        
+        // 3. Alert New Location (>25km)
+        .alert(
+            "New Area Map Available",
+            isPresented: $isShowingRelocationAlert
+        ) {
+            Button("Open Settings") {
+                activeModal = .settings
+            }
+            Button("Not Now", role: .cancel) { }
+        } message: {
+            Text("You are outside your saved offline map coverage. Download the map for your current city in Group Settings to stay prepared.")
+        }
+        
+        .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
+            Group { switch modal {
+            case .mapPoint:
+                MainMapView(
+                    sessionStore: viewModel.sessionStore,
+                    meetingService: meetingService,
+                    location: location,
+                    selectedTarget: $selectedTarget,
+                    connectivity: connectivity,
+                    offlineMaps: offlineMaps
+                )
+            case .friends:
+                GeometryReader { geometry in
+                    ZStack(alignment: .bottom) {
+                        Button {
+                            activeModal = nil
+                        } label: {
+                            Color.black.opacity(0.45)
+                        }
+                        .buttonStyle(.plain)
+                        .ignoresSafeArea()
+                        .accessibilityHidden(true)
+                        
+                        FriendListSheet(
+                            sessionStore: viewModel.sessionStore,
+                            onShareInvite: {
+                                activeModal = .invite
+                            },
+                            onSelectMember: { member in
+                                sos?.recordUserInteraction()
+                                pendingFriendSelection = .follow(member.id)
                                 activeModal = nil
-                            } label: {
-                                Color.black.opacity(0.45)
+                            },
+                            onLeaveGroup: requestLeaveGroup,
+                            isUserSOSActive: { isSOSActive },
+                            selectedMemberId: selectedMember?.id,
+                            onStopFollow: {
+                                sos?.recordUserInteraction()
+                                pendingFriendSelection = .stopFollowing
+                                activeModal = nil
                             }
-                            .buttonStyle(.plain)
-                            .ignoresSafeArea()
-                            .accessibilityHidden(true)
-                            
-                            FriendListSheet(
-                                sessionStore: viewModel.sessionStore,
-                                onShareInvite: {
-                                    activeModal = .invite
-                                },
-                                onSelectMember: { member in
-                                    sos?.recordUserInteraction()
-                                    pendingFriendSelection = .follow(member.id)
-                                    activeModal = nil
-                                },
-                                onLeaveGroup: requestLeaveGroup,
-                                isUserSOSActive: { isSOSActive },
-                                selectedMemberId: selectedMember?.id,
-                                onStopFollow: {
-                                    sos?.recordUserInteraction()
-                                    pendingFriendSelection = .stopFollowing
-                                    activeModal = nil
-                                }
-                            )
-                            .frame(
-                                width: geometry.size.width,
-                                height: geometry.size.height * 0.78
-                            )
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        )
+                        .frame(
+                            width: geometry.size.width,
+                            height: geometry.size.height * 0.78
+                        )
                     }
-                    .presentationBackground(.clear)
-                case .settings:
-                    OrbitSettingsView(
-                        location: location,
-                        sos: sos,
-                        offlineMaps: offlineMaps,
-                        connectivity: connectivity,
-                        memberContactLog: { viewModel.sessionStore.memberContactLog },
-                        diagnostics: diagnostics
-                    )
-                case .invite:
-                    if let session = viewModel.sessionStore.activeSession {
-                        ShareInviteView(session: session) {
-                            activeModal = .friends
-                        }
-                        .presentationBackground(.black)
-                    }
-                } }
-                .safeAreaInset(edge: .top) {
-                    OrbitFeedbackView(sos: sos, notifications: notifications, onOpenChat: openChat)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .overlay { SOSEdgeGlowView(sos: sos) }
-                .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
+                .presentationBackground(.clear)
+            case .settings:
+                OrbitSettingsView(
+                    location: location,
+                    sos: sos,
+                    offlineMaps: offlineMaps,
+                    connectivity: connectivity,
+                    memberContactLog: { viewModel.sessionStore.memberContactLog },
+                    diagnostics: diagnostics
+                )
+            case .invite:
+                if let session = viewModel.sessionStore.activeSession {
+                    ShareInviteView(session: session) {
+                        activeModal = .friends
+                    }
+                    .presentationBackground(.black)
+                }
+            } }
+            .safeAreaInset(edge: .top) {
+                OrbitFeedbackView(sos: sos, notifications: notifications, onOpenChat: openChat, onHelpOffered: followSOS, onDeepLink: handleDeepLink)
             }
+            .overlay { SOSEdgeGlowView(sos: sos) }
+            .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
+        }
     }
     
     private func groupActivityPill(_ message: String, color: Color) -> some View {
@@ -363,7 +374,7 @@ struct OrbitMapView: View {
             switch selection {
             case .follow(let id):
                 if visibleMembers.contains(where: { $0.id == id }) {
-                    selectedTarget = .member(id)
+                    followMember(id)
                 }
             case .stopFollowing:
                 selectedTarget = nil
@@ -378,6 +389,16 @@ struct OrbitMapView: View {
         guard let origin = location?.currentLocation, let coordinate = member?.coordinate else { return nil }
         let distance = origin.distance(to: coordinate)
         return distance.isFinite && distance >= 0 ? distance : nil
+    }
+
+    private func followSOS(_ alert: IncomingSOSAlert) {
+        followMember(alert.senderInitials, sosEventId: alert.id)
+    }
+
+    private func followMember(_ id: Member.ID, sosEventId: UInt32? = nil) {
+        guard selectedTarget != .member(id) || sosEventId != nil else { return }
+        selectedTarget = .member(id)
+        onFollowMember(id, sosEventId ?? sos?.incomingEventID(for: id))
     }
     
     private func openChat() {
@@ -424,8 +445,33 @@ struct OrbitMapView: View {
             isShowingRelocationAlert = true
         }
     }
+
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "teekum" else { return }
+        switch url.host {
+        case "meeting":
+            activeModal = .mapPoint
+        case "sos":
+            if let member = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "member" })?.value {
+                selectedTarget = .member(member)
+            } else if let alert = sos?.incomingAlert {
+                selectedTarget = .member(alert.senderInitials)
+            }
+        case "follow":
+            if let initials = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "initials" })?.value {
+                selectedTarget = .member(initials)
+            }
+        case "chat":
+            openChat()
+        case "orbit":
+            if activeModal != nil { activeModal = nil }
+        default:
+            break
+        }
+    }
 }
 
-#Preview {
+#Preview("Orbit with room count") {
     OrbitMapView(sessionStore: .preview)
+        .preferredColorScheme(.dark)
 }

@@ -220,12 +220,13 @@ final class SessionSafetyTests: XCTestCase {
         let store = SessionStore(activeSession: GroupSession(localInitials: "ALX"),
             members: [Member(id: "BOB", name: "Bob Martin", lastSeen: lastContact, isDirectPeer: true)])
         let friends = FriendListViewModel(sessionStore: store)
+        let orbit = OrbitMapViewModel(sessionStore: store)
         XCTAssertEqual(friends.localProfile?.initials, "ALX")
         friends.searchQuery = "Martin"
         XCTAssertEqual(friends.filteredMembers.map(\.id), ["BOB"])
         friends.searchQuery = "No match"
         XCTAssertTrue(friends.filteredMembers.isEmpty)
-        XCTAssertEqual(friends.roomCount, 2)
+        XCTAssertEqual(orbit.roomCount, 2)
         friends.searchQuery = ""
         let pending = PeerInfo(id: "BOB", displayName: "Bob", isDirectLink: false, lastSeen: now)
         store.applyPeerSnapshot([pending], connected: [])
@@ -241,13 +242,13 @@ final class SessionSafetyTests: XCTestCase {
         XCTAssertEqual(store.refreshMemberVisibility(now: now, peers: [pending]).map(\.initials), ["BOB"])
         XCTAssertEqual(XCTWaiter.wait(for: [refresh], timeout: 0), .completed)
         XCTAssertTrue(friends.filteredMembers.isEmpty)
-        XCTAssertEqual(friends.roomCount, 1)
+        XCTAssertEqual(orbit.roomCount, 1)
 
         let ready = PeerInfo(id: "BOB", displayName: "Bob", lastSeen: now)
         store.applyPeerSnapshot([ready], connected: ["BOB"])
         XCTAssertTrue(store.refreshMemberVisibility(now: now, peers: [ready]).isEmpty)
         XCTAssertEqual(friends.filteredMembers.map(\.id), ["BOB"])
-        XCTAssertEqual(friends.roomCount, 2)
+        XCTAssertEqual(orbit.roomCount, 2)
     }
 
     @MainActor

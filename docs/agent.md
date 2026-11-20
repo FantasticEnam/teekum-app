@@ -40,6 +40,7 @@ In the change description, record the owner, affected contracts and files, revis
 ## 5. Verification and Product Integrity
 
 - Record compilation and XCTest results separately from device verification. Follow the [verification plan](TechnicalRequirements.md#4-verification-plan).
+- Add or update a focused `#Preview` in the same Swift file when adding or changing a SwiftUI view.
 - The user handles UI testing. **Do not create/run UI tests automatically**, or restore removed testing files/targets without a request. Report manual UI checks still needed.
 - Use the XCTest target in `project.yml`.
 - For nontrivial logic delivery, agree meaningful executable checks with the owner and record actual results. Generation, parsing, building, testing and physical-device verification are different evidence levels.

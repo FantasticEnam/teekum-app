@@ -468,6 +468,98 @@ final class NetworkMigrationTests: XCTestCase {
         XCTAssertEqual(relayed, 1)
     }
 
+    @MainActor
+    func testRouterDeliversOnlyFreshAddressedFollowIntentsWithoutConfirmingDelivery() async throws {
+        let transport = NetworkTestTransport()
+        let crypto = CryptoService()
+        let discovery = RouteDiscoveryService(routingTable: RoutingTable(), neighborTable: NeighborTable(),
+            transport: transport, cryptoService: crypto)
+        let policy = RelayPolicyManager(storageKeyPrefix: "network-follow-\(UUID())", transport: transport, defaultMode: .disabled)
+        let key = SymmetricKey(size: .bits256)
+        let session = GroupSession(sessionId: 0x1234, symmetricKeyData: key.withUnsafeBytes { Data($0) },
+            localInitials: "BOB")
+        let senderSlot = MemberID.fromInitials("ALX").memberSlot
+        var acknowledgements = 0
+        var follows: [FollowIntentPayload] = []
+        let router = PacketRouter(cryptoService: crypto, peerTransport: transport,
+            relayPolicyManager: policy, routeDiscoveryService: discovery, seenPacketCache: SeenPacketCache(),
+            onLocationPing: { _, _ in }, onSOS: { _, _ in }, onACK: { _ in acknowledgements += 1 },
+            onMeetingUpdate: { _ in }, onChat: { _ in }, onFollow: { follows.append($0) })
+
+        func packet(_ payload: Data, counter: UInt32, slot: UInt8) async throws -> RawWirePacket {
+            let envelope = CleartextEnvelope(type: .ack, sessionId: session.sessionId,
+                sequenceNumber: CleartextEnvelope.makeSequenceNumber(memberSlot: slot, counter: counter))
+            let wire = try await crypto.sealToWireBytes(payload: payload, envelope: envelope, using: key)
+            return try RawWirePacket.fromWireData(wire)
+        }
+
+        let helper = FollowIntentPayload(senderInitials: "ALX", recipientInitials: "BOB", sosEventId: 77).serialize()
+        let decodedHelper = try ACKPayload.deserialize(from: helper)
+        XCTAssertEqual(decodedHelper.subtype, .follow)
+        if case .follow(let f, _, _) = decodedHelper {
+            XCTAssertEqual(f.sosEventId, 77)
+            XCTAssertEqual(f.senderInitials, "ALX")
+            XCTAssertEqual(f.recipientInitials, "BOB")
+        }
+
+        let valid = try await packet(helper, counter: 1, slot: senderSlot)
+        var tampered = valid
+        tampered.authTag[tampered.authTag.startIndex] ^= 1
+        let wrongSlot = try await packet(helper, counter: 2, slot: senderSlot ^ 1)
+        let elsewhere = FollowIntentPayload(senderInitials: "ALX", recipientInitials: "NIC", sosEventId: 77).serialize()
+        let otherRecipient = try await packet(elsewhere, counter: 3, slot: senderSlot)
+        let stale = FollowIntentPayload(senderInitials: "ALX", recipientInitials: "BOB", sosEventId: 77)
+            .serialize(timestamp: Date().addingTimeInterval(-90))
+        let expired = try await packet(stale, counter: 4, slot: senderSlot)
+        let regular = FollowIntentPayload(senderInitials: "ALX", recipientInitials: "BOB", sosEventId: nil).serialize()
+        let regularFollow = try await packet(regular, counter: 5, slot: senderSlot)
+        let chat = ChatACKPayload(ackedSeqNumber: 1, ackedSenderInitials: "BOB", ackStatus: .deliveredToFriend,
+            receivedRssi: 0)
+        let delivery = ACKPayload.chat(chat, timestamp: Date(), responderInitials: "ALX").serialize()
+        let deliveryACK = try await packet(delivery, counter: 6, slot: senderSlot)
+
+        for frame in [tampered, valid, valid, wrongSlot, otherRecipient, expired, regularFollow, deliveryACK] {
+            await router.routeInboundPacket(.init(rawPacket: frame, sourcePeerId: "relay"), for: session)
+        }
+        XCTAssertEqual(follows.map(\.senderInitials), ["ALX", "ALX"])
+        XCTAssertEqual(follows.map(\.sosEventId), [77, nil])
+        XCTAssertEqual(acknowledgements, 1)
+    }
+
+    @MainActor
+    func testDismissingHelperNoticeKeepsSOSActiveUntilEnded() async throws {
+        let session = GroupSession(sessionId: 0x1234, localInitials: "BOB")
+        let engine = SOSForwardingEngine(transport: NetworkTestTransport(), cryptoService: CryptoService(),
+            sessionProvider: { session })
+        let model = SOSViewModel(engine: engine, locationService: LocationService(isLiveSharingEnabled: false),
+            sessionProvider: { session })
+        await model.start()
+        model.triggerSOS()
+        for _ in 0..<100 where model.isSending { try await Task.sleep(for: .milliseconds(10)) }
+        let eventId = try XCTUnwrap(model.outgoingEventId)
+        model.receiveHelper("ALX", eventId: eventId ^ 1)
+        XCTAssertNil(model.helperOnTheWay)
+
+        model.receiveHelper("ALX", eventId: eventId)
+        model.receiveHelper("ALX", eventId: eventId)
+        model.receiveHelper("NIC", eventId: eventId)
+        XCTAssertEqual(model.helperOnTheWay, "ALX")
+        model.dismissHelperOnTheWay()
+        XCTAssertEqual(model.helperOnTheWay, "NIC")
+        model.dismissHelperOnTheWay()
+        XCTAssertNil(model.helperOnTheWay)
+        XCTAssertEqual(model.outgoingEventId, eventId)
+        XCTAssertTrue(model.showsEdgeGlow)
+
+        model.endSOS()
+        for _ in 0..<100 where model.isResolving { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNil(model.outgoingEventId)
+        XCTAssertFalse(model.showsEdgeGlow)
+        model.receiveHelper("HSN", eventId: eventId)
+        XCTAssertNil(model.helperOnTheWay)
+        await model.stop()
+    }
+
     private func wire(type: PacketType, sequence: UInt32, hopCount: UInt8 = 0) throws -> Data {
         try RawWirePacket(envelope: CleartextEnvelope(type: type, hopCount: hopCount, sessionId: 0x1234, sequenceNumber: sequence),
             ciphertext: Data(repeating: 0, count: 30), authTag: Data(repeating: 0, count: 16)).toWireData()

@@ -6,6 +6,7 @@
 //
 
 import CoreLocation
+import CryptoKit
 import Foundation
 import Observation
 
@@ -75,12 +76,16 @@ final class SessionController {
         self.sosEngine = sosEngine
         sos = SOSViewModel(engine: sosEngine, locationService: location, sessionProvider: { holder.session })
         meeting = MeetingPointService(sessionStore: store, cryptoService: crypto, transport: transport,
-                                      sequenceAllocator: sequences)
+            sequenceAllocator: sequences)
+        notifications.onOpenURL = { [weak self] url in
+            self?.handleURL(url)
+        }
         sos.onIncomingAlert = { [weak self] alert in
             guard let self, holder.session != nil else { return }
             store.setEmergency(true, for: alert.senderInitials)
             notifications.notify(title: "SOS from \(alert.senderInitials)", body: alert.emergencyType.title,
-                                 showBanner: false, interruptionLevel: .timeSensitive)
+                                 showBanner: false, interruptionLevel: .timeSensitive,
+                                 deepLinkURL: URL(string: "teekum://sos?member=\(alert.senderInitials)"))
         }
         sos.onIncomingSOSResolved = { [weak store] initials in
             store?.setEmergency(false, for: initials)
@@ -297,49 +302,99 @@ final class SessionController {
     
     private func makeRouter(generation current: UUID) -> PacketRouter {
         PacketRouter(cryptoService: crypto, peerTransport: transport, relayPolicyManager: relayPolicy,
-                     routeDiscoveryService: routes, seenPacketCache: seen,
-                     onLocationPing: { [weak self] ping, inbound in
-            guard let self, generation == current else { return }
-            let isNew = !store.members.contains { $0.id == ping.senderInitials }
-            store.applyLocationPing(ping, inbound: inbound)
-            if isNew { notifications.notifyGroupActivity([ping.senderInitials], joined: true) }
-        }, onSOS: { [weak self] payload, inbound in
-            guard let self, generation == current else { return }
-            let isNew = !store.members.contains { $0.id == payload.senderInitials }
-            store.applySOSLocation(payload, inbound: inbound)
-            if isNew { notifications.notifyGroupActivity([payload.senderInitials], joined: true) }
-            try? await sosEngine.handleInboundSOSPacket(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
-        }, onACK: { [weak self] inbound in
-            guard let self, generation == current else { return }
-            await sosEngine.handleInboundACK(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
-            guard generation == current else { return }
-            _ = await chatEngine.processDeliveryACK(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
-        }, onMeetingUpdate: { [weak self] update in
-            guard let self, generation == current, meeting.applyInboundUpdate(update) else { return }
-            if update.senderInitials != store.activeSession?.localInitials {
-                switch update.action {
-                case .propose:
-                    notifications.notify(title: "Meeting point", body: "\(update.senderInitials) updated the group rendezvous.")
-                case .cancel:
-                    notifications.notify(title: "Meeting point", body: "\(update.senderInitials) cancelled the group rendezvous.")
-                case .accept, .decline:
-                    break
+            routeDiscoveryService: routes, seenPacketCache: seen,
+            onLocationPing: { [weak self] ping, inbound in
+                guard let self, generation == current else { return }
+                let isNew = !store.members.contains { $0.id == ping.senderInitials }
+                store.applyLocationPing(ping, inbound: inbound)
+                if isNew { notifications.notifyGroupActivity([ping.senderInitials], joined: true) }
+            }, onSOS: { [weak self] payload, inbound in
+                guard let self, generation == current else { return }
+                let isNew = !store.members.contains { $0.id == payload.senderInitials }
+                store.applySOSLocation(payload, inbound: inbound)
+                if isNew { notifications.notifyGroupActivity([payload.senderInitials], joined: true) }
+                try? await sosEngine.handleInboundSOSPacket(rawPacket: inbound.rawPacket, fromPeerId: inbound.sourcePeerId)
+            }, onChatACK: { [weak self] chatAck, responder, timestamp, inbound in
+                guard let self, generation == current else { return }
+                _ = await chatEngine.processChatACK(payload: chatAck, responder: responder, timestamp: timestamp,
+                    hopCount: inbound.rawPacket.envelope.hopCount, fromPeerId: inbound.sourcePeerId)
+            }, onSOSACK: { [weak self] sosAck, responder, timestamp, inbound in
+                guard let self, generation == current else { return }
+                await sosEngine.handleSOSACK(payload: sosAck, responder: responder, timestamp: timestamp,
+                    hopCount: inbound.rawPacket.envelope.hopCount)
+            }, onMeetingUpdate: { [weak self] update in
+                guard let self, generation == current, meeting.applyInboundUpdate(update) else { return }
+                if update.senderInitials != store.activeSession?.localInitials {
+                    switch update.action {
+                    case .propose:
+                        notifications.notify(title: "Meeting Point Set!", body: "\(update.senderInitials) set up a new meeting point!",
+                            icon: "mappin.and.ellipse", interruptionLevel: .active,
+                            deepLinkURL: URL(string: "teekum://meeting"))
+                    case .cancel:
+                        notifications.notify(title: "Meeting Point Cancelled", body: "\(update.senderInitials) cancelled the meeting point.",
+                            icon: "mappin.slash", interruptionLevel: .active,
+                            deepLinkURL: URL(string: "teekum://meeting"))
+                    case .accept, .decline:
+                        break
+                    }
                 }
-            }
-        }, onChat: { [weak self] inbound in
-            guard let self, generation == current,
-                  let outcome = try? await chatEngine.handleInboundPacket(inbound, relay: false) else { return }
-            guard generation == current else { return }
-            if let message = outcome.deliveredMessage {
-                notifications.notifyChat(sender: message.senderInitials, body: message.text,
-                                         showBanner: !chat.isChatSheetPresented)
-            }
-        }, onSOSResolved: { [weak self] event in
-            guard let self, generation == current else { return }
-            await sos.acceptResolution(event)
-        })
+            }, onChat: { [weak self] inbound in
+                guard let self, generation == current,
+                      let outcome = try? await chatEngine.handleInboundPacket(inbound, relay: false) else { return }
+                guard generation == current else { return }
+                if let message = outcome.deliveredMessage {
+                    notifications.notifyChat(sender: message.senderInitials, body: message.text,
+                        showBanner: !chat.isChatSheetPresented)
+                }
+            }, onSOSResolved: { [weak self] event in
+                guard let self, generation == current else { return }
+                notifications.notify(
+                    title: "SOS Resolved",
+                    body: "\(event.senderInitials) has resolved their emergency alert.",
+                    icon: "checkmark.circle.fill",
+                    interruptionLevel: .timeSensitive,
+                    deepLinkURL: URL(string: "teekum://orbit")
+                )
+                await sos.acceptResolution(event)
+            }, onFollow: { [weak self] intent in
+                guard let self, generation == current else { return }
+                if let eventId = intent.sosEventId {
+                    sos.receiveHelper(intent.senderInitials, eventId: eventId)
+                    notifications.notify(
+                        title: "Helper on the way!",
+                        body: "\(intent.senderInitials) is heading to help you!",
+                        icon: "figure.walk.motion",
+                        interruptionLevel: .timeSensitive,
+                        deepLinkURL: URL(string: "teekum://sos?member=\(intent.senderInitials)")
+                    )
+                } else {
+                    notifications.notify(
+                        title: "\(intent.senderInitials) followed you",
+                        body: "Stay where you are so they can find you.",
+                        icon: "person.2.fill",
+                        interruptionLevel: .active,
+                        deepLinkURL: URL(string: "teekum://follow?initials=\(intent.senderInitials)")
+                    )
+                }
+            })
     }
-    
+
+    func sendFollowIntent(to recipient: String, sosEventId: UInt32?) {
+        guard let session = holder.session, session.localInitials != recipient else { return }
+        let current = generation
+        let intent = FollowIntentPayload(senderInitials: session.localInitials, recipientInitials: recipient,
+            sosEventId: sosEventId)
+        Task { [weak self] in
+            guard let self, generation == current else { return }
+            guard let sequence = try? await sequences.next(for: session), generation == current else { return }
+            let envelope = CleartextEnvelope(type: .ack, hopLimit: PacketConstants.sosHopLimit,
+                sessionId: session.sessionId, sequenceNumber: sequence)
+            guard let wire = try? await crypto.sealToWireBytes(payload: intent.serialize(), envelope: envelope,
+                using: SymmetricKey(data: session.symmetricKeyData)), generation == current else { return }
+            try? await transport.broadcastPacket(wire)
+        }
+    }
+
     private func acceptPeerUpdate(_ peers: [PeerInfo]) async {
         let current = generation
         let connected = Set(peers.filter(\.isDirectLink).map(\.id))
@@ -380,7 +435,7 @@ final class SessionController {
     
     func handleURL(_ url: URL) {
         if url.scheme == "teekum", url.host == "session" { leave(); return }
-        if url.scheme == "teekum", ["meeting", "sos"].contains(url.host ?? ""), store.hasActiveSession {
+        if url.scheme == "teekum", ["meeting", "sos", "follow", "chat", "orbit"].contains(url.host ?? ""), store.hasActiveSession {
             store.pendingDeepLink = url
             return
         }

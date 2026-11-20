@@ -12,6 +12,8 @@ struct OrbitFeedbackView: View {
     var notifications: NotificationService?
     var showsChatAlert = true
     var onOpenChat: () -> Void = {}
+    var onHelpOffered: (IncomingSOSAlert) -> Void = { _ in }
+    var onDeepLink: ((URL) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -19,14 +21,19 @@ struct OrbitFeedbackView: View {
         VStack(spacing: 8) {
             if let sos {
                 if let alert = sos.incomingAlert {
-                    IncomingSOSAlertBannerView(alert: alert) {
-                        Task { await sos.acknowledgeIncomingAlert() }
-                    }
+                    IncomingSOSAlertBannerView(alert: alert, onDismiss: {
+                        Task { await sos.acknowledgeIncomingAlert(alert) }
+                    }, onOfferHelp: {
+                        Task {
+                            await sos.acknowledgeIncomingAlert(alert) { onHelpOffered(alert) }
+                        }
+                    })
                 }
                 InactivityWarningView(guardService: sos.inactivityGuard)
                 if sos.outgoingEventId != nil {
                     ActiveSOSBannerView(deliveryState: sos.deliveryState, isEnding: sos.isResolving,
-                        error: sos.resolutionError, onEnd: sos.endSOS)
+                        error: sos.resolutionError, helperOnTheWay: sos.helperOnTheWay,
+                        onEnd: sos.endSOS, onDismissHelper: sos.dismissHelperOnTheWay)
                 } else {
                     SOSDeliveryStatusView(state: sos.deliveryState, onRetry: sos.retrySOS, onDismiss: sos.dismissDeliveryStatus)
                 }
@@ -35,17 +42,22 @@ struct OrbitFeedbackView: View {
                 ChatNotificationBannerView(sender: alert.sender, message: alert.body,
                     onOpen: onOpenChat, onDismiss: dismissChatAlert)
                     .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
-            } else if let message = notifications?.message {
-                Text(message)
-                    .font(.subheadline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color.blackCard, in: .rect(cornerRadius: 16))
-                    .accessibilityAddTraits(.updatesFrequently)
+            } else if let banner = notifications?.banner {
+                Button {
+                    if let url = banner.deepLinkURL {
+                        onDeepLink?(url)
+                    }
+                    notifications?.dismissBanner()
+                } label: {
+                    NotificationBannerView(title: banner.title, message: banner.body, icon: banner.icon)
+                }
+                .buttonStyle(.plain)
+                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
         }
         .padding(.horizontal)
         .animation(.easeOut(duration: 0.2), value: notifications?.chatAlert != nil)
+        .animation(.easeOut(duration: 0.2), value: notifications?.banner != nil)
     }
 
     private func dismissChatAlert() {
@@ -54,12 +66,14 @@ struct OrbitFeedbackView: View {
 }
 
 #if DEBUG
-#Preview("Incoming SOS feedback") {
+#Preview("Dismiss SOS banner and keep the glow") {
     @Previewable @State var sos = SOSViewModel.preview
 
     OrbitFeedbackView(sos: sos, notifications: nil)
         .padding(.vertical)
+        .frame(maxHeight: .infinity, alignment: .top)
         .background(.black)
+        .overlay { SOSEdgeGlowView(sos: sos) }
         .preferredColorScheme(.dark)
 }
 
