@@ -15,6 +15,9 @@ struct MainMapView: View {
     var offlineMaps: OfflineMapManager? = nil
     @Environment(\.dismiss) private var dismiss
     
+    @State private var isMapReady: Bool = false
+    @State private var showLoadingIndicator: Bool = true
+    
     init(
         sessionStore: SessionStore,
         meetingService: MeetingPointService? = nil,
@@ -39,7 +42,14 @@ struct MainMapView: View {
                     location: location,
                     selectedTarget: $selectedTarget,
                     connectivity: connectivity,
-                    offlineMaps: offlineMaps
+                    offlineMaps: offlineMaps,
+                    onMapReady: {
+                        guard !isMapReady else { return }
+                        isMapReady = true
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showLoadingIndicator = false
+                        }
+                    }
                 )
                 
                 if let error = viewModel.errorMessage {
@@ -48,6 +58,28 @@ struct MainMapView: View {
                         .padding()
                         .background(.black.opacity(0.8), in: .rect(cornerRadius: 12))
                         .padding()
+                }
+            }
+            .overlay(alignment: .center) {
+                if showLoadingIndicator {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.regular)
+                            .tint(Color.buttonPrimary)
+                        
+                        Text("Loading Map...")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.8)
+                    )
+                    .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 4)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
             .navigationTitle("Set Meeting Point")
@@ -61,6 +93,21 @@ struct MainMapView: View {
             }
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+        }
+        .task {
+            // Safety timeout: jika dalam 5 detik tidak ada callback (misal GPS mati total / simulator hening), tutup loading
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            if !isMapReady {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    showLoadingIndicator = false
+                }
+            }
+        }
+        .onChange(of: connectivity?.activeMapEngine) { _, _ in
+            isMapReady = false
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showLoadingIndicator = true
+            }
         }
         .onAppear {
             viewModel.requestLocationPermission()

@@ -12,6 +12,7 @@ struct AppleMapCanvasView: View {
     @Bindable var viewModel: MeetingPointViewModel
     var location: LocationService? = nil
     @Binding var selectedTarget: OrbitSceneView.Target?
+    var onMapReady: (() -> Void)? = nil
     
     @Namespace private var mapScope
     @State private var mapHeading: CLLocationDirection = 0
@@ -110,6 +111,7 @@ struct AppleMapCanvasView: View {
                 .mapControlVisibility(.hidden)
                 .onMapCameraChange(frequency: .continuous) { context in
                     mapHeading = context.camera.heading
+                    onMapReady?()
                 }
                 .safeAreaPadding(.top, 56)
                 .safeAreaPadding(.bottom, 24)
@@ -219,6 +221,7 @@ struct AppleMapCanvasView: View {
         .onChange(of: location?.currentLocation?.coordinate) { _, newCoord in
             guard !hasInitialCentered, let newCoord else { return }
             hasInitialCentered = true
+            onMapReady?()
             withAnimation {
                 cameraPosition = .camera(MapCamera(centerCoordinate: newCoord, distance: 400))
             }

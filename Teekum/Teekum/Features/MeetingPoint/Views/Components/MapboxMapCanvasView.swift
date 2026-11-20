@@ -15,6 +15,7 @@ struct MapboxMapCanvasView: View {
     @Binding var selectedTarget: OrbitSceneView.Target?
     var styleURI: String = OfflineMapManager.fallbackDarkStyleURI
     var cachedCity: CachedCityMetadata? = nil
+    var onMapReady: (() -> Void)? = nil
     
     @State private var viewport: Viewport = .camera(
         center: CLLocationCoordinate2D(latitude: -6.2186, longitude: 106.8026),
@@ -145,6 +146,7 @@ struct MapboxMapCanvasView: View {
                 mapBearing = cameraChanged.cameraState.bearing
                 currentCenter = cameraChanged.cameraState.center
                 currentZoom = cameraChanged.cameraState.zoom
+                onMapReady?()
             }
             .safeAreaPadding(.top, 56)
             .ignoresSafeArea()
@@ -174,6 +176,7 @@ struct MapboxMapCanvasView: View {
             hasInitialCentered = true
             currentCenter = newCoord
             viewport = .camera(center: newCoord, zoom: 15)
+            onMapReady?()
         }
         .onChange(of: location?.currentHeading) { _, newHeading in
             if let newHeading {

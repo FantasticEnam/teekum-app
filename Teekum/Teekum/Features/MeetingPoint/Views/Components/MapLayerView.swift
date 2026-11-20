@@ -14,6 +14,7 @@ struct MapLayerView: View {
     @Binding var selectedTarget: OrbitSceneView.Target?
     var connectivity: ConnectivityMonitor? = nil
     var offlineMaps: OfflineMapManager? = nil
+    var onMapReady: (() -> Void)? = nil
     
     @State private var isShowingNoOfflineMapAlert: Bool = false
     
@@ -22,13 +23,15 @@ struct MapLayerView: View {
         location: LocationService? = nil,
         selectedTarget: Binding<OrbitSceneView.Target?> = .constant(nil),
         connectivity: ConnectivityMonitor? = nil,
-        offlineMaps: OfflineMapManager? = nil
+        offlineMaps: OfflineMapManager? = nil,
+        onMapReady: (() -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self.location = location
         self._selectedTarget = selectedTarget
         self.connectivity = connectivity
         self.offlineMaps = offlineMaps
+        self.onMapReady = onMapReady
     }
     
     var body: some View {
@@ -39,13 +42,15 @@ struct MapLayerView: View {
                     location: location,
                     selectedTarget: $selectedTarget,
                     styleURI: offlineMaps?.activeStyleURIString ?? OfflineMapManager.fallbackDarkStyleURI,
-                    cachedCity: offlineMaps?.cachedCity
+                    cachedCity: offlineMaps?.cachedCity,
+                    onMapReady: onMapReady
                 )
             } else {
                 AppleMapCanvasView(
                     viewModel: viewModel,
                     location: location,
-                    selectedTarget: $selectedTarget
+                    selectedTarget: $selectedTarget,
+                    onMapReady: onMapReady
                 )
             }
         }
