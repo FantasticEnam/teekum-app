@@ -15,12 +15,28 @@ struct PreparednessSetupView: View {
     let onComplete: () -> Void
     var previewState: OfflineMapDownloadState? = nil
     var previewCity: String? = nil
+    var previewIsDetecting: Bool = false
+    var previewDetectionFailed: Bool = false
     
     @State private var isDetectingCity = false
+    @State private var hasDetectionFailed = false
     @State private var errorMessage: String?
     @State private var showingErrorAlert = false
     
-    private var currentCityName: String {
+    private var isDetecting: Bool {
+        previewIsDetecting || isDetectingCity || offlineMaps.downloadState == .locating
+    }
+    
+    private var isFailed: Bool {
+        if previewDetectionFailed { return true }
+        if previewCity != nil { return false }
+        if case .failed = effectiveDownloadState {
+            return resolvedCityName == nil
+        }
+        return hasDetectionFailed && resolvedCityName == nil
+    }
+    
+    private var resolvedCityName: String? {
         if let previewCity {
             return previewCity
         }
@@ -30,7 +46,11 @@ struct PreparednessSetupView: View {
         if let cached = offlineMaps.cachedCity?.cityName, !cached.isEmpty {
             return cached
         }
-        return "South Jakarta"
+        return nil
+    }
+    
+    private var currentCityName: String {
+        resolvedCityName ?? "South Jakarta"
     }
     
     private var effectiveDownloadState: OfflineMapDownloadState {
@@ -40,7 +60,7 @@ struct PreparednessSetupView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background
+                // Background copied directly from OrbitView / OrbitSceneView
                 GeometryReader { geometry in
                     let baseSize = min(geometry.size.width, geometry.size.height)
                     let backgroundRadius = (baseSize * 1.55 / 2) * 1.12
@@ -64,7 +84,9 @@ struct PreparednessSetupView: View {
                 .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
+                    // TOP CONTENT: Icon, Titles, and Download Area Card
                     VStack(spacing: 0) {
+                        // Top Graphic Icon
                         ZStack {
                             Circle()
                                 .fill(Color.buttonPrimary)
@@ -77,6 +99,7 @@ struct PreparednessSetupView: View {
                         .padding(.top, 24)
                         .padding(.bottom, 20)
                         
+                        // Header Title & Subtitle
                         VStack(spacing: 8) {
                             Text("Prepare Your Offline Map")
                                 .font(.system(size: 22, weight: .bold))
@@ -91,29 +114,60 @@ struct PreparednessSetupView: View {
                         .padding(.horizontal, 24)
                         .padding(.bottom, 24)
                         
+                        // Download Area Card
                         downloadAreaCard
                             .padding(.horizontal, 20)
                     }
                     
                     Spacer()
                     
+                    // BOTTOM BUTTONS: Download Now / Detect Location and Skip for Now
                     VStack(spacing: 12) {
-                        Button {
-                            handleDownloadTap()
-                        } label: {
+                        if isDetecting {
                             HStack(spacing: 8) {
-                                Image(systemName: "arrow.down.to.line")
-                                    .font(.system(size: 16, weight: .bold))
-                                Text("Download Now")
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.black)
+                                Text("Detecting Location...")
                                     .font(.system(size: 16, weight: .bold))
                             }
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
-                            .background(Color.buttonPrimary, in: Capsule())
+                            .background(Color.buttonPrimary.opacity(0.7), in: Capsule())
+                        } else if isFailed {
+                            Button {
+                                detectCurrentCity()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "location.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                    Text("Detect Location")
+                                        .font(.system(size: 16, weight: .bold))
+                                }
+                                .foregroundStyle(.black)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(Color.buttonPrimary, in: Capsule())
+                            }
+                        } else {
+                            Button {
+                                handleDownloadTap()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "arrow.down.to.line")
+                                        .font(.system(size: 16, weight: .bold))
+                                    Text("Download Now")
+                                        .font(.system(size: 16, weight: .bold))
+                                }
+                                .foregroundStyle(.black)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(Color.buttonPrimary, in: Capsule())
+                            }
+                            .disabled(effectiveDownloadState.isBusy)
+                            .opacity(effectiveDownloadState.isBusy ? 0.6 : 1.0)
                         }
-                        .disabled(effectiveDownloadState.isBusy)
-                        .opacity(effectiveDownloadState.isBusy ? 0.6 : 1.0)
                         
                         Button {
                             offlineMaps.cancelDownload()
@@ -132,7 +186,7 @@ struct PreparednessSetupView: View {
                 }
             }
             .task {
-                if previewCity == nil && offlineMaps.detectedCity == nil {
+                if previewCity == nil && !previewDetectionFailed && offlineMaps.detectedCity == nil {
                     detectCurrentCity()
                 }
             }
@@ -155,14 +209,23 @@ struct PreparednessSetupView: View {
             
             // City Row
             HStack(alignment: .center) {
-                if isDetectingCity && offlineMaps.detectedCity == nil {
+                if isDetecting {
                     HStack(spacing: 8) {
                         ProgressView()
                             .controlSize(.small)
                             .tint(.white)
-                        Text(currentCityName)
+                        Text("Detecting Location...")
                             .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(.white)
+                    }
+                } else if isFailed {
+                    HStack(spacing: 8) {
+                        Image(systemName: "location.slash")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.6))
+                        Text("Location Not Found")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Color.white.opacity(0.8))
                     }
                 } else {
                     Text(currentCityName)
@@ -175,18 +238,20 @@ struct PreparednessSetupView: View {
                 Button {
                     detectCurrentCity()
                 } label: {
-                    Image(systemName: "location.circle")
+                    Image(systemName: isFailed ? "arrow.clockwise.circle" : "location.circle")
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(Color.buttonPrimary)
                 }
-                .disabled(effectiveDownloadState.isBusy || isDetectingCity)
+                .disabled(effectiveDownloadState.isBusy || isDetecting)
             }
             
+            // Thin Separator Line
             Rectangle()
                 .fill(Color.white.opacity(0.12))
                 .frame(height: 1)
                 .padding(.vertical, 2)
             
+            // Metadata Row 1: Coverage & Type
             HStack(spacing: 12) {
                 HStack(spacing: 6) {
                     Image(systemName: "circle.circle")
@@ -208,11 +273,13 @@ struct PreparednessSetupView: View {
             }
             .foregroundStyle(Color.white.opacity(0.65))
             
+            // Thin Separator Line below Coverage & Type
             Rectangle()
                 .fill(Color.white.opacity(0.12))
                 .frame(height: 1)
                 .padding(.vertical, 2)
             
+            // Metadata Row 2: Estimated Size
             HStack(spacing: 6) {
                 Image(systemName: "square.stack.3d.up")
                     .font(.system(size: 12))
@@ -221,7 +288,7 @@ struct PreparednessSetupView: View {
             }
             .foregroundStyle(Color.white.opacity(0.65))
             
-            // Download Progress Row & Bar 
+            // Download Progress Row & Bar (Shown when downloading/indexing)
             if case .downloading(_, let progress) = effectiveDownloadState {
                 VStack(spacing: 8) {
                     HStack {
@@ -277,6 +344,9 @@ struct PreparednessSetupView: View {
         
         if let city = offlineMaps.detectedCity {
             startCityDownload(city)
+        } else if let cached = offlineMaps.cachedCity {
+            let city = DetectedCity(name: cached.cityName, coordinate: cached.centerCoordinate)
+            startCityDownload(city)
         } else {
             detectAndDownload()
         }
@@ -285,6 +355,7 @@ struct PreparednessSetupView: View {
     private func detectCurrentCity() {
         guard !isDetectingCity else { return }
         isDetectingCity = true
+        hasDetectionFailed = false
         Task {
             do {
                 if let loc = locationService.currentLocation {
@@ -292,7 +363,9 @@ struct PreparednessSetupView: View {
                 } else {
                     try await offlineMaps.locateAndDetectCity(using: locationService)
                 }
+                hasDetectionFailed = false
             } catch {
+                hasDetectionFailed = true
                 errorMessage = error.localizedDescription
             }
             isDetectingCity = false
@@ -302,6 +375,7 @@ struct PreparednessSetupView: View {
     private func detectAndDownload() {
         guard !isDetectingCity else { return }
         isDetectingCity = true
+        hasDetectionFailed = false
         Task {
             do {
                 let city: DetectedCity
@@ -310,13 +384,14 @@ struct PreparednessSetupView: View {
                 } else {
                     city = try await offlineMaps.locateAndDetectCity(using: locationService)
                 }
+                hasDetectionFailed = false
                 isDetectingCity = false
                 startCityDownload(city)
             } catch {
+                hasDetectionFailed = true
                 isDetectingCity = false
-                let coord = locationService.currentLocation?.coordinate ?? CLLocationCoordinate2D(latitude: -6.2615, longitude: 106.8106)
-                let fallbackCity = DetectedCity(name: currentCityName, coordinate: coord)
-                startCityDownload(fallbackCity)
+                errorMessage = error.localizedDescription
+                showingErrorAlert = true
             }
         }
     }
@@ -338,16 +413,37 @@ struct PreparednessSetupView: View {
     }
 }
 
-#Preview("Default / Idle") {
+#Preview("1. Location Detected (Ready)") {
     PreparednessSetupView(
         offlineMaps: OfflineMapManager(),
         locationService: LocationService(),
         connectivity: ConnectivityMonitor(),
-        onComplete: {}
+        onComplete: {},
+        previewCity: "South Jakarta"
     )
 }
 
-#Preview("Download Map Copy (78% Downloading)") {
+#Preview("2. Detecting Location (Loading)") {
+    PreparednessSetupView(
+        offlineMaps: OfflineMapManager(),
+        locationService: LocationService(),
+        connectivity: ConnectivityMonitor(),
+        onComplete: {},
+        previewIsDetecting: true
+    )
+}
+
+#Preview("3. Detection Failed (Retry)") {
+    PreparednessSetupView(
+        offlineMaps: OfflineMapManager(),
+        locationService: LocationService(),
+        connectivity: ConnectivityMonitor(),
+        onComplete: {},
+        previewDetectionFailed: true
+    )
+}
+
+#Preview("4. Downloading (78%)") {
     PreparednessSetupView(
         offlineMaps: OfflineMapManager(),
         locationService: LocationService(),
@@ -358,7 +454,7 @@ struct PreparednessSetupView: View {
     )
 }
 
-#Preview("Download Map Copy 2 (98% Indexing)") {
+#Preview("5. Storage and Indexing (98%)") {
     PreparednessSetupView(
         offlineMaps: OfflineMapManager(),
         locationService: LocationService(),
