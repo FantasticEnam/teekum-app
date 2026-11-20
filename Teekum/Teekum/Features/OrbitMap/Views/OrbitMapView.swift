@@ -32,7 +32,6 @@ struct OrbitMapView: View {
     private let chat: ChatViewModel?
     private let sos: SOSViewModel?
     private let meetingService: MeetingPointService?
-    private let diagnostics: @MainActor () -> TransportDiagnostics?
     private let notifications: NotificationService?
     private let offlineMaps: OfflineMapManager?
     private let connectivity: ConnectivityMonitor?
@@ -66,7 +65,7 @@ struct OrbitMapView: View {
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
          sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
          offlineMaps: OfflineMapManager? = nil, connectivity: ConnectivityMonitor? = nil,
-         diagnostics: @escaping @MainActor () -> TransportDiagnostics? = { nil }, notifications: NotificationService? = nil,
+         notifications: NotificationService? = nil,
          onFollowMember: @escaping (String, UInt32?) -> Void = { _, _ in },
          onLeaveGroup: (() -> Void)? = nil) {
         _viewModel = State(initialValue: OrbitMapViewModel(sessionStore: sessionStore, onLeaveGroup: onLeaveGroup))
@@ -76,7 +75,6 @@ struct OrbitMapView: View {
         self.meetingService = meetingService
         self.offlineMaps = offlineMaps
         self.connectivity = connectivity
-        self.diagnostics = diagnostics
         self.notifications = notifications
         self.onFollowMember = onFollowMember
     }
@@ -293,8 +291,7 @@ struct OrbitMapView: View {
                     sos: sos,
                     offlineMaps: offlineMaps,
                     connectivity: connectivity,
-                    memberContactLog: { viewModel.sessionStore.memberContactLog },
-                    diagnostics: diagnostics
+                    memberContactLog: { viewModel.sessionStore.memberContactLog }
                 )
             case .invite:
                 if let session = viewModel.sessionStore.activeSession {
