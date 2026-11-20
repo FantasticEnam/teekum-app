@@ -9,43 +9,41 @@ import SwiftUI
 
 struct OrbitHeaderView: View {
     let groupName: String
-    let onOpenMap: () -> Void
+    let roomCount: Int
     var onSettings: () -> Void = {}
 
     var body: some View {
-        HStack {
-            Button(action: onSettings) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 30, weight: .semibold))
-//                    .frame(width: 42, height: 42)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .accessibilityLabel("Settings")
-            
-            Spacer()
-            
+        VStack(spacing: 3) {
             Text(groupName)
                 .bold()
                 .font(.custom("Helvetica", size: 20, relativeTo: .title2))
                 .lineLimit(1)
-            
-            Spacer()
-            
-            Button(action: onOpenMap) {
-                Image(systemName: "map.fill")
-                    .font(.system(size: 30, weight: .semibold))
-//                    .frame(width: 62, height: 62)
+
+            (roomCount == 1 ? Text("1 Person") : Text("\(roomCount) Persons"))
+                .font(.subheadline)
+                .foregroundStyle(Color.buttonPrimary)
+        }
+        .accessibilityElement(children: .combine)
+        .padding(.horizontal, 68)
+        .frame(maxWidth: .infinity, minHeight: 60)
+        .overlay(alignment: .leading) {
+            Button(action: onSettings) {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 60, height: 60)
+                    .contentShape(.circle)
+                    .glassEffect(.regular.interactive(), in: .circle)
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .accessibilityLabel("Open meeting point map")
+            .buttonStyle(.plain)
+            .accessibilityLabel("Settings")
         }
     }
 }
 
-#Preview {
-    OrbitHeaderView(groupName: "Fantasix", onOpenMap: {})
+#Preview("Orbit group and person count") {
+    OrbitHeaderView(groupName: "Fantasix", roomCount: 5)
+        .padding(.horizontal, 24)
+        .background(.black)
+        .preferredColorScheme(.dark)
 }

@@ -8,11 +8,20 @@
 import SwiftUI
 
 struct OrbitMapView: View {
+    private enum FriendSelection {
+        case follow(Member.ID)
+        case stopFollowing
+    }
+
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isOrbitVisible = false
     @State private var viewModel: OrbitMapViewModel
     @State private var activeModal: OrbitModal?
     @State private var selectedTarget: OrbitSceneView.Target?
+    @State private var pendingFriendSelection: FriendSelection?
     @State private var isLeavingGroup = false
     @State private var isShowingChat = false
+    @State private var opensChatAfterModalDismissal = false
     @State private var memberToFollow: Member? = nil
     @State private var isShowingFollowAlert = false
     @State private var isShowingStopFollowAlert = false
@@ -23,6 +32,7 @@ struct OrbitMapView: View {
     private let meetingService: MeetingPointService?
     private let diagnostics: @MainActor () -> TransportDiagnostics?
     private let notifications: NotificationService?
+    private let onFollowMember: (String, UInt32?) -> Void
     
     private var meetingPoint: MeetingPoint? { viewModel.sessionStore.activeMeetingPoint }
     private var visibleMembers: [Member] { viewModel.sessionStore.visibleMembers }
@@ -31,6 +41,8 @@ struct OrbitMapView: View {
     private var orbitScene: some View {
         OrbitSceneView(
             userColor: viewModel.localProfileColor.swiftUIColor,
+            userNickname: viewModel.localNickname,
+            userBatteryLevel: location?.currentBatteryLevel,
             members: visibleMembers,
             meetingPoint: meetingPoint,
             location: location?.currentLocation,
@@ -50,6 +62,7 @@ struct OrbitMapView: View {
     init(sessionStore: SessionStore, location: LocationService? = nil, chat: ChatViewModel? = nil,
          sos: SOSViewModel? = nil, meetingService: MeetingPointService? = nil,
          diagnostics: @escaping @MainActor () -> TransportDiagnostics? = { nil }, notifications: NotificationService? = nil,
+         onFollowMember: @escaping (String, UInt32?) -> Void = { _, _ in },
          onLeaveGroup: (() -> Void)? = nil) {
         _viewModel = State(initialValue: OrbitMapViewModel(sessionStore: sessionStore, onLeaveGroup: onLeaveGroup))
         self.location = location
@@ -58,9 +71,11 @@ struct OrbitMapView: View {
         self.meetingService = meetingService
         self.diagnostics = diagnostics
         self.notifications = notifications
+        self.onFollowMember = onFollowMember
     }
     
     var body: some View {
+        let followedMember = selectedMember
         ZStack {
             Color.black
                 .ignoresSafeArea()
@@ -68,8 +83,8 @@ struct OrbitMapView: View {
             orbitScene
             
             VStack(alignment: .leading) {
-                OrbitHeaderView(groupName: viewModel.groupName,
-                                onOpenMap: { activeModal = .mapPoint }, onSettings: { activeModal = .settings })
+                OrbitHeaderView(groupName: viewModel.groupName, roomCount: viewModel.roomCount,
+                    onSettings: { activeModal = .settings })
                 
                 if let activity = notifications?.groupActivity {
                     groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
@@ -94,24 +109,48 @@ struct OrbitMapView: View {
                     onSOS: {
                         sos?.triggerSOS()
                     },
-                    onExpand: {
-                        activeModal = .friends
-                    },
+                    onOpenMap: { activeModal = .mapPoint },
                     onChat: openChat,
                     unreadCount: chat?.unreadCount ?? 0,
                     isSOSActive: isSOSActive
                 )
+                OrbitFriendsPanel(
+                    nickname: viewModel.localNickname,
+                    profileColor: viewModel.localProfileColor.swiftUIColor,
+                    members: visibleMembers,
+                    isUserSOSActive: isSOSActive,
+                    followedMember: followedMember,
+                    followDistance: distance(to: followedMember),
+                    onOpen: { activeModal = .friends }
+                )
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 24)
         }
         .overlay {
             if activeModal == nil && !isShowingChat { SOSEdgeGlowView(sos: sos) }
         }
         .overlay(alignment: .top) {
-            OrbitFeedbackView(sos: sos, notifications: notifications)
+            OrbitFeedbackView(sos: sos, notifications: notifications,
+                showsChatAlert: !isShowingChat, onOpenChat: openChat, onHelpOffered: followSOS, onDeepLink: handleDeepLink)
         }
         .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         .disabled(isLeavingGroup)
+        .onAppear {
+            isOrbitVisible = true
+            location?.setTacticalRadarActive(scenePhase == .active)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            location?.setTacticalRadarActive(isOrbitVisible && phase == .active)
+        }
+        .onChange(of: location?.isTracking) { _, tracking in
+            if tracking == true {
+                location?.setTacticalRadarActive(isOrbitVisible && scenePhase == .active)
+            }
+        }
+        .onDisappear {
+            isOrbitVisible = false
+            location?.setTacticalRadarActive(false)
+        }
         .onChange(of: meetingPoint?.id) { _, id in
             if case .meetingPoint(let targetID) = selectedTarget, targetID != id {
                 selectedTarget = nil
@@ -124,21 +163,15 @@ struct OrbitMapView: View {
         }
         .onChange(of: viewModel.sessionStore.pendingDeepLink, initial: true) { _, url in
             guard let url else { return }
-            if url.host == "meeting" { activeModal = .mapPoint }
-            if url.host == "sos", let alert = sos?.incomingAlert { selectedTarget = .member(alert.senderInitials) }
+            handleDeepLink(url)
             viewModel.sessionStore.pendingDeepLink = nil
         }
         .sheet(isPresented: $isShowingChat, onDismiss: { chat?.isChatSheetPresented = false }) {
             if let chat {
                 ChatSheetView(viewModel: chat, sessionStore: viewModel.sessionStore)
-                    .overlay(alignment: .top) {
-                        if let alert = notifications?.chatAlert {
-                            OrbitFeedbackView.chatBanner(sender: alert.sender, message: alert.body)
-                                .padding(.horizontal)
-                        }
-                    }
                     .safeAreaInset(edge: .top) {
-                        OrbitFeedbackView(sos: sos, notifications: notifications, showsChatAlert: false)
+                        OrbitFeedbackView(sos: sos, notifications: notifications,
+                            showsChatAlert: false, onHelpOffered: followSOS, onDeepLink: handleDeepLink)
                     }
                     .overlay { SOSEdgeGlowView(sos: sos) }
             }
@@ -153,7 +186,7 @@ struct OrbitMapView: View {
             Button("Cancel", role: .cancel) { }
             Button("Follow") {
                 if let member = memberToFollow {
-                    selectedTarget = .member(member.id)
+                    followMember(member.id)
                 }
             }
         } message: {
@@ -177,7 +210,12 @@ struct OrbitMapView: View {
         .fullScreenCover(item: $activeModal, onDismiss: finishModalDismissal) { modal in
             Group { switch modal {
             case .mapPoint:
-                MainMapView(sessionStore: viewModel.sessionStore, meetingService: meetingService, location: location)
+                MainMapView(
+                    sessionStore: viewModel.sessionStore,
+                    meetingService: meetingService,
+                    location: location,
+                    selectedTarget: $selectedTarget
+                )
             case .friends:
                 GeometryReader { geometry in
                     ZStack(alignment: .bottom) {
@@ -192,19 +230,20 @@ struct OrbitMapView: View {
                         
                         FriendListSheet(
                             sessionStore: viewModel.sessionStore,
-                            onAddFriend: {
+                            onShareInvite: {
                                 activeModal = .invite
                             },
                             onSelectMember: { member in
                                 sos?.recordUserInteraction()
-                                selectedTarget = .member(member.id)
+                                pendingFriendSelection = .follow(member.id)
                                 activeModal = nil
                             },
                             onLeaveGroup: requestLeaveGroup,
+                            isUserSOSActive: { isSOSActive },
                             selectedMemberId: selectedMember?.id,
                             onStopFollow: {       
                                 sos?.recordUserInteraction()
-                                selectedTarget = nil
+                                pendingFriendSelection = .stopFollowing
                                 activeModal = nil
                             }
                         )
@@ -228,7 +267,9 @@ struct OrbitMapView: View {
                     .presentationBackground(.black)
                 }
             } }
-            .safeAreaInset(edge: .top) { OrbitFeedbackView(sos: sos, notifications: notifications) }
+            .safeAreaInset(edge: .top) {
+                OrbitFeedbackView(sos: sos, notifications: notifications, onOpenChat: openChat, onHelpOffered: followSOS, onDeepLink: handleDeepLink)
+            }
             .overlay { SOSEdgeGlowView(sos: sos) }
             .simultaneousGesture(TapGesture().onEnded { sos?.recordUserInteraction() })
         }
@@ -286,13 +327,51 @@ struct OrbitMapView: View {
     }
     
     private func finishModalDismissal() {
-        guard isLeavingGroup else { return }
-        isLeavingGroup = false
-        viewModel.leaveGroup()
+        if isLeavingGroup {
+            isLeavingGroup = false
+            opensChatAfterModalDismissal = false
+            pendingFriendSelection = nil
+            viewModel.leaveGroup()
+        } else if let selection = pendingFriendSelection {
+            pendingFriendSelection = nil
+            switch selection {
+            case .follow(let id):
+                if visibleMembers.contains(where: { $0.id == id }) {
+                    followMember(id)
+                }
+            case .stopFollowing:
+                selectedTarget = nil
+            }
+        } else if opensChatAfterModalDismissal {
+            opensChatAfterModalDismissal = false
+            openChat()
+        }
+    }
+
+    private func distance(to member: Member?) -> Double? {
+        guard let origin = location?.currentLocation, let coordinate = member?.coordinate else { return nil }
+        let distance = origin.distance(to: coordinate)
+        return distance.isFinite && distance >= 0 ? distance : nil
+    }
+
+    private func followSOS(_ alert: IncomingSOSAlert) {
+        followMember(alert.senderInitials, sosEventId: alert.id)
+    }
+
+    private func followMember(_ id: Member.ID, sosEventId: UInt32? = nil) {
+        guard selectedTarget != .member(id) || sosEventId != nil else { return }
+        selectedTarget = .member(id)
+        onFollowMember(id, sosEventId ?? sos?.incomingEventID(for: id))
     }
     
     private func openChat() {
         sos?.recordUserInteraction()
+        notifications?.dismissChatAlert()
+        if activeModal != nil {
+            opensChatAfterModalDismissal = true
+            activeModal = nil
+            return
+        }
         chat?.isChatSheetPresented = true
         isShowingChat = true
     }
@@ -312,8 +391,33 @@ struct OrbitMapView: View {
         let target = OrbitSceneView.Target.meetingPoint(id)
         selectedTarget = selectedTarget == target ? nil : target
     }
+
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "teekum" else { return }
+        switch url.host {
+        case "meeting":
+            activeModal = .mapPoint
+        case "sos":
+            if let member = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "member" })?.value {
+                selectedTarget = .member(member)
+            } else if let alert = sos?.incomingAlert {
+                selectedTarget = .member(alert.senderInitials)
+            }
+        case "follow":
+            if let initials = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "initials" })?.value {
+                selectedTarget = .member(initials)
+            }
+        case "chat":
+            openChat()
+        case "orbit":
+            if activeModal != nil { activeModal = nil }
+        default:
+            break
+        }
+    }
 }
 
-#Preview {
+#Preview("Orbit with room count") {
     OrbitMapView(sessionStore: .preview)
+        .preferredColorScheme(.dark)
 }

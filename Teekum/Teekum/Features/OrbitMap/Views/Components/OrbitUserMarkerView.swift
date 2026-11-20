@@ -9,47 +9,52 @@ import SwiftUI
 
 struct OrbitUserMarkerView: View {
     let color: Color
+    let nickname: String
     var heading: Angle? = nil
     var isEmergency = false
     var isTargetSelected = false
+    var batteryLevel: Float?
+    @ScaledMetric(relativeTo: .caption) private var size: CGFloat = 36
 
-    var body: some View {
-        positionMarker.overlay { directionArrow }
+    static func arrowTopOffset(isTargetSelected: Bool) -> CGFloat {
+        isTargetSelected ? 60 : 45
     }
 
-    var positionMarker: some View {
+    var body: some View {
         Circle()
             .fill(isEmergency ? Color.alertRed : color)
-            .frame(width: 30, height: 30)
+            .frame(width: size, height: size)
+            .overlay {
+                Text(nickname)
+                    .font(.custom("Helvetica", size: 13, relativeTo: .caption).bold())
+                    .foregroundStyle(.black)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .padding(.horizontal, 2)
+            }
+            .overlay { directionArrow }
             .overlay(alignment: .bottom) {
-                Text("YOU")
-                    .font(.custom("Helvetica", size: 13, relativeTo: .caption))
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(isEmergency ? Color.alertRed : .black, in: .rect(cornerRadius: 6))
-                    .fixedSize()
-                    .offset(y: 40)
+                OrbitBatteryIndicatorView(batteryLevel: batteryLevel)
+                    .offset(y: 14)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Your position")
+            .accessibilityLabel(nickname.isEmpty ? Text("Your position") : Text("\(nickname), your position"))
             .accessibilityValue(
                 isEmergency ? "SOS active" : (heading == nil ? "Direction unavailable" : "Direction available")
             )
+            .accessibilityHint(OrbitBatteryIndicatorView.percentage(for: batteryLevel).map {
+                Text("Low battery, \($0)")
+            } ?? Text(""))
     }
 
     @ViewBuilder
-    var directionArrow: some View {
+    private var directionArrow: some View {
         if let heading {
+            let frameSize = Self.arrowTopOffset(isTargetSelected: isTargetSelected) * 2
             Image(systemName: "location.north.fill")
                 .font(.system(size: isTargetSelected ? 30 : 20, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(
-                    width: isTargetSelected ? 120 : 90,
-                    height: isTargetSelected ? 120 : 90,
-                    alignment: .top
-                )
+                .frame(width: frameSize, height: frameSize, alignment: .top)
                 .rotationEffect(heading)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
@@ -60,10 +65,10 @@ struct OrbitUserMarkerView: View {
 #Preview("User Marker States") {
     HStack(spacing: 60) {
         // 1. Normal
-        OrbitUserMarkerView(color: .yellowProfile, heading: .degrees(0))
+        OrbitUserMarkerView(color: .yellowProfile, nickname: "VAN", heading: .degrees(0), batteryLevel: 0.1)
 
         // 2. SOS Emergency
-        OrbitUserMarkerView(color: .yellowProfile, heading: .degrees(0), isEmergency: true)
+        OrbitUserMarkerView(color: .yellowProfile, nickname: "VAN", heading: .degrees(0), isEmergency: true)
     }
     .padding(100)
     .background(.black)

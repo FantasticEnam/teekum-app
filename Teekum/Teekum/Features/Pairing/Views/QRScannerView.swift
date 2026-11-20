@@ -10,6 +10,7 @@ import UIKit
 
 struct QRScannerView: View {
     var isEnabled = false
+    var isScanned = false
     var onCodeScanned: @MainActor @Sendable (String) -> Void = { _ in }
 
     @Environment(\.scenePhase) private var scenePhase
@@ -19,7 +20,17 @@ struct QRScannerView: View {
 
     var body: some View {
         Group {
-            if isEnabled, let cameraMessage {
+            if isScanned {
+                VStack(spacing: 14) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.white)
+                        .scaleEffect(1.2)
+                    Text("Connecting…")
+                        .font(.custom("Helvetica", size: 14, relativeTo: .body))
+                        .foregroundStyle(Color(white: 0.8))
+                }
+            } else if isEnabled, let cameraMessage {
                 VStack(spacing: 8) {
                     Text(cameraMessage)
                     Button("Open Settings", action: openSettings)
@@ -43,11 +54,13 @@ struct QRScannerView: View {
         .aspectRatio(1, contentMode: .fit)
         .frame(maxWidth: 255, maxHeight: 255)
         .background {
-            if isEnabled {
-                CameraPreviewView(session: scanner.session)
-                    .accessibilityLabel("Group QR code scanner")
+            if isScanned {
+                Color(white: 0.12)
             } else {
-                Color.black
+                CameraPreviewView(session: scanner.session)
+                    .opacity(isEnabled ? 1 : 0)
+                    .background(Color.black)
+                    .accessibilityLabel("Group QR code scanner")
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -55,8 +68,8 @@ struct QRScannerView: View {
             RoundedRectangle(cornerRadius: 14)
                 .strokeBorder(Color(white: 0.28), lineWidth: 1)
         }
-        .task(id: isEnabled && scenePhase == .active) {
-            guard isEnabled, scenePhase == .active else {
+        .task(id: isEnabled && !isScanned && scenePhase == .active) {
+            guard isEnabled, !isScanned, scenePhase == .active else {
                 scanner.stop()
                 return
             }

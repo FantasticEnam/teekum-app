@@ -68,7 +68,7 @@ The decoder checks for a positive hop limit and a hop count within that limit. T
 - Accuracy is a one-byte meter value. Battery is capped at 100 by several constructors/serializers. Do not invent an unknown-value encoding without reviewing both sides.
 - Heading helpers map degrees into a one-byte representation. Quantization/dequantization is not a live compass provider.
 - InitialsCodec encodes 1–3 uppercase letters with base 27: a × 729 + b × 27 + c, A=1...Z=26, missing positions=0. Two bytes hold the result. Initials are display data; they do not prove unique membership or non-colliding sender slots.
-- The one-byte `MemberColor` field uses `0x00` for automatic color. The selectable palette is yellow (`0x09`), red (`0x01`), green (`0x08`), purple (`0x0A`), and pink (`0x0B`). Retired codes `0x02...0x07` are still decoded and rendered using the current palette. Location and SOS carry this field. Chat uses the local session or the latest roster color, with an initials-based fallback until a profile color is received. Older builds use their automatic color for unknown codes.
+- The one-byte `MemberColor` field uses `0x00` for automatic color. The selectable palette is yellow (`0x09`), green (`0x08`), blue (`0x0C`), purple (`0x0A`), pink (`0x0B`), and red (`0x01`). Retired codes `0x02...0x07` are still decoded and rendered using the current palette. Location and SOS carry this field. Chat uses the local session or the latest roster color, with an initials-based fallback until a profile color is received. Older builds use their automatic color for unknown codes.
 
 ## 4. Current 30-Byte Payloads
 
@@ -152,18 +152,45 @@ These are initials fields, not the old four-byte originator/target ID proposal. 
 
 ### 4.5 ACKPayload — 0x06
 
+ACK packets (`PacketType.ack = 0x06`) are 30 bytes encrypted. The first 7 bytes form a common header followed by subtype-specific fields:
+
+#### Common 7-Byte Header (All Subtypes)
+
 | Payload bytes | Field |
 | :--- | :--- |
-| 0..3 | ackedSeqNumber: UInt32 |
-| 4..5 | ackedSenderInitials: two bytes |
-| 6..9 | ackTimestamp: UInt32 |
-| 10 | ACKStatus: deliveredToFriend=1, relayedByMeshHop=2 |
-| 11 | receivedRssi: Int8 |
-| 12..15 | originalEventId: UInt32 |
-| 16..17 | responderInitials: two bytes |
-| 18..29 | 12 zero reserved bytes |
+| 0 | `subtype`: UInt8 (0x01 = chat, 0x02 = sos, 0x03 = follow) |
+| 1..4 | `timestamp`: UInt32 Unix seconds |
+| 5..6 | `responderInitials`: two bytes (Base-27) |
 
-Relay receipt is not recipient-confirmed delivery. Current transport reception supplies nil RSSI; agree how “unavailable” is represented in this non-optional payload field. Never fabricate a measured signal value.
+#### Subtype 0x01: Chat Delivery / Relay ACK (`.chat`)
+
+| Payload bytes | Field |
+| :--- | :--- |
+| 7..10 | `ackedSeqNumber`: UInt32 |
+| 11..12 | `ackedSenderInitials`: two bytes (Base-27) |
+| 13 | `ACKStatus`: deliveredToFriend=1, relayedByMeshHop=2 |
+| 14 | `receivedRssi`: Int8 |
+| 15..29 | 15 zero reserved padding bytes |
+
+#### Subtype 0x02: SOS Distress ACK (`.sos`)
+
+| Payload bytes | Field |
+| :--- | :--- |
+| 7..10 | `sosEventId`: UInt32 |
+| 11..12 | `distressedSenderInitials`: two bytes (Base-27) |
+| 13 | `ACKStatus`: deliveredToFriend=1, relayedByMeshHop=2 |
+| 14 | `receivedRssi`: Int8 |
+| 15..29 | 15 zero reserved padding bytes |
+
+#### Subtype 0x03: Follow Intent (`.follow`)
+
+| Payload bytes | Field |
+| :--- | :--- |
+| 7..8 | `recipientInitials`: two bytes (Base-27, member being followed) |
+| 9..12 | `sosEventId`: UInt32 (0 for general follow, or active SOS event ID) |
+| 13..29 | 17 zero reserved padding bytes |
+
+Relay receipt is not recipient-confirmed delivery. Chat and SOS ACKs use 600-second retention in `CarryMessageStore`, while Follow Intent uses an ephemeral 60-second freshness window and is live-relayed without carry store retention.
 
 ### 4.6 ChatMessagePayload — 0x07
 

@@ -5,6 +5,7 @@
 //  Created by DIMAS DAFFA ERNANDA on 11/11/26.
 //
 
+import CoreLocation
 import CryptoKit
 import Observation
 import Security
@@ -12,6 +13,47 @@ import XCTest
 @testable import Teekum
 
 final class SessionSafetyTests: XCTestCase {
+    @MainActor
+    func testFreshMeasurementsInvalidateTheObservedOrbitInputs() async {
+        let location = LocationService()
+        let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
+        location.simulateLocation(coordinate: .init(latitude: 0, longitude: 0), timestamp: timestamp)
+        let store = SessionStore(members: [Member(id: "ALX", coordinate: .init(latitude: 0, longitude: 0.0001),
+            measurementTimestamp: timestamp)])
+        let friendChanged = expectation(description: "Orbit observes the friend's new coordinate")
+        withObservationTracking {
+            _ = store.visibleMembers
+        } onChange: {
+            friendChanged.fulfill()
+        }
+        store.upsertMember(Member(id: "ALX", coordinate: .init(latitude: 0, longitude: 0.0003),
+            measurementTimestamp: timestamp.addingTimeInterval(5)))
+        let localChanged = expectation(description: "Orbit observes the local GPS measurement")
+        withObservationTracking {
+            _ = location.currentLocation
+        } onChange: {
+            localChanged.fulfill()
+        }
+        location.simulateLocation(coordinate: .init(latitude: 0, longitude: 0.0002),
+            timestamp: timestamp.addingTimeInterval(5))
+        await fulfillment(of: [friendChanged, localChanged], timeout: 1)
+    }
+
+    @MainActor
+    func testActiveRadarRestoresFineLocationSamplingAfterStationaryMode() {
+        let location = LocationService()
+        location.setStationaryState(true)
+        XCTAssertEqual(location.currentDistanceFilter, 15)
+
+        location.setTacticalRadarActive(true)
+        XCTAssertEqual(location.currentDesiredAccuracy, kCLLocationAccuracyBestForNavigation)
+        XCTAssertEqual(location.currentDistanceFilter, kCLDistanceFilterNone)
+        XCTAssertEqual(location.currentHeadingFilter, kCLHeadingFilterNone)
+
+        location.setTacticalRadarActive(false)
+        XCTAssertEqual(location.currentDistanceFilter, 15)
+    }
+
     func testSharedSequenceIsUniqueAcrossConcurrentEmittersAndAllocatorRestart() async throws {
         let service = "sequence-test-\(UUID())"
         defer { removeKeychainItems(service: service) }
@@ -175,8 +217,17 @@ final class SessionSafetyTests: XCTestCase {
         let lastContact = Date(timeIntervalSince1970: 1_800_000_000)
         let timing = MeshTimingConfiguration.default
         let now = lastContact.addingTimeInterval(timing.stalePeerThreshold + timing.staleRecoveryTimeout + 1)
-        let store = SessionStore(members: [Member(id: "BOB", lastSeen: lastContact, isDirectPeer: true)])
+        let store = SessionStore(activeSession: GroupSession(localInitials: "ALX"),
+            members: [Member(id: "BOB", name: "Bob Martin", lastSeen: lastContact, isDirectPeer: true)])
         let friends = FriendListViewModel(sessionStore: store)
+        let orbit = OrbitMapViewModel(sessionStore: store)
+        XCTAssertEqual(friends.localProfile?.initials, "ALX")
+        friends.searchQuery = "Martin"
+        XCTAssertEqual(friends.filteredMembers.map(\.id), ["BOB"])
+        friends.searchQuery = "No match"
+        XCTAssertTrue(friends.filteredMembers.isEmpty)
+        XCTAssertEqual(orbit.roomCount, 2)
+        friends.searchQuery = ""
         let pending = PeerInfo(id: "BOB", displayName: "Bob", isDirectLink: false, lastSeen: now)
         store.applyPeerSnapshot([pending], connected: [])
         XCTAssertEqual(store.members.first?.lastSeen, lastContact)
@@ -191,11 +242,13 @@ final class SessionSafetyTests: XCTestCase {
         XCTAssertEqual(store.refreshMemberVisibility(now: now, peers: [pending]).map(\.initials), ["BOB"])
         XCTAssertEqual(XCTWaiter.wait(for: [refresh], timeout: 0), .completed)
         XCTAssertTrue(friends.filteredMembers.isEmpty)
+        XCTAssertEqual(orbit.roomCount, 1)
 
         let ready = PeerInfo(id: "BOB", displayName: "Bob", lastSeen: now)
         store.applyPeerSnapshot([ready], connected: ["BOB"])
         XCTAssertTrue(store.refreshMemberVisibility(now: now, peers: [ready]).isEmpty)
         XCTAssertEqual(friends.filteredMembers.map(\.id), ["BOB"])
+        XCTAssertEqual(orbit.roomCount, 2)
     }
 
     @MainActor

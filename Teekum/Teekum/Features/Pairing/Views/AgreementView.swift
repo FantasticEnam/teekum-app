@@ -16,64 +16,20 @@ struct AgreementView: View {
     var isPublicFestivalMesh = false
     var onAgree: () -> Void = {}
 
+    @State private var hasAgreed = false
+    @State private var hasReachedAgreementEnd = false
+    
     var body: some View {
-        ScrollView {
-            VStack(spacing: 13) {
-                HeadAgreement(profileColor: form.profileColor.color)
-                AgreementGroupSummaryView(
-                    groupName: form.trimmedSessionName,
-                    initials: form.initials,
-                    mode: mode,
-                    profileColor: form.profileColor.color
-                )
-
-                if isPublicFestivalMesh {
-                    Text("This is a public festival group. Other participants in this group can read your messages and shared location.")
-                        .font(.custom("Helvetica", size: 16, relativeTo: .callout))
-                        .foregroundStyle(Color.yellowProfile)
-                        .multilineTextAlignment(.center)
-                        .padding(.vertical)
-                }
-
-                CardAgreement(
-                    title: "Community-Powered Mesh Network",
-                    description: "Your device can help relay encrypted data between nearby participating devices.",
-                    icon: "point.3.connected.trianglepath.dotted"
-                )
-                CardAgreement(
-                    title: "Encrypted by Design",
-                    description: "Your communications are protected using ChaCha20-Poly1305 encryption.",
-                    icon: "lock.shield"
-                )
-                CardAgreement(
-                    title: "Battery-Aware Protection",
-                    description: "Network activity is rate-limited to help conserve battery. Automatic relay protection pauses when your battery reaches 20%.",
-                    icon: "battery.100percent.bolt"
-                )
-                CardAgreement(
-                    title: "Stay Connected",
-                    description: "Keep track of your group's activity through supported iOS features, including Live Activities and Offline Chat",
-                    icon: "square.3.layers.3d"
-                )
-
-                FooterAgreement(
-                    termsOfUseURL: termsOfUseURL,
-                    privacyPolicyURL: privacyPolicyURL,
-                    onAgree: onAgree
-                )
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.custom("Helvetica", size: 13, relativeTo: .footnote))
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                }
+        ViewThatFits(in: .vertical) {
+            agreementContent(cardScrolls: true)
+            ScrollView {
+                agreementContent(cardScrolls: false)
             }
-            .frame(maxWidth: 400)
-            .padding(.horizontal, 42)
-            .padding(.top, 43)
-            .padding(.bottom, 24)
-            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: 400)
+        .padding(.horizontal, 42)
+        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity)
         .foregroundStyle(.white)
         .background {
             RadialGradient(
@@ -85,6 +41,46 @@ struct AgreementView: View {
             .ignoresSafeArea()
         }
         .preferredColorScheme(.dark)
+    }
+
+    private func agreementContent(cardScrolls: Bool) -> some View {
+        VStack(spacing: 13) {
+            HeadAgreement(profileColor: form.profileColor.color)
+            VStack {
+                AgreementGroupSummaryView(
+                    groupName: form.trimmedSessionName,
+                    initials: form.initials,
+                    mode: mode,
+                )
+            }
+            .foregroundStyle(.black)
+            
+            if isPublicFestivalMesh {
+                Text("This is a public festival group. Other participants in this group can read your messages and shared location.")
+                    .font(.custom("Helvetica", size: 16, relativeTo: .callout))
+                    .foregroundStyle(Color.yellowProfile)
+                    .multilineTextAlignment(.center)
+                    .padding(.vertical)
+            }
+            
+            CardAgreement(isScrollable: cardScrolls) {
+                hasReachedAgreementEnd = true
+            }
+            
+            FooterAgreement(
+                hasAgreed: $hasAgreed,
+                canCheckAgreement: hasReachedAgreementEnd,
+                termsOfUseURL: termsOfUseURL,
+                privacyPolicyURL: privacyPolicyURL,
+                onAgree: onAgree
+            )
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.custom("Helvetica", size: 13, relativeTo: .footnote))
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+        }
     }
 }
 
