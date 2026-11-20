@@ -18,9 +18,17 @@ final class OrbitMapViewModel {
         sessionStore.activeSession?.sessionName ?? "Group Name"
     }
 
+    var roomCount: Int {
+        sessionStore.visibleMembers.count + (sessionStore.hasActiveSession ? 1 : 0)
+    }
+
     var localProfileColor: MemberColor {
         guard let session = sessionStore.activeSession else { return .sandrift }
         return sessionStore.profileColor(for: session.localInitials)
+    }
+
+    var localNickname: String {
+        sessionStore.activeSession?.localMemberName ?? ""
     }
 
     init(sessionStore: SessionStore, onLeaveGroup: (() -> Void)? = nil) {

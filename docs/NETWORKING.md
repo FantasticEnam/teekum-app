@@ -37,7 +37,7 @@ Leave/rejoin stops the router, cancels the session task and probes, stops publis
 
 ## Queue, relay and carry
 
-`Core/Transport/PriorityOutboxQueue.swift` drains urgent SOS, SOS resolution, ACK and meeting, FIFO chat, other foreign relay, then coalesced telemetry. Foreign SOS, SOS resolution and ACK use the urgent lane; foreign chat uses the chat lane. Queueing and link sends are not recipient confirmation.
+`Core/Transport/PriorityOutboxQueue.swift` drains urgent SOS, SOS resolution, ACK and meeting, FIFO chat, other foreign relay, then coalesced telemetry. Location pings in the normal lane keep the highest pending sequence for each session, sender slot, and destination, including broadcast. Foreign SOS, SOS resolution and ACK use the urgent lane; foreign chat uses the chat lane. Queueing and link sends are not recipient confirmation.
 
 `Core/Mesh/PacketRouter.swift` authenticates own-group updates before callbacks. `SessionStore` applies accepted measurements and peer snapshots. It relays within the existing hop/dedup rules and processes foreign ciphertext without opening it. The opaque SOS fallback for equal SID with failed authentication never produces a local alert or ACK. Foreign relay needs opt-in, sufficient battery and Low Power Mode off; ordinary relay budget is eight per second, with telemetry reservation for reliable traffic. See [Protocol specification](PROTOCOL_SPECIFICATION.md) for residual trust and replay limits.
 

@@ -40,13 +40,15 @@ extension SOSForwardingEngine {
             throw TransportError.malformedPacket
         }
         
-        let ackPayload = ACKPayload(
-            ackedSeqNumber: originalPacket.envelope.sequenceNumber,
-            ackedSenderInitials: sosPayload.senderInitials,
-            ackTimestamp: clock.now(),
+        let sosAck = SOSACKPayload(
+            sosEventId: sosPayload.sosEventId,
+            distressedSenderInitials: sosPayload.senderInitials,
             ackStatus: status,
-            receivedRssi: 0,
-            originalEventId: sosPayload.sosEventId,
+            receivedRssi: 0
+        )
+        let ackPayload = ACKPayload.sos(
+            sosAck,
+            timestamp: clock.now(),
             responderInitials: session.localInitials
         )
         let payloadData = ackPayload.serialize()
@@ -85,7 +87,7 @@ extension SOSForwardingEngine {
     
     // MARK: - Inbound ACK Processing Pipeline
     
-    /// Ingests and processes an incoming delivery ACK.
+    /// Ingests and processes an incoming delivery ACK from wire data.
     public func handleInboundACK(
         rawPacket: RawWirePacket,
         fromPeerId: String
@@ -110,25 +112,44 @@ extension SOSForwardingEngine {
         guard generation == sessionGeneration,
               let payload = try? ACKPayload.deserialize(from: decrypted) else { return }
         
+        guard case .sos(let sosPayload, let timestamp, let responder) = payload else { return }
+        
+        await handleSOSACK(
+            payload: sosPayload,
+            responder: responder,
+            timestamp: timestamp,
+            hopCount: envelope.hopCount
+        )
+    }
+
+    /// Handles a typed SOS ACK directly without redundant decryption.
+    public func handleSOSACK(
+        payload: SOSACKPayload,
+        responder: String,
+        timestamp: Date,
+        hopCount: UInt8
+    ) async {
+        guard let session = sessionProvider?() else { return }
+        
         // Verify this ACK confirms our local member and matches active SOS event
-        guard payload.ackedSenderInitials == session.localInitials else { return }
-        guard let activeId = activeSOSEventId, payload.originalEventId == activeId else { return }
+        guard payload.distressedSenderInitials == session.localInitials else { return }
+        guard let activeId = activeSOSEventId, payload.sosEventId == activeId else { return }
         
         totalAcksReceivedCount += 1
         
         switch payload.ackStatus {
         case .deliveredToFriend:
             cancelRetries()
-            lastDeliveredFriendId = payload.responderInitials
+            lastDeliveredFriendId = responder
             lastDeliveredTimestamp = clock.now()
-            lastDeliveredHopCount = envelope.hopCount
-            updateDeliveryState(.deliveredToFriend(friendId: payload.responderInitials, timestamp: clock.now()))
+            lastDeliveredHopCount = hopCount
+            updateDeliveryState(.deliveredToFriend(friendId: responder, timestamp: clock.now()))
             
         case .relayedByMeshHop:
-            lastRelayHopCount = envelope.hopCount
-            lastRelayResponderId = payload.responderInitials
+            lastRelayHopCount = hopCount
+            lastRelayResponderId = responder
             if !currentDeliveryState.isDelivered {
-                updateDeliveryState(.relayedAck(relayHopCount: envelope.hopCount, responderId: payload.responderInitials))
+                updateDeliveryState(.relayedAck(relayHopCount: hopCount, responderId: responder))
             }
         }
     }

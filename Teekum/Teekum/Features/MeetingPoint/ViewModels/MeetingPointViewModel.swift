@@ -8,6 +8,7 @@
 import Foundation
 import CoreLocation
 import Observation
+import SwiftUI
 
 @Observable
 @MainActor
@@ -58,7 +59,16 @@ public final class MeetingPointViewModel {
         sessionStore.visibleMembers
     }
     
-    
+    public var localProfileColor: Color {
+        guard let session = sessionStore.activeSession else { return MemberColor.sandrift.swiftUIColor }
+        return sessionStore.profileColor(for: session.localInitials).swiftUIColor
+    }
+
+    public var localNickname: String {
+        guard let session = sessionStore.activeSession else { return "" }
+        return session.localMemberName.isEmpty ? session.localInitials : session.localMemberName
+    }
+
     public func requestLocationPermission() {
         if locationManager == nil { locationManager = CLLocationManager() }
         if locationManager?.authorizationStatus == .notDetermined {

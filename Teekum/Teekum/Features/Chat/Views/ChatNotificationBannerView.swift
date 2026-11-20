@@ -18,19 +18,7 @@ struct ChatNotificationBannerView: View {
 
     var body: some View {
         Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(sender)
-                    .font(.title3.bold())
-                Text(message)
-                    .font(.body.weight(.medium))
-                    .lineLimit(3)
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 32)
-            .padding(.vertical, 18)
-            .background(Color(white: 0.26), in: .rect(cornerRadius: 32))
-            .contentShape(.rect(cornerRadius: 32))
+            NotificationBannerView(title: sender, message: message, icon: "message.fill")
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)

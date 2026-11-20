@@ -43,64 +43,67 @@ struct GroupPairingProfileView: View {
             if isProfilePickerVisible {
                 ProfilePickerView(selectedColor: $profileColor)
             } else {
-                Text("Your Initial")
-                    .padding(.top, 20)
-                    .font(.custom("Helvetica", size: 17, relativeTo: .headline))
-                    .bold()
-                    .foregroundStyle(Color.white)
-                    .padding(.bottom, 6)
+                VStack(spacing: 0) {
+                    Text("3-Letter Nickname")
+                        .font(.custom("Helvetica", size: 17, relativeTo: .headline))
+                        .bold()
+                        .foregroundStyle(Color.white)
+                        .padding(.bottom, 6)
 
-                ZStack {
-                    HStack(spacing: 4) {
-                        ForEach(0..<3) { index in
-                            Text(initial(at: index))
-                                .font(.custom("Helvetica", size: 20, relativeTo: .title3))
-                                .foregroundStyle(.white)
-                                .frame(width: 36, height: 40)
-                                .background {
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .strokeBorder(Color(white: 0.8), lineWidth: 1)
-                                }
-                                .overlay {
-                                    if isEditingInitials && index == activeInitialIndex {
-                                        Capsule()
-                                            .fill(.white)
-                                            .frame(width: 2, height: 22)
-                                            .offset(x: initials.count == 3 ? 13 : 0)
-                                            .opacity(isCursorVisible ? 1 : 0)
+                    ZStack {
+                        HStack(spacing: 4) {
+                            ForEach(0..<3) { index in
+                                Text(initial(at: index))
+                                    .font(.custom("Helvetica", size: 20, relativeTo: .title3))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 36, height: 40)
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 14)
+                                            .strokeBorder(Color(white: 0.8), lineWidth: 1)
                                     }
-                                }
+                                    .overlay {
+                                        if isEditingInitials && index == activeInitialIndex {
+                                            Capsule()
+                                                .fill(.white)
+                                                .frame(width: 2, height: 22)
+                                                .offset(x: initials.count == 3 ? 13 : 0)
+                                                .opacity(isCursorVisible ? 1 : 0)
+                                        }
+                                    }
+                            }
                         }
-                    }
-                    .accessibilityHidden(true)
+                        .accessibilityHidden(true)
 
-                    // A shared input lets backspace work even when the next box is empty.
-                    TextField("", text: $initials, selection: $initialsSelection)
-                        .textFieldStyle(.plain)
-                        .foregroundStyle(.clear)
-                        .tint(.clear)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .focused(focusedField, equals: .initials)
-                        .submitLabel(.done)
-                        .accessibilityLabel("Your initials")
-                        .accessibilityHint("Enter up to three characters")
-                        .onChange(of: initials) { _, value in
-                            updateInitials(value)
+                        // A shared input lets backspace work even when the next box is empty.
+                        TextField("", text: $initials, selection: $initialsSelection)
+                            .textFieldStyle(.plain)
+                            .foregroundStyle(.clear)
+                            .tint(.clear)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .focused(focusedField, equals: .initials)
+                            .submitLabel(.done)
+                            .accessibilityLabel("Your initials")
+                            .accessibilityHint("Enter up to three characters")
+                            .onChange(of: initials) { _, value in
+                                updateInitials(value)
+                            }
+                            .onSubmit(finishEditingInitials)
+
+                        Button(action: focusInitials) {
+                            Color.clear
+                                .contentShape(Rectangle())
                         }
-                        .onSubmit(finishEditingInitials)
-
-                    Button(action: focusInitials) {
-                        Color.clear
-                            .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .accessibilityHidden(true)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityHidden(true)
+                    .frame(width: 116, height: 40)
+                    .task(id: isEditingInitials && !reduceMotion) {
+                        await blinkCursor()
+                    }
                 }
-                .frame(width: 116, height: 40)
-                .task(id: isEditingInitials && !reduceMotion) {
-                    await blinkCursor()
-                }
+                .anchorPreference(key: HomeOnBoarding.TargetBounds.self, value: .bounds) { [.nickname: $0] }
+                .padding(.top, 20)
             }
         }
     }

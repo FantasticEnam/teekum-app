@@ -142,6 +142,10 @@ public final class LocationService: NSObject, CLLocationManagerDelegate, Locatio
     /// Continuation for async permission requests.
     var permissionContinuation: CheckedContinuation<Bool, Never>?
     
+    /// Continuation dan task timeout untuk permintaan 1 titik GPS (digunakan OfflineMapManager).
+    var singleFixContinuation: CheckedContinuation<LocationPin?, Never>?
+    var singleFixTimeoutTask: Task<Void, Never>?
+    
     // MARK: - Publication Callbacks & Streams
     
     /// Direct closure callback invoked when a location ping is ready to publish.

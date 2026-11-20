@@ -272,30 +272,81 @@ struct PacketCodecTests {
         #expect(decoded.isRightNow == false)
     }
 
-    // MARK: - Test 9: ACK Payload Roundtrip
+    // MARK: - Test 9: ACK Payload Roundtrips (Subtypes)
 
-    @Test("ACKPayload roundtrip serialization")
+    @Test("ACKPayload roundtrip serialization for Chat, SOS, and Follow subtypes")
     func ackPayloadRoundtrip() throws {
-        let payload = ACKPayload(
+        let timestamp = Date(timeIntervalSince1970: 1729000100)
+
+        // 1. Chat Subtype
+        let chat = ChatACKPayload(
             ackedSeqNumber: 0x00000005,
             ackedSenderInitials: "SAM",
-            ackTimestamp: Date(timeIntervalSince1970: 1729000100),
             ackStatus: .deliveredToFriend,
-            receivedRssi: -65,
-            originalEventId: 0x99998888,
-            responderInitials: "DNA"
+            receivedRssi: -65
         )
+        let chatAck = ACKPayload.chat(chat, timestamp: timestamp, responderInitials: "DNA")
+        let chatData = chatAck.serialize()
+        #expect(chatData.count == 30)
 
-        let data = payload.serialize()
-        #expect(data.count == 30)
+        let decodedChat = try ACKPayload.deserialize(from: chatData)
+        #expect(decodedChat.subtype == .chat)
+        #expect(decodedChat.timestamp == timestamp)
+        #expect(decodedChat.responderInitials == "DNA")
+        if case .chat(let c, let ts, let resp) = decodedChat {
+            #expect(c.ackedSeqNumber == 0x00000005)
+            #expect(c.ackedSenderInitials == "SAM")
+            #expect(c.ackStatus == .deliveredToFriend)
+            #expect(c.receivedRssi == -65)
+            #expect(ts == timestamp)
+            #expect(resp == "DNA")
+        } else {
+            Issue.record("Expected .chat subtype")
+        }
 
-        let decoded = try ACKPayload.deserialize(from: data)
-        #expect(decoded.ackedSeqNumber == 0x00000005)
-        #expect(decoded.ackedSenderInitials == "SAM")
-        #expect(decoded.ackStatus == .deliveredToFriend)
-        #expect(decoded.receivedRssi == -65)
-        #expect(decoded.originalEventId == 0x99998888)
-        #expect(decoded.responderInitials == "DNA")
+        // 2. SOS Subtype
+        let sos = SOSACKPayload(
+            sosEventId: 0x99998888,
+            distressedSenderInitials: "SAM",
+            ackStatus: .deliveredToFriend,
+            receivedRssi: -70
+        )
+        let sosAck = ACKPayload.sos(sos, timestamp: timestamp, responderInitials: "DNA")
+        let sosData = sosAck.serialize()
+        #expect(sosData.count == 30)
+
+        let decodedSOS = try ACKPayload.deserialize(from: sosData)
+        #expect(decodedSOS.subtype == .sos)
+        if case .sos(let s, _, let resp) = decodedSOS {
+            #expect(s.sosEventId == 0x99998888)
+            #expect(s.distressedSenderInitials == "SAM")
+            #expect(s.ackStatus == .deliveredToFriend)
+            #expect(s.receivedRssi == -70)
+            #expect(resp == "DNA")
+        } else {
+            Issue.record("Expected .sos subtype")
+        }
+
+        // 3. Follow Subtype
+        let follow = FollowIntentPayload(
+            senderInitials: "DNA",
+            recipientInitials: "SAM",
+            sosEventId: 0x12345678
+        )
+        let followAck = ACKPayload.follow(follow, timestamp: timestamp, responderInitials: "DNA")
+        let followData = followAck.serialize()
+        #expect(followData.count == 30)
+
+        let decodedFollow = try ACKPayload.deserialize(from: followData)
+        #expect(decodedFollow.subtype == .follow)
+        if case .follow(let f, _, let resp) = decodedFollow {
+            #expect(f.recipientInitials == "SAM")
+            #expect(f.senderInitials == "DNA")
+            #expect(f.sosEventId == 0x12345678)
+            #expect(resp == "DNA")
+        } else {
+            Issue.record("Expected .follow subtype")
+        }
     }
 
     // MARK: - Tests 10 & 11: Route Discovery Payloads
@@ -505,7 +556,7 @@ struct PacketCodecTests {
 
         // 5. Selectable Palette Integrity
         let selectable = MemberColor.selectableColors
-        #expect(selectable.count == 5)
+        #expect(selectable.count == 6)
         #expect(!selectable.contains(.unset))
     }
 

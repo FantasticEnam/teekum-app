@@ -11,6 +11,7 @@ import UIKit
 struct GroupPairingView: View {
     private let sessionStore: SessionStore
     @State private var viewModel: PairingViewModel
+    @State private var homeOnboarding: HomeOBViewModels
     @State private var isProfilePickerVisible = false
     @FocusState private var focusedField: PairingField?
 
@@ -18,15 +19,36 @@ struct GroupPairingView: View {
         viewModel.mode == .create && viewModel.isShowingQR
     }
 
-    init(sessionStore: SessionStore, onActivate: (@MainActor (GroupSession) -> Void)? = nil) {
+    init(
+        sessionStore: SessionStore,
+        homeOnboarding: HomeOBViewModels = HomeOBViewModels(),
+        onActivate: (@MainActor (GroupSession) -> Void)? = nil
+    ) {
         self.sessionStore = sessionStore
         _viewModel = State(initialValue: PairingViewModel(sessionStore: sessionStore, onActivate: onActivate))
+        _homeOnboarding = State(initialValue: homeOnboarding)
     }
 
     var body: some View {
         // Keep the form anchored when the keyboard changes the safe area.
         GeometryReader { _ in
             pairingContent
+                .accessibilityHidden(homeOnboarding.step != nil)
+                .overlayPreferenceValue(HomeOnBoarding.TargetBounds.self) { targets in
+                    if let step = homeOnboarding.step, let anchor = targets[step] {
+                        GeometryReader { geometry in
+                            HomeOnBoarding(
+                                step: step,
+                                targetFrame: geometry[anchor],
+                                onAdvance: {
+                                    homeOnboarding.advance(showsGroupName: targets[.groupName] != nil)
+                                },
+                                onDismiss: homeOnboarding.dismiss
+                            )
+                        }
+                        .ignoresSafeArea(.container)
+                    }
+                }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .buttonStyle(.plain)
@@ -38,7 +60,13 @@ struct GroupPairingView: View {
         }
         .preferredColorScheme(.dark)
         .toolbarVisibility(.hidden, for: .navigationBar)
-        .onChange(of: viewModel.mode, dismissEditing)
+        .onAppear(perform: homeOnboarding.showIfNeeded)
+        .onChange(of: viewModel.mode) { _, mode in
+            dismissEditing()
+            if mode == .join, homeOnboarding.step == .groupName {
+                homeOnboarding.advance(showsGroupName: false)
+            }
+        }
         .onChange(of: sessionStore.pendingInvite, initial: true) { _, invite in
             if let invite { viewModel.receiveInvite(invite) }
         }
@@ -89,7 +117,7 @@ struct GroupPairingView: View {
                 )
                     .padding(.bottom, 10)
 
-                Text("Make sure your initials are NOT the same as anyone else's")
+                Text("Keep it unique within your group.")
                     .font(.custom("Helvetica", size: 11, relativeTo: .caption2))
                     .padding(.bottom, 10)
 
@@ -103,6 +131,7 @@ struct GroupPairingView: View {
                 .controlSize(.large)
                 .font(.custom("Helvetica", size: 14, relativeTo: .subheadline))
                 .frame(minHeight: 44)
+                .anchorPreference(key: HomeOnBoarding.TargetBounds.self, value: .bounds) { [.groupAction: $0] }
                 .padding(.bottom ,18)
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -127,16 +156,18 @@ struct GroupPairingView: View {
                 } else if let session = viewModel.draftSession {
                     GroupQRCodeView(session: session, isDraft: true)
                 } else {
-                    Text("Group Name")
-                        .font(.custom("Helvetica", size: 20, relativeTo: .title3))
-                        .bold()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.bottom, 10)
-                    GroupNameField(
-                        groupName: $viewModel.form.sessionName,
-                        focusedField: $focusedField,
-                        onSubmit: performPrimaryAction
-                    )
+                    VStack(spacing: 10) {
+                        Text("Group Name")
+                            .font(.custom("Helvetica", size: 20, relativeTo: .title3))
+                            .bold()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        GroupNameField(
+                            groupName: $viewModel.form.sessionName,
+                            focusedField: $focusedField,
+                            onSubmit: performPrimaryAction
+                        )
+                    }
+                    .anchorPreference(key: HomeOnBoarding.TargetBounds.self, value: .bounds) { [.groupName: $0] }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -181,6 +212,7 @@ struct GroupPairingView: View {
                 .opacity(
                     viewModel.canPerformPrimaryAction ? 1 : 0.9
                 )
+                .anchorPreference(key: HomeOnBoarding.TargetBounds.self, value: .bounds) { [.primaryAction: $0] }
                 .padding(.bottom, 10)
 
                 if viewModel.mode == .create && !isShowingDraftQR {

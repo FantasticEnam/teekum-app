@@ -5,6 +5,13 @@ options:
   deploymentTarget:
     iOS: "27.0"
 
+packages:
+  MapboxMaps:
+    url: https://github.com/mapbox/mapbox-maps-ios.git
+    from: "11.0.0"
+configFiles:
+  Debug: Config/Debug.xcconfig
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -20,6 +27,9 @@ targets:
   Teekum:
     type: application
     platform: iOS
+    configFiles:
+      Debug: Config/Mapbox.xcconfig
+      Release: Config/Mapbox.xcconfig
     sources:
       - path: Teekum/Teekum
     info:
@@ -28,12 +38,15 @@ targets:
         NSBonjourServices: ["_teekum._tcp", "_teekum._udp"]
         UIBackgroundModes: [location, bluetooth-central, bluetooth-peripheral]
         NSSupportsLiveActivities: true
+        MBXAccessToken: $(MBX_ACCESS_TOKEN)
+        MeepoMapboxStyleURI: $(MEEPO_MAPBOX_STYLE_URI)
         CFBundleURLTypes:
           - CFBundleURLName: com.fantasticenam.meepo
             CFBundleURLSchemes: [teekum]
     dependencies:
       - target: TeekumWidgets
         embed: true
+      - package: MapboxMaps
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo
@@ -49,6 +62,12 @@ targets:
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: $(MEEPO_DEBUG_BUNDLE_ID)
+          INFOPLIST_KEY_CFBundleDisplayName: $(MEEPO_DEBUG_DISPLAY_NAME)
+        Release:
+          CODE_SIGN_ENTITLEMENTS: Config/Teekum.entitlements
 
   TeekumWidgets:
     type: app-extension
@@ -70,6 +89,9 @@ targets:
         SKIP_INSTALL: YES
         APPLICATION_EXTENSION_API_ONLY: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: $(MEEPO_DEBUG_BUNDLE_ID).widgets
 
   TeekumTests:
     type: bundle.unit-test
@@ -82,6 +104,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fantasticenam.meepo.tests
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: $(MEEPO_DEBUG_BUNDLE_ID).tests
 
 schemes:
   Teekum:

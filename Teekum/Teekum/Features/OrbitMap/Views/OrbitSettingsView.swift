@@ -11,14 +11,20 @@ struct OrbitSettingsView: View {
     private enum PacketFilter {
         case all, chatAndSOS, outsideGroup, relayed
     }
-
+    
     let location: LocationService?
     let sos: SOSViewModel?
+    let offlineMaps: OfflineMapManager?
+    let connectivity: ConnectivityMonitor?
     let memberContactLog: @MainActor () -> [SessionStore.MemberContactLoss]
     let diagnostics: @MainActor () -> TransportDiagnostics?
+    
     @Environment(\.dismiss) private var dismiss
     @State private var packetFilter: PacketFilter = .all
-
+    @State private var showingDeleteAlert = false
+    @State private var downloadErrorMessage: String?
+    @State private var showingDownloadErrorAlert = false
+    
     var body: some View {
         let snapshot = diagnostics()
         let activity = memberContactLog()
@@ -34,6 +40,12 @@ struct OrbitSettingsView: View {
                         }
                     }
                 }
+                
+                // Section Baru: Offline Map Management
+                if let offlineMaps {
+                    offlineMapSection(offlineMaps)
+                }
+                
                 if let sos {
                     @Bindable var inactivityGuard = sos.inactivityGuard
                     InactivitySettingsView(isEnabled: $inactivityGuard.isEnabled)
@@ -53,7 +65,205 @@ struct OrbitSettingsView: View {
         }
         .preferredColorScheme(.dark)
     }
-
+    
+    // MARK: - Offline Map Section
+    private func offlineMapSection(_ maps: OfflineMapManager) -> some View {
+        Section("Offline map") {
+            HStack {
+                Label {
+                    Text("Engine")
+                } icon: {
+                    Image(systemName: "map")
+                        .foregroundStyle(Color.buttonPrimary)
+                }
+                Spacer()
+                Text(engineStatusText)
+                    .foregroundStyle(engineStatusColor)
+            }
+            
+            Toggle("Force offline mode", isOn: forcedOfflineBinding)
+            Text("Always use offline vector map even when network connection is available.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            
+            // 1. Jika Sedang Mengunduh / Update
+            if case .downloading(let cityName, let progress) = maps.downloadState {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Downloading \(cityName)...")
+                            .font(.caption.bold())
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Text("\(Int(progress * 100))%")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(Color.buttonPrimary)
+                    }
+                    ProgressView(value: progress, total: 1.0)
+                        .tint(Color.buttonPrimary)
+                }
+            }
+            // 2. Jika Sudah Ada Peta Tersimpan
+            else if let cached = maps.cachedCity {
+                LabeledContent("Cached area", value: cached.cityName)
+                LabeledContent("Storage used", value: maps.formattedCachedSize)
+                LabeledContent("Downloaded", value: cached.downloadedAt.formatted(date: .abbreviated, time: .shortened))
+                
+                // A. BLOK RELOKASI: Muncul HANYA jika user pindah kota (>25 km)
+                if maps.isRelocatedFarFromCache(currentCoordinate: location?.currentLocation?.coordinate) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("New Region Detected", systemImage: "location.fill")
+                            .font(.caption.bold())
+                            .foregroundStyle(Color.buttonPrimary)
+                        
+                        Text("You are outside \(cached.cityName). Switch to your current area?")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Button {
+                            guard !maps.downloadState.isBusy else { return }
+                            downloadCurrentCity(maps)
+                        } label: {
+                            HStack {
+                                if maps.downloadState.isBusy {
+                                    ProgressView()
+                                        .tint(.black)
+                                        .padding(.trailing, 4)
+                                    Text("Preparing...")
+                                        .fontWeight(.semibold)
+                                } else {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                    Text("Switch to Current City Map")
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.buttonPrimary, in: .rect(cornerRadius: 10))
+                            .foregroundStyle(.black)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Text("Your \(cached.cityName) map is safely kept until the new map is 100% downloaded.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 6)
+                } else {
+                    // B. BLOK STORAGE: Tombol Hapus muncul HANYA jika berada di lokasi sekarang
+                    VStack(alignment: .leading, spacing: 4) {
+                        Button(role: .destructive) {
+                            showingDeleteAlert = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "trash")
+                                Text("Remove Map from Storage")
+                                    .fontWeight(.medium)
+                            }
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Text("Frees up \(maps.formattedCachedSize) of device storage.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 4)
+                    .alert("Delete Offline Map?", isPresented: $showingDeleteAlert) {
+                        Button("Delete", role: .destructive) {
+                            Task {
+                                await maps.deleteCachedCity()
+                            }
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("The cached map for \(cached.cityName) will be removed from your device storage.")
+                    }
+                }
+            }
+            // 3. Jika Belum Ada Peta Offline Sama Sekali
+            else {
+                Text("No offline map cached.").foregroundStyle(.secondary)
+                
+                Button {
+                    guard !maps.downloadState.isBusy else { return }
+                    downloadCurrentCity(maps)
+                } label: {
+                    HStack {
+                        if maps.downloadState.isBusy {
+                            ProgressView()
+                                .tint(.black)
+                                .padding(.trailing, 4)
+                            Text("Preparing download...")
+                        } else {
+                            Image(systemName: "arrow.down.circle.fill")
+                            Text("Download map for current city")
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.buttonPrimary, in: .rect(cornerRadius: 10))
+                    .foregroundStyle(.black)
+                }
+                .buttonStyle(.plain)
+                .alert("Download Failed", isPresented: $showingDownloadErrorAlert) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(downloadErrorMessage ?? "An unexpected error occurred.")
+                }
+            }
+        }
+    }
+    
+    private var forcedOfflineBinding: Binding<Bool> {
+        Binding(
+            get: { connectivity?.isForcedOfflineMode ?? false },
+            set: { connectivity?.isForcedOfflineMode = $0 }
+        )
+    }
+    
+    private var engineStatusText: String {
+        guard let connectivity else { return "Unknown" }
+        if connectivity.isForcedOfflineMode {
+            return "Mapbox (Forced offline)"
+        }
+        return connectivity.isVerifiedOnline ? "Apple Maps (Online)" : "Mapbox (Offline)"
+    }
+    
+    private var engineStatusColor: Color {
+        guard let connectivity else { return .secondary }
+        if connectivity.isForcedOfflineMode {
+            return .orange
+        }
+        return connectivity.isVerifiedOnline ? .green : Color.buttonPrimary
+    }
+    
+    private func downloadCurrentCity(_ maps: OfflineMapManager) {
+        if connectivity?.isForcedOfflineMode == true {
+            downloadErrorMessage = "Cannot download while Forced Offline Mode is active. Turn off 'Force offline mode' first."
+            showingDownloadErrorAlert = true
+            return
+        }
+        guard let location else {
+            downloadErrorMessage = "Location service is unavailable."
+            showingDownloadErrorAlert = true
+            return
+        }
+        Task {
+            do {
+                let city = try await maps.locateAndDetectCity(using: location)
+                let isOnline = !(connectivity?.isForcedOfflineMode ?? false)
+                try await maps.downloadCity(city, isOnline: isOnline)
+            } catch {
+                downloadErrorMessage = error.localizedDescription
+                showingDownloadErrorAlert = true
+            }
+        }
+    }
+    
+    // MARK: - Existing Sections
     private func groupActivity(_ losses: [SessionStore.MemberContactLoss]) -> some View {
         Section("Group activity") {
             if losses.isEmpty {
@@ -70,7 +280,7 @@ struct OrbitSettingsView: View {
             }
         }
     }
-
+    
     private func packetLog(_ packets: [TransportDiagnostics.PacketEvent]) -> some View {
         let filtered = packets.reversed().filter { packet in
             switch packetFilter {
@@ -95,7 +305,7 @@ struct OrbitSettingsView: View {
             }
         }
     }
-
+    
     private func packetRow(_ packet: TransportDiagnostics.PacketEvent) -> some View {
         let received = packet.direction == .received
         let envelope = packet.envelope
@@ -124,7 +334,7 @@ struct OrbitSettingsView: View {
         }
         .accessibilityElement(children: .combine)
     }
-
+    
     private func packetTitle(_ type: PacketType) -> LocalizedStringKey {
         switch type {
         case .locationPing: "Location ping"
@@ -137,7 +347,7 @@ struct OrbitSettingsView: View {
         case .sosResolved: "SOS resolved"
         }
     }
-
+    
     private func packetStatus(_ packet: TransportDiagnostics.PacketEvent) -> LocalizedStringKey {
         switch (packet.direction, packet.isOutsideGroup) {
         case (.received, false): "Received · Group SID"
@@ -146,7 +356,6 @@ struct OrbitSettingsView: View {
         case (.dispatched, true): "Relayed · Outside group"
         }
     }
-
 }
 
 #Preview("Group activity and diagnostics") {
@@ -166,14 +375,20 @@ struct OrbitSettingsView: View {
         recentEvents: [],
         recentPackets: [
             .init(envelope: .init(type: .chatMessage, sessionId: 0x4321, sequenceNumber: 12),
-                direction: .received, peerId: "ADI", isOutsideGroup: false),
+                  direction: .received, peerId: "ADI", isOutsideGroup: false),
             .init(envelope: .init(type: .sos, sessionId: 0x1234, sequenceNumber: 19),
-                direction: .received, peerId: "ble-c-13AB", isOutsideGroup: true),
+                  direction: .received, peerId: "ble-c-13AB", isOutsideGroup: true),
             .init(envelope: .init(type: .sos, hopCount: 1, sessionId: 0x1234, sequenceNumber: 19),
-                direction: .dispatched, peerId: "ble-p-82CD", isOutsideGroup: true)
+                  direction: .dispatched, peerId: "ble-p-82CD", isOutsideGroup: true)
         ]
     )
-
-    OrbitSettingsView(location: nil, sos: nil,
-        memberContactLog: { activity }, diagnostics: { snapshot })
+    
+    OrbitSettingsView(
+        location: nil,
+        sos: nil,
+        offlineMaps: nil,
+        connectivity: nil,
+        memberContactLog: { activity },
+        diagnostics: { snapshot }
+    )
 }

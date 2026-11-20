@@ -20,7 +20,9 @@ final class SOSViewModel {
     private var feedbackTask: Task<Void, Never>?
     private var showsDeliveryDetails = true
     private var lastEmergencyType: SOSType = .general
-    private var incomingEvents: Set<SOSResolvedPayload> = []
+    private var incomingEvents: [SOSResolvedPayload] = []
+    private var seenHelpers: Set<String> = []
+    private var pendingHelpers: [String] = []
 
     let inactivityGuard: InactivityGuardService
     private(set) var deliveryState: SOSDeliveryState = .idle
@@ -31,6 +33,7 @@ final class SOSViewModel {
     private(set) var resolutionError: String?
     var onIncomingAlert: (@MainActor (IncomingSOSAlert) -> Void)?
     var onIncomingSOSResolved: (@MainActor (String) -> Void)?
+    var helperOnTheWay: String? { pendingHelpers.first }
 
     var showsEdgeGlow: Bool {
         incomingAlert != nil || !incomingEvents.isEmpty || isSending || outgoingEventId != nil || deliveryState.stage != .idle
@@ -65,7 +68,7 @@ final class SOSViewModel {
             },
             onIncomingAlertTriggered: { [weak self] alert in
                 guard let self, generation == current else { return }
-                incomingEvents.insert(SOSResolvedPayload(senderInitials: alert.senderInitials, eventId: alert.id))
+                incomingEvents.append(SOSResolvedPayload(senderInitials: alert.senderInitials, eventId: alert.id))
                 incomingAlert = alert
                 onIncomingAlert?(alert)
             }
@@ -83,6 +86,7 @@ final class SOSViewModel {
         incomingAlert = nil
         incomingEvents.removeAll()
         outgoingEventId = nil
+        clearHelpers()
         isResolving = false
         resolutionError = nil
         deliveryState = .idle
@@ -121,18 +125,21 @@ final class SOSViewModel {
         }
     }
 
-    func acknowledgeIncomingAlert() async {
-        guard let incomingAlert else { return }
-        let event = SOSResolvedPayload(senderInitials: incomingAlert.senderInitials, eventId: incomingAlert.id)
-        self.incomingAlert = nil
+    func acknowledgeIncomingAlert(_ alert: IncomingSOSAlert? = nil, onAcknowledged: () -> Void = {}) async {
+        guard let targetAlert = alert ?? incomingAlert else { return }
+        guard incomingAlert?.id == targetAlert.id, incomingAlert?.senderInitials == targetAlert.senderInitials else { return }
+        let event = SOSResolvedPayload(senderInitials: targetAlert.senderInitials, eventId: targetAlert.id)
+        incomingAlert = nil
         recordUserInteraction()
+        onAcknowledged()
         await engine.acknowledgeIncomingAlert(matching: event)
     }
 
     func acceptResolution(_ event: SOSResolvedPayload) async {
         let current = generation
         await engine.acceptResolution(event)
-        guard generation == current, incomingEvents.remove(event) != nil else { return }
+        guard generation == current, incomingEvents.contains(event) else { return }
+        incomingEvents.removeAll { $0 == event }
         if incomingAlert?.id == event.eventId, incomingAlert?.senderInitials == event.senderInitials {
             incomingAlert = nil
         }
@@ -153,6 +160,7 @@ final class SOSViewModel {
                 try await engine.resolveOutgoingSOS(eventId: eventId)
                 guard generation == current, !Task.isCancelled else { return }
                 outgoingEventId = nil
+                clearHelpers()
                 deliveryState = .idle
             } catch {
                 guard generation == current, !Task.isCancelled else { return }
@@ -160,6 +168,25 @@ final class SOSViewModel {
             }
             isResolving = false
         }
+    }
+
+    func incomingEventID(for initials: String) -> UInt32? {
+        incomingEvents.last(where: { $0.senderInitials == initials })?.eventId
+    }
+
+    func receiveHelper(_ initials: String, eventId: UInt32) {
+        guard outgoingEventId == eventId, seenHelpers.insert(initials).inserted else { return }
+        pendingHelpers.append(initials)
+    }
+
+    func dismissHelperOnTheWay() {
+        guard !pendingHelpers.isEmpty else { return }
+        pendingHelpers.removeFirst()
+    }
+
+    private func clearHelpers() {
+        pendingHelpers.removeAll()
+        seenHelpers.removeAll()
     }
 
     func retrySOS() {
@@ -192,7 +219,9 @@ extension SOSViewModel {
             locationService: LocationService(isLiveSharingEnabled: false),
             sessionProvider: { nil }
         )
-        viewModel.incomingAlert = .preview
+        let alert = IncomingSOSAlert.preview
+        viewModel.incomingAlert = alert
+        viewModel.incomingEvents = [SOSResolvedPayload(senderInitials: alert.senderInitials, eventId: alert.id)]
         return viewModel
     }
 }

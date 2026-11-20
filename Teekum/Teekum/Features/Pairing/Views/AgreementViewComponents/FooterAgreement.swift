@@ -8,11 +8,11 @@
 import SwiftUI
 
 struct FooterAgreement: View {
+    @Binding var hasAgreed: Bool
+    let canCheckAgreement: Bool
     let termsOfUseURL: URL?
     let privacyPolicyURL: URL?
     let onAgree: () -> Void
-
-    @State private var hasAgreed = false
 
     private let secondaryText = Color(white: 0.68)
 
@@ -25,17 +25,24 @@ struct FooterAgreement: View {
                     Image(systemName: hasAgreed ? "checkmark.square.fill" : "square")
                         .font(.system(size: 16))
                         .foregroundStyle(hasAgreed ? Color.buttonPrimary : secondaryText)
+                        .opacity(canCheckAgreement ? 1 : 0.5)
                         .accessibilityHidden(true)
 
-                    Text("I understand and agree to the above conditions and Meepo's \(Text("Privacy Policy").underline()).")
-                        .font(.custom("Helvetica", size: 12, relativeTo: .subheadline))
-                        .foregroundStyle(secondaryText)
-                        .multilineTextAlignment(.leading)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("I understand and agree to the above conditions and Meepo's \(Text("Privacy Policy").underline()).")
+                        if !canCheckAgreement {
+                            Text("Scroll to the end to enable the checkbox.")
+                        }
+                    }
+                    .font(.custom("Helvetica", size: 12, relativeTo: .subheadline))
+                    .foregroundStyle(secondaryText)
+                    .multilineTextAlignment(.leading)
                 }
                 .padding(.horizontal, 8)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .topLeading)
                 .contentShape(Rectangle())
             }
+            .disabled(!canCheckAgreement)
             .accessibilityAddTraits(hasAgreed ? .isSelected : [])
 
             PrimaryButtonView(
@@ -67,5 +74,7 @@ struct FooterAgreement: View {
 }
 
 #Preview("Consent and Join") {
-    FooterAgreement(termsOfUseURL: nil, privacyPolicyURL: nil, onAgree: {})
+    @Previewable @State var hasAgreed = false
+
+    FooterAgreement(hasAgreed: $hasAgreed, canCheckAgreement: true, termsOfUseURL: nil, privacyPolicyURL: nil, onAgree: {})
 }

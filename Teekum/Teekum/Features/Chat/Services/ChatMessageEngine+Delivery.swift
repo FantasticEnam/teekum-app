@@ -24,13 +24,15 @@ extension ChatMessageEngine {
         guard let session = sessionProvider?() else { return }
         let now = clock.now()
         
-        let ackPayload = ACKPayload(
+        let chatPayload = ChatACKPayload(
             ackedSeqNumber: originalPacket.envelope.sequenceNumber,
             ackedSenderInitials: senderInitials,
-            ackTimestamp: now,
             ackStatus: .deliveredToFriend,
-            receivedRssi: receivedRssi,
-            originalEventId: originalPacket.envelope.sequenceNumber,
+            receivedRssi: receivedRssi
+        )
+        let ackPayload = ACKPayload.chat(
+            chatPayload,
+            timestamp: now,
             responderInitials: session.localInitials
         )
         let payloadData = ackPayload.serialize()
@@ -75,13 +77,15 @@ extension ChatMessageEngine {
         guard let session = sessionProvider?() else { return }
         let now = clock.now()
         
-        let ackPayload = ACKPayload(
+        let chatPayload = ChatACKPayload(
             ackedSeqNumber: originalPacket.envelope.sequenceNumber,
             ackedSenderInitials: senderInitials,
-            ackTimestamp: now,
             ackStatus: .relayedByMeshHop,
-            receivedRssi: receivedRssi,
-            originalEventId: originalPacket.envelope.sequenceNumber,
+            receivedRssi: receivedRssi
+        )
+        let ackPayload = ACKPayload.chat(
+            chatPayload,
+            timestamp: now,
             responderInitials: session.localInitials
         )
         let payloadData = ackPayload.serialize()
@@ -114,11 +118,7 @@ extension ChatMessageEngine {
         try await transport.broadcastFrame(wireData)
     }
     
-    /// Processes an incoming delivery ACK.
-    ///
-    /// Implements Requirement 6 & 7:
-    /// - Tracks ACK and delivery state separately for each intended recipient.
-    /// - Never treats a relay ACK (`0x02`) as final recipient delivery (`0x01`).
+    /// Processes an incoming delivery ACK from wire data.
     public func processDeliveryACK(rawPacket: RawWirePacket, fromPeerId: String) async -> Bool {
         let generation = sessionGeneration
         guard rawPacket.envelope.type == .ack else { return false }
@@ -138,32 +138,60 @@ extension ChatMessageEngine {
             return false
         }
         
-        // Verify this ACK was intended for our local device
-        guard ack.ackedSenderInitials == session.localInitials else {
+        guard case .chat(let chatPayload, let timestamp, let responder) = ack else {
             return false
         }
         
-        let seq = ack.ackedSeqNumber
+        return await processChatACK(
+            payload: chatPayload,
+            responder: responder,
+            timestamp: timestamp,
+            hopCount: rawPacket.envelope.hopCount,
+            fromPeerId: fromPeerId
+        )
+    }
+
+    /// Processes a typed Chat ACK directly without redundant decryption.
+    ///
+    /// Implements Requirement 6 & 7:
+    /// - Tracks ACK and delivery state separately for each intended recipient.
+    /// - Never treats a relay ACK (`0x02`) as final recipient delivery (`0x01`).
+    public func processChatACK(
+        payload: ChatACKPayload,
+        responder: String,
+        timestamp: Date,
+        hopCount: UInt8,
+        fromPeerId: String
+    ) async -> Bool {
+        let generation = sessionGeneration
+        guard let session = sessionProvider?() else { return false }
+        guard generation == sessionGeneration else { return false }
+        
+        // Verify this ACK was intended for our local device
+        guard payload.ackedSenderInitials == session.localInitials else {
+            return false
+        }
+        
+        let seq = payload.ackedSeqNumber
         guard let idx = inMemoryMessages.firstIndex(where: { $0.sequenceNumber == seq && $0.isLocalSender }) else {
             return false
         }
         
         var message = inMemoryMessages[idx]
-        let responder = ack.responderInitials
         
-        if ack.ackStatus == .relayedByMeshHop {
+        if payload.ackStatus == .relayedByMeshHop {
             // Intermediate Mesh Relay Hop Confirmed!
             // Requirement 7: Never treat a relay ACK as final recipient delivery!
             if message.deliveryState == .locallyAccepted || message.deliveryState == .forwardedToNextHop {
-                message.deliveryState = .relayedByMesh(hopCount: rawPacket.envelope.hopCount)
+                message.deliveryState = .relayedByMesh(hopCount: hopCount)
             }
             
             // Mark individual recipient state as relayed by mesh without marking delivered
             if let current = message.recipientStates[responder], !current.isDelivered {
-                message.recipientStates[responder] = .relayedByMesh(hops: rawPacket.envelope.hopCount, relayPeerId: fromPeerId)
+                message.recipientStates[responder] = .relayedByMesh(hops: hopCount, relayPeerId: fromPeerId)
             } else if message.recipientStates[responder] == nil {
                 for (rec, state) in message.recipientStates where !state.isDelivered {
-                    message.recipientStates[rec] = .relayedByMesh(hops: rawPacket.envelope.hopCount, relayPeerId: fromPeerId)
+                    message.recipientStates[rec] = .relayedByMesh(hops: hopCount, relayPeerId: fromPeerId)
                 }
             }
             
@@ -175,12 +203,12 @@ extension ChatMessageEngine {
             notifyMessageUpdated(message)
             return true
             
-        } else if ack.ackStatus == .deliveredToFriend {
+        } else if payload.ackStatus == .deliveredToFriend {
             // Final Intended Recipient Confirmed Delivery!
             message.confirmedResponders.insert(responder)
             message.recipientStates[responder] = .deliveredToRecipient(
-                timestamp: ack.ackTimestamp,
-                rssi: ack.receivedRssi
+                timestamp: timestamp,
+                rssi: payload.receivedRssi
             )
             
             let total = message.totalRecipientCount
