@@ -31,6 +31,10 @@ final class OrbitMapViewModel {
         sessionStore.activeSession?.localMemberName ?? ""
     }
 
+    var localInitials: String {
+        sessionStore.activeSession?.localInitials ?? ""
+    }
+
     init(sessionStore: SessionStore, onLeaveGroup: (() -> Void)? = nil) {
         self.sessionStore = sessionStore
         self.onLeaveGroup = onLeaveGroup ?? sessionStore.resetSessionState

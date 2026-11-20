@@ -93,6 +93,16 @@ struct OrbitMapView: View {
                 OrbitHeaderView(groupName: viewModel.groupName, roomCount: viewModel.roomCount,
                     onSettings: { activeModal = .settings })
                 
+                if isSOSActive {
+                    SOSStatusDropdownView(
+                        onTheirWay: sos?.helpersOnTheWay ?? [],
+                        cantGoNow: cantGoHelpers
+                    )
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 2)
+                    .zIndex(10)
+                }
+                
                 if let activity = notifications?.groupActivity {
                     groupActivityPill(activity.message, color: viewModel.sessionStore.profileColor(for: activity.memberID).swiftUIColor)
                 }
@@ -114,7 +124,11 @@ struct OrbitMapView: View {
                 Spacer()
                 OrbitControlsView(
                     onSOS: {
-                        sos?.triggerSOS()
+                        if isSOSActive {
+                            sos?.endSOS()
+                        } else {
+                            sos?.triggerSOS()
+                        }
                     },
                     onOpenMap: { activeModal = .mapPoint },
                     onChat: openChat,
@@ -427,6 +441,11 @@ struct OrbitMapView: View {
         sos?.recordUserInteraction()
         let target = OrbitSceneView.Target.meetingPoint(id)
         selectedTarget = selectedTarget == target ? nil : target
+    }
+    
+    private var cantGoHelpers: [String] {
+        guard let sos else { return [] }
+        return sos.cantGoHelpers(allMembers: visibleMembers, localInitials: viewModel.localInitials)
     }
     
     // Relocation Notification
