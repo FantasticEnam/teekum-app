@@ -18,7 +18,7 @@ struct ChatSheetView: View {
             VStack(spacing: 0) {
                 Group {
                     if viewModel.messages.isEmpty {
-                        ContentUnavailableView("Group chat", systemImage: "bubble.left.and.bubble.right", description: Text("Send a short message to your group."))
+                        ContentUnavailableView("Group Chat", systemImage: "bubble.left.and.bubble.right", description: Text("Send a short message to your group."))
                     } else {
                         ScrollView {
                             LazyVStack(spacing: 16) {
@@ -43,7 +43,7 @@ struct ChatSheetView: View {
                 ChatComposerView(viewModel: viewModel, isFocused: $isComposerFocused)
             }
             .background(.black)
-            .navigationTitle("Group chat")
+            .navigationTitle("Group Chat")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
