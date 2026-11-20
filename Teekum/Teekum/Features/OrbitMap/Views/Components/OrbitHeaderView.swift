@@ -26,7 +26,7 @@ struct OrbitHeaderView: View {
         .accessibilityElement(children: .combine)
         .padding(.horizontal, 68)
         .frame(maxWidth: .infinity, minHeight: 60)
-        .overlay(alignment: .leading) {
+        .overlay(alignment: .trailing) {
             Button(action: onSettings) {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 24, weight: .semibold))
