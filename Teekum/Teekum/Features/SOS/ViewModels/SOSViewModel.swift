@@ -34,6 +34,13 @@ final class SOSViewModel {
     var onIncomingAlert: (@MainActor (IncomingSOSAlert) -> Void)?
     var onIncomingSOSResolved: (@MainActor (String) -> Void)?
     var helperOnTheWay: String? { pendingHelpers.first }
+    var helpersOnTheWay: [String] {
+        if !pendingHelpers.isEmpty {
+            return pendingHelpers
+        }
+        return Array(seenHelpers).sorted()
+    }
+    private(set) var declinedHelpers: [String] = []
 
     var showsEdgeGlow: Bool {
         incomingAlert != nil || !incomingEvents.isEmpty || isSending || outgoingEventId != nil || deliveryState.stage != .idle
@@ -179,6 +186,22 @@ final class SOSViewModel {
         pendingHelpers.append(initials)
     }
 
+    func receiveDeclinedHelper(_ initials: String) {
+        guard !declinedHelpers.contains(initials) else { return }
+        declinedHelpers.append(initials)
+    }
+
+    func cantGoHelpers(allMembers: [Member], localInitials: String) -> [String] {
+        if !declinedHelpers.isEmpty {
+            return declinedHelpers.sorted()
+        }
+        let onTheirWay = Set(helpersOnTheWay)
+        return allMembers
+            .map(\.id)
+            .filter { $0 != localInitials && !onTheirWay.contains($0) }
+            .sorted()
+    }
+
     func dismissHelperOnTheWay() {
         guard !pendingHelpers.isEmpty else { return }
         pendingHelpers.removeFirst()
@@ -187,6 +210,7 @@ final class SOSViewModel {
     private func clearHelpers() {
         pendingHelpers.removeAll()
         seenHelpers.removeAll()
+        declinedHelpers.removeAll()
     }
 
     func retrySOS() {
