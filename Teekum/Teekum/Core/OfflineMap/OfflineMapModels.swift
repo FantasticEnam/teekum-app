@@ -78,7 +78,7 @@ public enum OfflineMapError: Error, LocalizedError, Equatable, Sendable {
     public var errorDescription: String? {
         switch self {
         case .missingAccessToken:
-            "Offline map token is not configured for this build."
+            "Offline map service is currently unavailable. Please try again later."
         case .offline:
             "Connect to Wi-Fi or cellular data to download an offline city map."
         case .insufficientStorage(let requiredMB, let availableMB):
