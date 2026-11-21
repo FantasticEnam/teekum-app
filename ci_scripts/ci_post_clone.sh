@@ -19,11 +19,15 @@ if [ -n "$CI_BUILD_NUMBER" ]; then
     sed -i '' "s/CURRENT_PROJECT_VERSION: .*/CURRENT_PROJECT_VERSION: \"$CI_BUILD_NUMBER\"/" project.yml
 fi
 
-# 5. (Opsional) Jika di masa depan memerlukan Config.xcconfig dari Environment Variable di Xcode Cloud:
-# mkdir -p Teekum/Teekum/Config
-# cat <<EOF > Teekum/Teekum/Config/Config.xcconfig
-# API_KEY = $API_KEY
-# EOF
+# 5. Injeksi Mapbox Token dari Environment Variable di Xcode Cloud (jika disetel)
+if [ -n "$MBX_ACCESS_TOKEN" ]; then
+    echo "Writing Mapbox.local.xcconfig from CI environment variable"
+    mkdir -p Config
+    cat <<EOF > Config/Mapbox.local.xcconfig
+MBX_ACCESS_TOKEN = $MBX_ACCESS_TOKEN
+MEEPO_MAPBOX_STYLE_URI = mapbox:\$(SLASH)/styles/adiatraa/cmwlvdssc002w01sd0jrmg3xq
+EOF
+fi
 
 # 6. Generate Xcode Project
 xcodegen generate
