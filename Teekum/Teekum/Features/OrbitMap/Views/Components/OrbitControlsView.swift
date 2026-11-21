@@ -17,13 +17,16 @@ struct OrbitControlsView: View {
     var body: some View {
         HStack(alignment: .bottom) {
             if isSOSActive {
-                Text("SOS")
-                    .font(.custom("Helvetica", size: 25, relativeTo: .title2).bold())
-                    .foregroundStyle(.white)
-                    .frame(width: 64, height: 64)
-                    .background(Color.alertRed, in: .circle)
-                    .glassEffect(.regular.tint(.alertRed), in: .circle)
-                    .accessibilityLabel("SOS active")
+                Button(action: onSOS) {
+                    Text("SOS")
+                        .font(.custom("Helvetica", size: 25, relativeTo: .title2).bold())
+                        .foregroundStyle(.white)
+                        .frame(width: 64, height: 64)
+                        .background(Color.alertRed, in: .circle)
+                        .glassEffect(.regular.tint(.alertRed), in: .circle)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("SOS active, tap to end")
             } else {
                 SOSSwipeButtonView(onSwipeCompleted: onSOS)
                     .zIndex(1)

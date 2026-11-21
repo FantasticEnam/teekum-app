@@ -105,10 +105,15 @@ struct MapboxMapCanvasView: View {
                 // 4. Pin Meeting Point Aktif
                 if let active = viewModel.activeMapPoint {
                     MapViewAnnotation(coordinate: active.coordinate) {
-                        MapPointPinView(title: active.name)
-                            .onTapGesture {
+                        MapPointPinView(
+                            title: active.name,
+                            confirmedMembers: viewModel.confirmedMembers,
+                            rejectedMembers: viewModel.rejectedMembers,
+                            showsInfo: true,
+                            onTapPin: {
                                 viewModel.handlePinTapped()
                             }
+                        )
                     }
                     .allowOverlap(true)
                 }

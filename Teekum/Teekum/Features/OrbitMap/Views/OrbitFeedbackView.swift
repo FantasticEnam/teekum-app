@@ -31,9 +31,11 @@ struct OrbitFeedbackView: View {
                 }
                 InactivityWarningView(guardService: sos.inactivityGuard)
                 if sos.outgoingEventId != nil {
-                    ActiveSOSBannerView(deliveryState: sos.deliveryState, isEnding: sos.isResolving,
-                        error: sos.resolutionError, helperOnTheWay: sos.helperOnTheWay,
-                        onEnd: sos.endSOS, onDismissHelper: sos.dismissHelperOnTheWay)
+                    if sos.resolutionError != nil || sos.isResolving {
+                        ActiveSOSBannerView(deliveryState: sos.deliveryState, isEnding: sos.isResolving,
+                            error: sos.resolutionError, helperOnTheWay: sos.helperOnTheWay,
+                            onEnd: sos.endSOS, onDismissHelper: sos.dismissHelperOnTheWay)
+                    }
                 } else {
                     SOSDeliveryStatusView(state: sos.deliveryState, onRetry: sos.retrySOS, onDismiss: sos.dismissDeliveryStatus)
                 }
