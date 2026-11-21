@@ -30,7 +30,6 @@ struct AppRootView: View {
                 meetingService: controller?.meeting,
                 offlineMaps: controller?.offlineMaps,
                 connectivity: controller?.connectivityMonitor,
-                diagnostics: { controller?.diagnostics },
                 notifications: controller?.notifications,
                 onFollowMember: { controller?.sendFollowIntent(to: $0, sosEventId: $1) },
                 onLeaveGroup: controller.map { owner in { owner.leave() } }

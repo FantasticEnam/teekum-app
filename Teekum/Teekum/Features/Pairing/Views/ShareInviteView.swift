@@ -14,7 +14,8 @@ struct ShareInviteView: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("Share Invite")
-                .font(.system(.title3, design: .serif, weight: .semibold))
+                .font(.custom("Helvetica", size: 20, relativeTo: .title3))
+                .bold()
                 .accessibilityAddTraits(.isHeader)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 52)
